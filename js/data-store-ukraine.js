@@ -20,152 +20,247 @@ const STATIONS = {
   "хмельницький":[26.9965,49.4229], "чернівці":[25.9403,48.2668],
   "чернігів":[31.2794,51.4982], "лозова-пас":[36.2744,48.8894],
   "трускавець":[23.505,49.2786], "солотвино-1":[23.8707,47.956],
+  "конотоп-пас":[33.205,51.241], "жмеринка-пас":[28.11,49.039],
+  "рахів":[24.204,48.052], "вінниця":[28.481,49.234], "вінниця пас":[28.481,49.234],
+  "луцьк":[25.3227,50.7472], "рівне":[26.2516,50.6199], "житомир":[28.6587,50.2649],
+  "кропивницький":[32.2676,48.5079], "полтава-київська":[34.526,49.599],
+  "тернопіль":[25.599,49.5535], "черкаси":[32.062,49.444], "херсон":[32.612,46.648],
   "пшемисль головний":[22.767,49.784], "хелм":[23.472,51.132],
   "бухарест-норд":[26.074,44.447], "відень західний":[16.337,48.197],
   "будапешт-келеті":[19.083,47.5],
 };
 
-function normalizePlace(value = "") {
+export function normalizePlace(value = "") {
   return value.toLocaleLowerCase("uk").replace(/[.№]/g, "").replace(/\s+/g, " ").trim();
 }
 function stationCoordinates(value) { return STATIONS[normalizePlace(value)] || null; }
 function pointKey(point) { return `${point[0].toFixed(3)},${point[1].toFixed(3)}`; }
+function slug(value) {
+  return normalizePlace(value).replace(/[^\p{L}\p{N}]+/gu,"-").replace(/^-|-$/g,"");
+}
+
+function kyivDateParts(date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone:"Europe/Kyiv", year:"numeric", month:"2-digit", day:"2-digit",
+  }).formatToParts(date);
+  const get = (type) => parts.find((part) => part.type === type)?.value;
+  return { year:Number(get("year")), month:Number(get("month")), day:Number(get("day")) };
+}
+
+export function serviceDateFor(now = new Date()) {
+  const { year,month,day }=kyivDateParts(now);
+  return `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+}
+
+export function buildRunIdentity(update, now = new Date()) {
+  const serviceDate=serviceDateFor(now);
+  const directionId=`${slug(update.origin)}--${slug(update.destination)}`;
+  return { serviceDate, directionId, runId:`uz:${serviceDate}:${update.trainNumber}:${directionId}` };
+}
 
 function buildRailGraph(features) {
-  const nodes = new Map(), edges = new Map();
-  const addNode = (point) => {
-    const key = pointKey(point);
-    if (!nodes.has(key)) nodes.set(key, point);
-    if (!edges.has(key)) edges.set(key, []);
+  const nodes=new Map(), edges=new Map();
+  const addNode=(point)=>{
+    const key=pointKey(point);
+    if(!nodes.has(key))nodes.set(key,point);
+    if(!edges.has(key))edges.set(key,[]);
     return key;
   };
-  for (const feature of features) {
-    const coordinates = feature.geometry?.coordinates || [];
-    for (let index = 1; index < coordinates.length; index += 1) {
-      const a = addNode(coordinates[index - 1]), b = addNode(coordinates[index]);
-      const weight = haversineKm(nodes.get(a), nodes.get(b));
-      edges.get(a).push({ key:b, weight }); edges.get(b).push({ key:a, weight });
+  for(const feature of features){
+    const coordinates=feature.geometry?.coordinates||[];
+    for(let index=1;index<coordinates.length;index+=1){
+      const a=addNode(coordinates[index-1]), b=addNode(coordinates[index]);
+      const weight=haversineKm(nodes.get(a),nodes.get(b));
+      edges.get(a).push({key:b,weight}); edges.get(b).push({key:a,weight});
     }
   }
-  return { nodes, edges };
+  return {nodes,edges};
 }
 
 function nearestNode(graph, point) {
-  let best = null;
-  for (const [key, coordinates] of graph.nodes) {
-    const distance = haversineKm(point, coordinates);
-    if (!best || distance < best.distance) best = { key, distance };
+  let best=null;
+  for(const [key,coordinates] of graph.nodes){
+    const distance=haversineKm(point,coordinates);
+    if(!best||distance<best.distance)best={key,distance};
   }
   return best;
 }
 
 function railPath(graph, origin, destination) {
-  const start = nearestNode(graph, origin), finish = nearestNode(graph, destination);
-  if (!start || !finish || start.distance > 140 || finish.distance > 140) return null;
-  const distances = new Map([[start.key,0]]), previous = new Map(), pending = new Set(graph.nodes.keys());
-  while (pending.size) {
-    let current = null;
-    for (const key of pending) if (distances.has(key) && (current === null || distances.get(key) < distances.get(current))) current = key;
-    if (current === null || current === finish.key) break;
+  const start=nearestNode(graph,origin), finish=nearestNode(graph,destination);
+  if(!start||!finish||start.distance>140||finish.distance>140)return null;
+  const distances=new Map([[start.key,0]]), previous=new Map(), pending=new Set(graph.nodes.keys());
+  while(pending.size){
+    let current=null;
+    for(const key of pending)if(distances.has(key)&&(current===null||distances.get(key)<distances.get(current)))current=key;
+    if(current===null||current===finish.key)break;
     pending.delete(current);
-    for (const edge of graph.edges.get(current) || []) {
-      if (!pending.has(edge.key)) continue;
-      const candidate = distances.get(current) + edge.weight;
-      if (candidate < (distances.get(edge.key) ?? Infinity)) {
-        distances.set(edge.key,candidate); previous.set(edge.key,current);
-      }
+    for(const edge of graph.edges.get(current)||[]){
+      if(!pending.has(edge.key))continue;
+      const candidate=distances.get(current)+edge.weight;
+      if(candidate<(distances.get(edge.key)??Infinity)){distances.set(edge.key,candidate);previous.set(edge.key,current);}
     }
   }
-  if (!distances.has(finish.key)) return null;
-  const keys = [];
-  for (let key = finish.key; key; key = previous.get(key)) { keys.push(key); if (key === start.key) break; }
-  return keys.reverse().map((key) => graph.nodes.get(key));
+  if(!distances.has(finish.key))return null;
+  const keys=[];
+  for(let key=finish.key;key;key=previous.get(key)){keys.push(key);if(key===start.key)break;}
+  return { coordinates:keys.reverse().map((key)=>graph.nodes.get(key)), anchorErrorKm:Number((start.distance+finish.distance).toFixed(1)) };
 }
 
-function parseTodayClock(value, now) {
-  const match = String(value || "").match(/(\d{1,2}):(\d{2})/);
-  if (!match) return null;
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone:"Europe/Kyiv", year:"numeric", month:"2-digit", day:"2-digit" }).formatToParts(now);
-  const get = (type) => parts.find((part) => part.type === type)?.value;
-  const candidate = new Date(`${get("year")}-${get("month")}-${get("day")}T${match[1].padStart(2,"0")}:${match[2]}:00+03:00`);
-  if (candidate.getTime() < now.getTime() - 90 * 60_000) candidate.setUTCDate(candidate.getUTCDate() + 1);
+function zonedClock(value, now) {
+  const match=String(value||"").match(/(\d{1,2}):(\d{2})/);
+  if(!match)return null;
+  const desired=kyivDateParts(now);
+  const hour=Number(match[1]), minute=Number(match[2]);
+  let candidate=new Date(Date.UTC(desired.year,desired.month-1,desired.day,hour,minute));
+  const shown=new Intl.DateTimeFormat("en-CA",{
+    timeZone:"Europe/Kyiv",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23",
+  }).formatToParts(candidate);
+  const get=(type)=>Number(shown.find((part)=>part.type===type)?.value);
+  const displayedUtc=Date.UTC(get("year"),get("month")-1,get("day"),get("hour"),get("minute"));
+  const desiredUtc=Date.UTC(desired.year,desired.month-1,desired.day,hour,minute);
+  candidate=new Date(candidate.getTime()+(desiredUtc-displayedUtc));
+  if(candidate.getTime()<now.getTime()-90*60_000)candidate=new Date(candidate.getTime()+86_400_000);
   return candidate;
 }
 
-function pointInFeature(point, feature) {
-  const polygons = feature.geometry.type === "Polygon" ? [feature.geometry.coordinates] : feature.geometry.coordinates;
-  return polygons.some((polygon) => {
-    const ring = polygon[0]; let inside = false;
-    for (let i=0,j=ring.length-1; i<ring.length; j=i++) {
-      const [xi,yi]=ring[i], [xj,yj]=ring[j];
-      if (((yi>point[1]) !== (yj>point[1])) && point[0] < ((xj-xi)*(point[1]-yi))/(yj-yi)+xi) inside=!inside;
+function pointInFeature(point,feature){
+  const polygons=feature.geometry.type==="Polygon"?[feature.geometry.coordinates]:feature.geometry.coordinates;
+  return polygons.some((polygon)=>{
+    const ring=polygon[0];let inside=false;
+    for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+      const [xi,yi]=ring[i],[xj,yj]=ring[j];
+      if(((yi>point[1])!==(yj>point[1]))&&point[0]<((xj-xi)*(point[1]-yi))/(yj-yi)+xi)inside=!inside;
     }
     return inside;
   });
 }
-function regionsForPath(path, features) {
-  return path ? features.filter((feature) => path.some((point) => pointInFeature(point,feature))).map((feature) => feature.properties.id) : [];
+function regionsForPoints(points,features){
+  return points?.length?features.filter((feature)=>points.some((point)=>pointInFeature(point,feature))).map((feature)=>feature.properties.id):[];
 }
 
-function estimatedPosition(update, path, now) {
-  const measure = buildRouteMeasure(path), arrival = parseTodayClock(update.forecastArrival, now);
-  if (!measure || !arrival || update.operationalStatus !== "moving") return null;
-  const remainingHours = Math.max(0,(arrival.getTime()-now.getTime())/3_600_000), nominalSpeedKph=62;
-  const progress = Math.max(0.03,Math.min(0.97,1-(remainingHours*nominalSpeedKph)/measure.totalKm));
-  const confidence = update.reliability?.toLocaleLowerCase("uk").includes("висок") ? 0.55 : 0.42;
-  return {
-    status:"estimated", coordinates:interpolateAlongRoute(measure,measure.totalKm*progress),
-    updatedAt:update.updatedAt, confidence,
-    errorKm:Number(Math.max(25,measure.totalKm*(1-confidence)*0.11).toFixed(1)),
-    method:"UZ-arrival-forecast / rail-corridor back-calculation", lastConfirmedAt:update.updatedAt,
-    sources:["UZ public delay dashboard","UZ forecast arrival","rail corridor geometry"],
-    calculation:{ progress:Number(progress.toFixed(3)), totalKm:Number(measure.totalKm.toFixed(1)), nominalSpeedKph },
-  };
+function reliabilityScore(label="") {
+  const value=label.toLocaleLowerCase("uk");
+  if(value.includes("висок"))return 0.82;
+  if(value.includes("серед"))return 0.66;
+  if(value.includes("низ"))return 0.48;
+  return 0.56;
 }
 
-function objectFromUpdate(update, path, routeId, regions, now) {
-  const movingPosition = estimatedPosition(update,path,now), origin = stationCoordinates(update.origin);
-  const position = movingPosition || (update.operationalStatus !== "moving" && origin ? {
-    status:"reported", coordinates:origin, updatedAt:update.updatedAt, confidence:0.58, errorKm:3,
-    method:"UZ-public-status-at-origin", lastConfirmedAt:update.updatedAt, sources:["UZ public delay dashboard"],
-  } : {
-    status:"unknown", coordinates:null, updatedAt:update.updatedAt, confidence:0, errorKm:null,
-    method:path ? "forecast-arrival-unavailable" : "rail-route-unavailable", lastConfirmedAt:update.updatedAt,
-    sources:["UZ public delay dashboard"],
+export function calculateQuality({hasRoute,hasForecast,sourceAgeMinutes,reliability,anchorErrorKm=0}){
+  const sourceScore=sourceAgeMinutes<=20?1:sourceAgeMinutes<=45?0.72:sourceAgeMinutes<=120?0.42:0.18;
+  const routeScore=hasRoute?Math.max(0.48,1-Math.min(anchorErrorKm,140)/210):0;
+  const forecastScore=hasForecast?1:0;
+  const total=sourceScore*0.3+routeScore*0.28+forecastScore*0.24+reliabilityScore(reliability)*0.18;
+  return Number(Math.max(0,Math.min(1,total)).toFixed(2));
+}
+
+function estimatePosition(update,routeResult,now,sourceAgeMinutes){
+  const measure=buildRouteMeasure(routeResult?.coordinates), arrival=zonedClock(update.forecastArrival,now);
+  if(!measure||!arrival||update.operationalStatus!=="moving")return null;
+  const remainingHours=Math.max(0,(arrival.getTime()-now.getTime())/3_600_000);
+  const nominalSpeedKph=measure.totalKm>900?67:measure.totalKm>450?63:58;
+  const progress=Math.max(0.025,Math.min(0.975,1-(remainingHours*nominalSpeedKph)/measure.totalKm));
+  const quality=calculateQuality({
+    hasRoute:true,hasForecast:true,sourceAgeMinutes,reliability:update.reliability,anchorErrorKm:routeResult.anchorErrorKm,
   });
+  const confidence=Math.max(0.28,Math.min(0.72,quality*0.78));
+  const errorKm=Math.max(18,routeResult.anchorErrorKm/2+measure.totalKm*(1-confidence)*0.1);
   return {
-    id:`uz-live-${update.trainNumber.replace(/\W+/g,"-")}-${normalizePlace(update.origin).replace(/\W+/gu,"-")}`,
-    trainNumber:update.trainNumber, transport:"train", type:"passenger", name:`Поезд №${update.trainNumber}`,
-    route:update.route, routeId, regions,
-    description:`Реальный публичный статус Укрзалізниці: ${update.publicStatus}. Задержка ${update.delayLabel || "не указана"}${update.reason ? `. Причина: ${update.reason}` : ""}.`,
-    rollingStock:"Тип подвижного состава в публичном источнике не указан",
-    operationalStatus:update.operationalStatus, liveUpdate:update, telemetry:{speedKph:null}, position,
-    journey:{progress:position.calculation?.progress ?? null,lastEvent:null,nextEvent:null}, history:[],
+    status:"estimated",coordinates:interpolateAlongRoute(measure,measure.totalKm*progress),
+    updatedAt:update.updatedAt,confidence:Number(confidence.toFixed(2)),errorKm:Number(errorKm.toFixed(1)),
+    method:"arrival-forecast-rail-graph-v2",lastConfirmedAt:update.updatedAt,
+    sources:["UZ official public status","UZ forecast arrival","rail corridor graph"],
+    calculation:{
+      progress:Number(progress.toFixed(3)),totalKm:Number(measure.totalKm.toFixed(1)),
+      nominalSpeedKph,forecastArrivalAt:arrival.toISOString(),remainingHours:Number(remainingHours.toFixed(2)),
+    },
   };
 }
 
-export async function loadTransportData(now = new Date()) {
-  const [baseRoutes,regions,liveData,freightData] = await Promise.all([
-    readJson("data/railways.geojson"), readJson("data/regions.geojson"),
-    readJson("data/live.json",true).catch(()=>null), readJson("data/freight-aggregates.json",true).catch(()=>null),
+function evidenceFor(update,position,sourceStatus){
+  const positionKind=position.status==="estimated"?"calculated":position.status==="reported"?"reported":"unavailable";
+  return [
+    {kind:"official",label:"Статус движения",value:update.publicStatus||"Не указан",timestamp:update.updatedAt,source:"Укрзалізниця"},
+    {kind:"official",label:"Задержка",value:update.delayLabel||"Не указана",timestamp:update.updatedAt,source:"Укрзалізниця"},
+    {kind:"official",label:"Прогноз прибытия",value:update.forecastArrival||"Не опубликован",timestamp:update.updatedAt,source:"Укрзалізниця"},
+    {kind:positionKind,label:"Положение",value:position.status==="estimated"?"Рассчитано моделью":position.status==="reported"?"Сообщено в пункте отправления":"Недостаточно данных",timestamp:position.updatedAt,source:position.method},
+    {kind:sourceStatus.status==="online"?"official":"stale",label:"Состояние источника",value:sourceStatus.label,timestamp:sourceStatus.checkedAt,source:"Системная диагностика"},
+  ];
+}
+
+function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,sourceAgeMinutes){
+  const identity=buildRunIdentity(update,now), origin=stationCoordinates(update.origin);
+  const estimated=estimatePosition(update,routeResult,now,sourceAgeMinutes);
+  const reported=update.operationalStatus!=="moving"&&origin?{
+    status:"reported",coordinates:origin,updatedAt:update.updatedAt,confidence:0.58,errorKm:3,
+    method:"official-status-at-origin",lastConfirmedAt:update.updatedAt,sources:["UZ official public status"],
+  }:null;
+  const position=estimated||reported||{
+    status:"unknown",coordinates:null,updatedAt:update.updatedAt,confidence:0,errorKm:null,
+    method:routeResult?"forecast-arrival-unavailable":"rail-route-unavailable",lastConfirmedAt:update.updatedAt,
+    sources:["UZ official public status"],
+  };
+  const quality=calculateQuality({
+    hasRoute:Boolean(routeResult),hasForecast:Boolean(update.forecastArrival),sourceAgeMinutes,
+    reliability:update.reliability,anchorErrorKm:routeResult?.anchorErrorKm,
+  });
+  const forecastArrivalAt=zonedClock(update.forecastArrival,now)?.toISOString()||null;
+  const routeTimeline=[
+    {kind:"origin",label:update.origin||"Пункт отправления",evidence:"route",timestamp:null},
+    position.status==="estimated"?{kind:"estimate",label:"Расчётное положение",evidence:"calculated",timestamp:position.updatedAt}:null,
+    {kind:"destination",label:update.destination||"Пункт назначения",evidence:"route",timestamp:forecastArrivalAt},
+  ].filter(Boolean);
+  return {
+    id:identity.runId,runId:identity.runId,serviceDate:identity.serviceDate,directionId:identity.directionId,
+    trainNumber:update.trainNumber,transport:"train",type:"passenger",name:`Поезд №${update.trainNumber}`,
+    route:update.route,origin:update.origin,destination:update.destination,routeId,regions,
+    description:`Публичный рейс Укрзалізниці ${update.route}. Официальный статус: ${update.publicStatus}; задержка ${update.delayLabel||"не указана"}.`,
+    rollingStock:"Тип состава не опубликован в источнике",operationalStatus:update.operationalStatus,
+    liveUpdate:update,telemetry:{speedKph:null},position,quality,
+    evidence:evidenceFor(update,position,sourceStatus),routeTimeline,
+    forecast:{departureAt:zonedClock(update.forecastDeparture,now)?.toISOString()||null,arrivalAt:forecastArrivalAt},
+    journey:{progress:position.calculation?.progress??null,lastEvent:null,nextEvent:null},history:[],
+  };
+}
+
+export async function loadTransportData(now=new Date()){
+  const [baseRoutes,regions,liveData,freightData]=await Promise.all([
+    readJson("data/railways.geojson"),readJson("data/regions.geojson"),
+    readJson("data/live.json",true).catch(()=>null),readJson("data/freight-aggregates.json",true).catch(()=>null),
   ]);
-  const graph=buildRailGraph(baseRoutes.features), dynamicFeatures=[];
-  const objects=(liveData?.updates || []).map((update,index)=>{
-    const origin=stationCoordinates(update.origin), destination=stationCoordinates(update.destination);
-    const path=origin&&destination ? railPath(graph,origin,destination) : null, routeId=`uz-live-route-${index}`;
-    if(path) dynamicFeatures.push({type:"Feature",properties:{id:routeId,quality:0.72,source:"rail-corridor-model"},geometry:{type:"LineString",coordinates:path}});
-    return objectFromUpdate(update,path,routeId,regionsForPath(path,regions.features),now);
+  const sourceStatus=liveData?.sourceStatus||{status:"unavailable",label:"UZ: источник недоступен",checkedAt:null};
+  const generatedAt=liveData?.generatedAt||now.toISOString();
+  const sourceAgeMinutes=Math.max(0,(now.getTime()-Date.parse(generatedAt))/60_000)||0;
+  const graph=buildRailGraph(baseRoutes.features),dynamicFeatures=[];
+  const objects=(liveData?.updates||[]).map((update,index)=>{
+    const origin=stationCoordinates(update.origin),destination=stationCoordinates(update.destination);
+    const routeResult=origin&&destination?railPath(graph,origin,destination):null;
+    const routeId=`uz-live-route-${index}`;
+    if(routeResult)dynamicFeatures.push({
+      type:"Feature",properties:{id:routeId,quality:0.72,source:"rail-corridor-graph"},
+      geometry:{type:"LineString",coordinates:routeResult.coordinates},
+    });
+    const regionAnchors=routeResult?.coordinates||(origin||destination?[origin,destination].filter(Boolean):[]);
+    return objectFromUpdate(update,routeResult,routeId,regionsForPoints(regionAnchors,regions.features),now,sourceStatus,sourceAgeMinutes);
   });
   const routes={type:"FeatureCollection",features:dynamicFeatures};
   const routeMap=new Map(dynamicFeatures.map((feature)=>[feature.properties.id,feature]));
   const regionList=[...new Map(regions.features.map((feature)=>[feature.properties.id,{id:feature.properties.id,name:feature.properties.name}])).values()].sort((a,b)=>a.name.localeCompare(b.name,"ru"));
+  const positioned=objects.filter((object)=>object.position.coordinates).length;
+  const forecastCoverage=objects.filter((object)=>object.liveUpdate.forecastArrival||object.liveUpdate.forecastDeparture).length;
+  const diagnostics={
+    sourceAgeMinutes:Number(sourceAgeMinutes.toFixed(1)),totalRuns:objects.length,positionedRuns:positioned,
+    unknownRuns:objects.length-positioned,forecastCoverage,routeCoverage:dynamicFeatures.length,
+    averageQuality:objects.length?Number((objects.reduce((sum,item)=>sum+item.quality,0)/objects.length).toFixed(2)):0,
+    algorithmVersion:"rail-graph-v2",snapshotSchema:liveData?.schemaVersion||null,
+  };
   return {
-    generatedAt:liveData?.generatedAt || now.toISOString(), dataMode:"UZ-public-real-only",
-    safetyNote:"Only public passenger status data is displayed.",
-    sourceStatus:liveData?.sourceStatus || {status:"unavailable",label:"UZ: источник недоступен"},
+    generatedAt,dataMode:"UZ-public-real-only-v2",safetyNote:"Only public passenger status data is displayed.",
+    sourceStatus,diagnostics,
     marineStatus:{status:"unavailable",label:"AIS-провайдер не подключён; суда не отображаются"},
-    freightStatus:freightData?.sourceStatus || {status:"unavailable",label:"Грузовые позиции не отображаются"},
-    liveFeed:(liveData?.updates || []).map((update,index)=>({...update,objectId:objects[index]?.id || null})),
+    freightStatus:freightData?.sourceStatus||{status:"unavailable",label:"Грузовые позиции не отображаются"},
+    liveFeed:(liveData?.updates||[]).map((update,index)=>({...update,objectId:objects[index]?.id||null})),
     objects,routes,routeMap,regions,regionList,
   };
 }

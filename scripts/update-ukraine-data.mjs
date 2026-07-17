@@ -53,6 +53,8 @@ export function parseDelayTable(html) {
       reason: cells[7] || null,
       updatedAt: new Date().toISOString(),
       source: endpoint,
+      sourceEvidence: "official-public-dashboard",
+      positionEvidence: "none",
     });
   }
   return updates;
@@ -74,13 +76,13 @@ async function main() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     updates = parseDelayTable(await response.text());
     if (!updates.length) throw new Error("Delay table returned no parseable trains");
-    sourceStatus = { status:"online", label:`UZ: ${updates.length} обновлений задержек`, endpoint, checkedAt:new Date().toISOString() };
+    sourceStatus = { status:"online", label:`UZ: ${updates.length} обновлений задержек`, endpoint, checkedAt:new Date().toISOString(), capabilities:{ officialStatus:true, forecast:true, gps:false, stationPassage:false, scope:"delayed-passenger-trains" } };
   } catch (error) {
     updates = Array.isArray(previous?.updates) ? previous.updates : [];
     sourceStatus = { status:updates.length?"stale":"unavailable", label:updates.length?"UZ: используется последний снимок":"UZ: источник временно недоступен", endpoint, checkedAt:new Date().toISOString(), error:String(error.message||error) };
   }
   const generatedAt = sourceStatus.status === "online" ? new Date().toISOString() : (previous?.generatedAt || new Date().toISOString());
-  const output = { schemaVersion:2, generatedAt, sourceStatus, updates };
+  const output = { schemaVersion:3, provider:"Ukrzaliznytsia", generatedAt, sourceStatus, updates };
   const temporary = `${target}.tmp`;
   await writeFile(temporary, `${JSON.stringify(output,null,2)}\n`, "utf8");
   await rename(temporary,target);

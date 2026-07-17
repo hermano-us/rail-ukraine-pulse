@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#071018" />
-    <meta name="description" content="Карта публичных пассажирских поездов в 22 областях Украины" />
+    <meta name="description" content="Карта реальных публичных статусов пассажирских поездов Украины" />
     <title>Rail Ukraine Pulse</title>
     <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin />
     <link rel="stylesheet" href="css/leaflet.css" />
@@ -22,25 +22,35 @@
           <button class="icon-button sidebar-close" id="sidebar-close" aria-label="Закрыть панель">×</button>
         </header>
 
-        <section class="system-status" aria-live="polite">
-          <span class="live-dot"></span><div><strong>Публичный контур активен</strong><small id="last-update">Загрузка данных…</small></div><span class="source-badge" id="source-badge">JSON</span>
+        <section class="system-status" id="system-status" aria-live="polite">
+          <span class="live-dot"></span><div><strong>Проверка публичного контура</strong><small id="last-update">Загрузка данных…</small></div><span class="source-badge" id="source-badge">JSON</span>
         </section>
 
         <section class="metrics" aria-label="Сводка">
           <article><span class="metric-icon train">↗</span><div><strong id="running-count">—</strong><small>в пути</small></div></article>
-          <article><span class="metric-icon depot">D</span><div><strong id="depot-count">—</strong><small>готовятся</small></div></article>
+          <article><span class="metric-icon depot">■</span><div><strong id="depot-count">—</strong><small>готовятся</small></div></article>
           <article><span class="metric-icon alert">!</span><div><strong id="unavailable-count">—</strong><small>без координат</small></div></article>
         </section>
 
+        <section class="quick-section" aria-label="Быстрые фильтры">
+          <button class="quick-chip active" data-quick="all">Все</button>
+          <button class="quick-chip" data-quick="moving">В пути</button>
+          <button class="quick-chip" data-quick="delayed">Задержка 1ч+</button>
+          <button class="quick-chip" data-quick="unknown">Без координат</button>
+        </section>
+
         <section class="live-feed-section" aria-label="Оперативная лента УЗ">
-          <div class="section-heading"><h2>Оперативная лента</h2><span id="live-feed-count">0 событий</span></div>
+          <div class="section-heading"><h2>Последние статусы</h2><span id="live-feed-count">0 событий</span></div>
           <div id="live-feed" class="live-feed"><p class="feed-empty">Ожидаются публичные статусы УЗ…</p></div>
         </section>
+
         <section class="filter-section">
-          <div class="section-heading"><h2>Объекты</h2><button id="reset-filters">Сбросить</button></div>
-          <input class="search-input" id="object-search" type="search" placeholder="Поезд, номер или маршрут" autocomplete="off" />
+          <div class="section-heading"><h2>Поиск и тип</h2><button id="reset-filters">Сбросить</button></div>
+          <input class="search-input" id="object-search" type="search" placeholder="Номер, станция или маршрут" autocomplete="off" />
           <div class="segmented" role="group" aria-label="Тип транспорта">
-            <button class="segment active" data-transport="all">Все</button><button class="segment" data-transport="train">Поезда</button><button class="segment" data-transport="vessel">Суда</button>
+            <button class="segment active" data-transport="all">Все</button>
+            <button class="segment" data-transport="train">Поезда</button>
+            <button class="segment" data-transport="vessel">Суда</button>
           </div>
         </section>
 
@@ -50,7 +60,13 @@
         </section>
 
         <section class="filter-section">
-          <div class="section-heading"><h2>Статус позиции</h2></div><div id="status-filters" class="status-list"></div>
+          <div class="section-heading"><h2>Статус позиции</h2></div>
+          <div id="status-filters" class="status-list"></div>
+        </section>
+
+        <section class="region-summary" id="region-summary" aria-live="polite">
+          <span class="region-summary-icon">⌖</span>
+          <div><strong>Выбраны все области</strong><p>Региональная сводка появится после загрузки.</p></div>
         </section>
 
         <section class="filter-section region-section">
@@ -64,8 +80,20 @@
           <div class="range-labels"><span>Любая</span><span>Высокая</span></div>
         </section>
 
-        <section class="method-note"><div class="note-icon">∿</div><div><strong>Только реальные строки УЗ</strong><p>Демонстрационных поездов нет. Координата рассчитывается по прогнозу прибытия и железнодорожному коридору; это не GPS.</p></div></section>
-        <section class="freight-note"><span>▦</span><div><strong>Грузовой слой</strong><p id="freight-status">Проверка открытой статистики…</p></div></section>        <section class="marine-note"><span>⌁</span><div><strong>Морской источник</strong><p id="marine-status">Проверка AIS…</p></div></section>
+        <section class="source-diagnostics" id="source-diagnostics">
+          <header><strong>Диагностика данных</strong><span id="diagnostic-health">—</span></header>
+          <div class="diagnostic-grid">
+            <div><small>Рейсов</small><b id="diagnostic-total">—</b></div>
+            <div><small>С координатой</small><b id="diagnostic-positioned">—</b></div>
+            <div><small>Прогнозов</small><b id="diagnostic-forecast">—</b></div>
+            <div><small>Качество</small><b id="diagnostic-quality">—</b></div>
+          </div>
+          <p id="diagnostic-note">Проверяем актуальность источника и покрытие маршрутов.</p>
+        </section>
+
+        <section class="method-note"><div class="note-icon">∿</div><div><strong>Факты отделены от расчёта</strong><p>Объекты берутся из реальной таблицы УЗ. Оранжевая точка и круг погрешности — аналитическая оценка, не GPS.</p></div></section>
+        <section class="freight-note"><span>▦</span><div><strong>Грузовой слой</strong><p id="freight-status">Проверка открытой статистики…</p></div></section>
+        <section class="marine-note"><span>⌁</span><div><strong>Морской источник</strong><p id="marine-status">Проверка AIS…</p></div></section>
         <footer class="sidebar-footer"><span>OSM · UZ public · geoBoundaries</span><a href="README.md">Методология ↗</a></footer>
       </aside>
 
@@ -74,18 +102,46 @@
         <div class="map-topbar">
           <button class="icon-button menu-button" id="menu-button" aria-label="Открыть панель">☰</button>
           <div class="map-title"><span class="pulse-ring"></span><div><strong>UKRAINE PUBLIC MONITOR</strong><small id="clock">—</small></div></div>
-          <button class="map-action" id="fit-button" title="Показать все объекты">⌖ <span>Все объекты</span></button>
+          <button class="map-action fleet-toggle" id="fleet-toggle" aria-label="Открыть реестр" title="Открыть реестр">☷ <span>Реестр</span></button>
+          <button class="map-action" id="fit-button" aria-label="Показать все объекты" title="Показать все объекты">⌖ <span>Все объекты</span></button>
         </div>
         <div class="legend" aria-label="Легенда карты">
-          <strong>СОСТОЯНИЕ ОБЪЕКТА</strong><div><span class="legend-marker confirmed"></span>В пути / подтверждено</div><div><span class="legend-marker estimated"></span>Расчётное положение</div><div><span class="legend-marker depot"></span>В депо</div><div><span class="legend-marker stale"></span>Источник недоступен</div>
+          <strong>ДОКАЗАТЕЛЬНОСТЬ</strong>
+          <div><span class="legend-marker estimated"></span>Расчётная координата</div>
+          <div><span class="legend-marker reported"></span>Сообщено источником</div>
+          <div><span class="legend-ring"></span>Зона погрешности</div>
+          <div><span class="legend-marker stale"></span>Нет координаты</div>
         </div>
-        <button class="mobile-summary" id="mobile-summary" aria-label="Открыть фильтры"><strong id="mobile-total">0</strong><span>объектов в зоне</span></button>
+        <button class="mobile-summary" id="mobile-summary" aria-label="Открыть фильтры"><strong id="mobile-total">0</strong><span>рейсов в выборке</span></button>
       </section>
 
-      <aside class="detail-panel" id="detail-panel" aria-label="Карточка объекта" aria-hidden="true"><button class="detail-close" id="detail-close" aria-label="Закрыть карточку">×</button><div id="detail-content"></div></aside>
+      <aside class="fleet-panel" id="fleet-panel" aria-label="Реестр активных рейсов">
+        <header class="fleet-header">
+          <div><p>АКТИВНЫЕ РЕЙСЫ</p><h2>Реестр поездов</h2></div>
+          <button class="icon-button fleet-close" id="fleet-close" aria-label="Закрыть реестр">×</button>
+        </header>
+        <div class="fleet-tools">
+          <span id="fleet-count">0 рейсов</span>
+          <label>Сортировка
+            <select id="fleet-sort" aria-label="Сортировка рейсов">
+              <option value="delay">По задержке</option>
+              <option value="quality">По качеству</option>
+              <option value="number">По номеру</option>
+              <option value="updated">По обновлению</option>
+            </select>
+          </label>
+        </div>
+        <div class="fleet-list" id="fleet-list"><p class="fleet-empty">Загрузка реестра…</p></div>
+        <footer><span>Клик по рейсу центрирует карту</span><b id="fleet-source-age">—</b></footer>
+      </aside>
+
+      <aside class="detail-panel" id="detail-panel" aria-label="Карточка рейса" aria-hidden="true">
+        <button class="detail-close" id="detail-close" aria-label="Закрыть карточку">×</button>
+        <div id="detail-content"></div>
+      </aside>
     </main>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="js/vendor-leaflet.js"></script><script type="module" src="js/app-ukraine.js"></script>
+    <script src="js/vendor-leaflet.js"></script>
+    <script type="module" src="js/app-ukraine.js"></script>
   </body>
 </html>
-
