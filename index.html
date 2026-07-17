@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#071018" />
+    <meta name="description" content="Карта публичных пассажирских поездов в 22 областях Украины" />
+    <title>Rail Ukraine Pulse</title>
+    <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin />
+    <link rel="stylesheet" href="css/leaflet.css" />
+    <link rel="stylesheet" href="css/styles.css" />
+    <link rel="stylesheet" href="css/ukraine.css" />
+    <link rel="stylesheet" href="css/enhancements.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#map">К карте</a>
+    <main class="app-shell">
+      <aside class="sidebar" id="sidebar" aria-label="Панель мониторинга">
+        <header class="brand-row">
+          <div class="brand-mark ua-mark" aria-hidden="true"><span></span><span></span></div>
+          <div><p class="eyebrow">PUBLIC RAIL INTELLIGENCE</p><h1>Rail Ukraine <em>Pulse</em></h1></div>
+          <button class="icon-button sidebar-close" id="sidebar-close" aria-label="Закрыть панель">×</button>
+        </header>
+
+        <section class="system-status" aria-live="polite">
+          <span class="live-dot"></span><div><strong>Публичный контур активен</strong><small id="last-update">Загрузка данных…</small></div><span class="source-badge" id="source-badge">JSON</span>
+        </section>
+
+        <section class="metrics" aria-label="Сводка">
+          <article><span class="metric-icon train">↗</span><div><strong id="running-count">—</strong><small>в пути</small></div></article>
+          <article><span class="metric-icon depot">D</span><div><strong id="depot-count">—</strong><small>в депо</small></div></article>
+          <article><span class="metric-icon alert">!</span><div><strong id="unavailable-count">—</strong><small>без источника</small></div></article>
+        </section>
+
+        <section class="live-feed-section" aria-label="Оперативная лента УЗ">
+          <div class="section-heading"><h2>Оперативная лента</h2><span id="live-feed-count">0 событий</span></div>
+          <div id="live-feed" class="live-feed"><p class="feed-empty">Ожидаются публичные статусы УЗ…</p></div>
+        </section>
+        <section class="filter-section">
+          <div class="section-heading"><h2>Объекты</h2><button id="reset-filters">Сбросить</button></div>
+          <input class="search-input" id="object-search" type="search" placeholder="Поезд, номер или маршрут" autocomplete="off" />
+          <div class="segmented" role="group" aria-label="Тип транспорта">
+            <button class="segment active" data-transport="all">Все</button><button class="segment" data-transport="train">Поезда</button><button class="segment" data-transport="vessel">Суда</button>
+          </div>
+        </section>
+
+        <section class="filter-section">
+          <div class="section-heading"><h2>Состояние движения</h2><span id="visible-count">0 объектов</span></div>
+          <div id="operation-filters" class="status-list operation-list"></div>
+        </section>
+
+        <section class="filter-section">
+          <div class="section-heading"><h2>Статус позиции</h2></div><div id="status-filters" class="status-list"></div>
+        </section>
+
+        <section class="filter-section region-section">
+          <div class="section-heading"><h2>Области Украины</h2><span><button id="region-select-all">Все</button> · <button id="region-clear">Очистить</button></span></div>
+          <div id="region-filters" class="region-list"></div>
+        </section>
+
+        <section class="filter-section confidence-filter">
+          <div class="section-heading"><h2>Мин. уверенность</h2><output id="confidence-output">0%</output></div>
+          <input id="confidence-range" type="range" min="0" max="100" value="0" step="5" aria-label="Минимальная уверенность" />
+          <div class="range-labels"><span>Любая</span><span>Высокая</span></div>
+        </section>
+
+        <section class="method-note"><div class="note-icon">∿</div><div><strong>Публичные пассажирские данные</strong><p>Позиции являются укрупнёнными оценками. Грузовые, специальные и военные перевозки не отображаются.</p></div></section>
+        <section class="freight-note"><span>▦</span><div><strong>Грузовой слой</strong><p id="freight-status">Проверка открытой статистики…</p></div></section>        <section class="marine-note"><span>⌁</span><div><strong>Морской источник</strong><p id="marine-status">Проверка AIS…</p></div></section>
+        <footer class="sidebar-footer"><span>OSM · UZ public · geoBoundaries</span><a href="README.md">Методология ↗</a></footer>
+      </aside>
+
+      <section class="map-stage" aria-label="Карта транспорта">
+        <div id="map" role="application" aria-label="Интерактивная карта пассажирских поездов Украины"></div>
+        <div class="map-topbar">
+          <button class="icon-button menu-button" id="menu-button" aria-label="Открыть панель">☰</button>
+          <div class="map-title"><span class="pulse-ring"></span><div><strong>UKRAINE PUBLIC MONITOR</strong><small id="clock">—</small></div></div>
+          <button class="map-action" id="fit-button" title="Показать все объекты">⌖ <span>Все объекты</span></button>
+        </div>
+        <div class="legend" aria-label="Легенда карты">
+          <strong>СОСТОЯНИЕ ОБЪЕКТА</strong><div><span class="legend-marker confirmed"></span>В пути / подтверждено</div><div><span class="legend-marker estimated"></span>Расчётное положение</div><div><span class="legend-marker depot"></span>В депо</div><div><span class="legend-marker stale"></span>Источник недоступен</div>
+        </div>
+        <button class="mobile-summary" id="mobile-summary" aria-label="Открыть фильтры"><strong id="mobile-total">0</strong><span>объектов в зоне</span></button>
+      </section>
+
+      <aside class="detail-panel" id="detail-panel" aria-label="Карточка объекта" aria-hidden="true"><button class="detail-close" id="detail-close" aria-label="Закрыть карточку">×</button><div id="detail-content"></div></aside>
+    </main>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="js/vendor-leaflet.js"></script><script type="module" src="js/app-ukraine.js"></script>
+  </body>
+</html>
+

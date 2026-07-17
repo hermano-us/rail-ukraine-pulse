@@ -1,0 +1,40 @@
+.sidebar { scrollbar-color: #24404d transparent; scrollbar-width: thin; }
+.ua-mark { border-color: rgba(255,213,64,.35); }
+.ua-mark::before, .ua-mark::after, .ua-mark span { background: linear-gradient(90deg,#44b3ff 0 50%,#ffda55 50%); }
+.metric-icon.depot { color:#b69cff; background:rgba(169,140,255,.1); font-weight:800; }
+.search-input { width:100%; margin-bottom:9px; padding:9px 10px; color:var(--text); border:1px solid var(--line); border-radius:5px; outline:none; background:rgba(0,0,0,.22); font-size:10px; }
+.search-input:focus { border-color:rgba(72,217,230,.55); box-shadow:0 0 0 3px rgba(72,217,230,.06); }
+.region-section { padding-bottom:10px; }
+.region-section .section-heading span { display:flex; gap:4px; align-items:center; }
+.region-section .section-heading button { color:var(--cyan); }
+.region-list { max-height:180px; display:grid; grid-template-columns:1fr 1fr; gap:2px 8px; overflow-y:auto; padding-right:4px; }
+.region-toggle { display:flex; align-items:center; gap:6px; min-width:0; padding:4px 0; color:#90a5b0; cursor:pointer; font-size:9px; }
+.region-toggle input { width:12px; height:12px; margin:0; accent-color:var(--cyan); }
+.region-toggle span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.operation-list .status-toggle { min-height:34px; }
+.marine-note { display:flex; gap:10px; margin:0 18px 16px; padding:11px 12px; border:1px solid rgba(79,157,255,.13); border-radius:6px; background:rgba(79,157,255,.04); }
+.marine-note > span { color:var(--blue); font-size:20px; }
+.marine-note strong { color:#a9bfd0; font-size:9px; text-transform:uppercase; }
+.marine-note p { margin:3px 0 0; color:var(--muted); font-size:9px; }
+.transport-icon.operation-depot { border-radius:4px; background:#201a31; color:#bda7ff; border-color:#a98cff; box-shadow:0 0 0 5px rgba(169,140,255,.1),0 4px 12px rgba(0,0,0,.5); }
+.transport-icon.operation-station { border-radius:5px; background:#2a2819; color:#f2ce61; border-color:#f2ce61; }
+.transport-icon.operation-source-unavailable { opacity:.58; filter:grayscale(1); border-style:dashed; }
+.legend-marker.depot { transform:rotate(45deg); border:1px solid #a98cff; background:rgba(169,140,255,.2); }
+.region-tooltip { color:#b7cbd4; border:1px solid rgba(72,217,230,.2); background:#0c202a; box-shadow:none; font-size:9px; }
+.train-photo-wrap { margin:16px 0; overflow:hidden; border:1px solid var(--line); border-radius:7px; background:#08151d; }
+.train-photo-wrap img { display:block; width:100%; height:185px; object-fit:cover; background:linear-gradient(135deg,#0a1c27,#173848); }
+.train-photo-wrap figcaption { padding:8px 10px; color:#718793; font-size:8px; line-height:1.45; }
+.train-photo-wrap figcaption a { color:#8eb9c2; }
+.train-photo-wrap.photo-unavailable img { display:none; }
+.train-photo-wrap.photo-unavailable::before { content:"Фотография временно недоступна"; display:grid; place-items:center; height:100px; color:#6f838e; font-size:10px; }
+.train-description { margin:0 0 15px; color:#aabac2; font-size:11px; line-height:1.6; }
+.operation-banner { margin-bottom:8px; padding:10px 12px; border-left:3px solid var(--operation-color); border-radius:4px; background:color-mix(in srgb,var(--operation-color) 8%,transparent); }
+.operation-banner strong,.operation-banner span { display:block; }
+.operation-banner strong { color:var(--operation-color); font-size:10px; letter-spacing:.08em; text-transform:uppercase; }
+.operation-banner span { margin-top:3px; color:var(--muted); font-size:9px; }
+.public-update { margin:10px 0; padding:10px; border:1px solid rgba(101,214,160,.18); border-radius:5px; background:rgba(101,214,160,.05); }
+.public-update strong,.public-update span { display:block; }
+.public-update strong { color:var(--green); font-size:9px; text-transform:uppercase; }
+.public-update span { margin-top:4px; color:#9fb8ad; font-size:9px; }
+.leaflet-interactive:focus { outline:2px solid var(--cyan); outline-offset:2px; }
+@media (max-height:760px) and (min-width:861px){.region-list{max-height:120px}.method-note,.marine-note{display:none}}

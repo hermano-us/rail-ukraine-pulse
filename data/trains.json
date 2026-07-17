@@ -1,0 +1,1011 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-17T09:00:00.000Z",
+  "demoMode": true,
+  "dataMode": "public-schedule-scenarios",
+  "safetyNote": "Только пассажирские маршруты. Грузовые, служебные и военные перевозки не отображаются.",
+  "objects": [
+    {
+      "id": "uz-79-80",
+      "trainNumber": "79/80",
+      "transport": "train",
+      "name": "Поезд №79/80",
+      "type": "passenger",
+      "operationalStatus": "moving",
+      "route": "Львов → Днепр",
+      "routeId": "corridor-lviv-dnipro",
+      "regions": [
+        "lviv",
+        "ternopil",
+        "khmelnytskyi",
+        "vinnytsia",
+        "kyiv",
+        "poltava",
+        "dnipropetrovsk"
+      ],
+      "description": "Ночной пассажирский поезд дальнего следования. Положение рассчитывается по открытым событиям, задержке и геометрии пассажирского коридора; это не GNSS-трекинг.",
+      "rollingStock": "Локомотивная тяга, пассажирские вагоны",
+      "photo": {
+        "src": "assets/trains/chs7.jpg",
+        "fallback": "https://upload.wikimedia.org/wikipedia/commons/6/69/ChS7-186_UZ_with_passenger_train.jpg",
+        "alt": "Электровоз ЧС7 с пассажирским поездом",
+        "credit": "Aivan1ch",
+        "license": "CC0 1.0",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:ChS7-186_UZ_with_passenger_train.jpg",
+        "representative": true
+      },
+      "telemetry": {
+        "speedKph": 72
+      },
+      "position": {
+        "status": "estimated",
+        "lastConfirmedAt": "2026-07-17T08:40:00.000Z"
+      },
+      "schedule": [
+        {
+          "id": "lviv",
+          "label": "Львов",
+          "plannedAt": "2026-07-17T06:30:00.000Z",
+          "delayMinutes": 8,
+          "eventStatus": "confirmed",
+          "coordinates": [
+            23.9948,
+            49.839
+          ]
+        },
+        {
+          "id": "ternopil",
+          "label": "Тернополь",
+          "plannedAt": "2026-07-17T07:48:00.000Z",
+          "delayMinutes": 8,
+          "eventStatus": "confirmed",
+          "coordinates": [
+            25.5984,
+            49.5533
+          ]
+        },
+        {
+          "id": "khmel",
+          "label": "Хмельницкий",
+          "plannedAt": "2026-07-17T09:04:00.000Z",
+          "delayMinutes": 8,
+          "eventStatus": "scheduled",
+          "coordinates": [
+            26.9966,
+            49.4216
+          ]
+        },
+        {
+          "id": "vin",
+          "label": "Винница",
+          "plannedAt": "2026-07-17T10:16:00.000Z",
+          "delayMinutes": 8,
+          "eventStatus": "scheduled",
+          "coordinates": [
+            28.4682,
+            49.2332
+          ]
+        },
+        {
+          "id": "kyiv",
+          "label": "Киев-Пассажирский",
+          "plannedAt": "2026-07-17T12:10:00.000Z",
+          "delayMinutes": 8,
+          "eventStatus": "scheduled",
+          "coordinates": [
+            30.484,
+            50.4406
+          ]
+        },
+        {
+          "id": "poltava",
+          "label": "Полтава",
+          "plannedAt": "2026-07-17T14:30:00.000Z",
+          "delayMinutes": 8,
+          "eventStatus": "scheduled",
+          "coordinates": [
+            34.532,
+            49.599
+          ]
+        },
+        {
+          "id": "dnipro",
+          "label": "Днепр-Главный",
+          "plannedAt": "2026-07-17T16:10:00.000Z",
+          "delayMinutes": 8,
+          "eventStatus": "scheduled",
+          "coordinates": [
+            35.0153,
+            48.474
+          ]
+        }
+      ],
+      "history": [
+        {
+          "timestamp": "2026-07-17T06:30:00.000Z",
+          "label": "Отправление со станции Львов",
+          "coordinates": [
+            23.9948,
+            49.839
+          ]
+        },
+        {
+          "timestamp": "2026-07-17T07:48:00.000Z",
+          "label": "Событие станции Тернополь",
+          "coordinates": [
+            25.5984,
+            49.5533
+          ]
+        }
+      ]
+    },
+    {
+      "id": "uz-11-12",
+      "trainNumber": "11/12",
+      "transport": "train",
+      "name": "Поезд №11/12",
+      "type": "passenger",
+      "operationalStatus": "moving",
+      "route": "Одесса → Львов",
+      "routeId": "corridor-odesa-lviv",
+      "regions": [
+        "odesa",
+        "vinnytsia",
+        "khmelnytskyi",
+        "ternopil",
+        "lviv"
+      ],
+      "description": "Пассажирский поезд Одесского направления. Публичная задержка может быть добавлена официальным UZ-дашбордом, а координата остаётся расчётной.",
+      "rollingStock": "Пассажирский состав локомотивной тяги",
+      "photo": {
+        "src": "assets/trains/chs7.jpg",
+        "fallback": "https://upload.wikimedia.org/wikipedia/commons/6/69/ChS7-186_UZ_with_passenger_train.jpg",
+        "alt": "Электровоз ЧС7 с пассажирским поездом",
+        "credit": "Aivan1ch",
+        "license": "CC0 1.0",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:ChS7-186_UZ_with_passenger_train.jpg",
+        "representative": true
+      },
+      "telemetry": {
+        "speedKph": 65
+      },
+      "position": {
+        "status": "estimated",
+        "lastConfirmedAt": "2026-07-17T08:29:00.000Z"
+      },
+      "schedule": [
+        {
+          "id": "odesa",
+          "label": "Одесса-Главная",
+          "plannedAt": "2026-07-17T05:30:00.000Z",
+          "delayMinutes": 15,
+          "eventStatus": "confirmed",
+          "coordinates": [
+            30.7107,
+            46.4673
+          ]
+        },
+        {
+          "id": "vin",
+          "label": "Винница",
+          "plannedAt": "2026-07-17T08:29:00.000Z",
+          "delayMinutes": 15,
+          "eventStatus": "confirmed",
+          "coordinates": [
+            28.4682,
+            49.2332
+          ]
+        },
+        {
+          "id": "khmel",
+          "label": "Хмельницкий",
+          "plannedAt": "2026-07-17T09:58:00.000Z",
+          "delayMinutes": 15,
+          "eventStatus": "scheduled",
+          "coordinates": [
+            26.9966,
+            49.4216
+          ]
+        },
+        {
+          "id": "ternopil",
+          "label": "Тернополь",
+          "plannedAt": "2026-07-17T10:58:00.000Z",
+          "delayMinutes": 15,
+          "eventStatus": "scheduled",
+          "coordinates": [
+            25.5984,
+            49.5533
+          ]
+        },
+        {
+          "id": "lviv",
+          "label": "Львов",
+          "plannedAt": "2026-07-17T12:30:00.000Z",
+          "delayMinutes": 15,
+          "eventStatus": "scheduled",
+          "coordinates": [
+            23.9948,
+            49.839
+          ]
+        }
+      ],
+      "history": [
+        {
+          "timestamp": "2026-07-17T05:30:00.000Z",
+          "label": "Одесса-Главная",
+          "coordinates": [
+            30.7107,
+            46.4673
+          ]
+        },
+        {
+          "timestamp": "2026-07-17T08:29:00.000Z",
+          "label": "Винница",
+          "coordinates": [
+            28.4682,
+            49.2332
+          ]
+        }
+      ]
+    },
+    {
+      "id": "uz-15-16",
+      "trainNumber": "15/16",
+      "transport": "train",
+      "name": "Поезд №15/16",
+      "type": "passenger",
+      "operationalStatus": "moving",
+      "route": "Харьков → Ивано-Франковск",
+      "routeId": "corridor-kharkiv-ivano",
+      "regions": [
+        "kharkiv",
+        "poltava",
+        "kyiv",
+        "vinnytsia",
+        "khmelnytskyi",
+        "ternopil",
+        "ivano-frankivsk"
+      ],
+      "description": "Дальний пассажирский поезд восток—запад. В приложении используется только публичное расписание и укрупнённая оценка с заметной погрешностью.",
+      "rollingStock": "Пассажирский состав локомотивной тяги",
+      "photo": {
+        "src": "assets/trains/chs7.jpg",
+        "fallback": "https://upload.wikimedia.org/wikipedia/commons/6/69/ChS7-186_UZ_with_passenger_train.jpg",
+        "alt": "Электровоз ЧС7 с пассажирским поездом",
+        "credit": "Aivan1ch",
+        "license": "CC0 1.0",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:ChS7-186_UZ_with_passenger_train.jpg",
+        "representative": true
+      },
+      "telemetry": {
+        "speedKph": 78
+      },
+      "position": {
+        "status": "estimated",
+        "lastConfirmedAt": "2026-07-17T08:42:00.000Z"
+      },
+      "schedule": [
+        {
+          "id": "kharkiv",
+          "label": "Харьков-Пассажирский",
+          "plannedAt": "2026-07-17T05:00:00.000Z",
+          "delayMinutes": 22,
+          "eventStatus": "confirmed",
+          "coordinates": [
+            36.2607,
+            49.9897
+          ]
+        },
+        {
+          "id": "poltava",
+          "label": "Полтава",
+          "plannedAt": "2026-07-17T06:38:00.000Z",
+          "delayMinutes": 22,
+          "eventStatus": "confirmed",
+          "coordinates": [
+            34.532,
+            49.599
+          ]
+        },
+        {
+          "id": "kyiv",
+          "label": "Киев-Пассажирский",
+          "plannedAt": "2026-07-17T08:42:00.000Z",
+          "delayMinutes": 22,
+          "eventStatus": "confirmed",
+          "coordinates": [
+            30.484,
+            50.4406
+          ]
+        },
+        {
+          "id": "vin",
+          "label": "Винница",
+          "plannedAt": "2026-07-17T10:38:00.000Z",
+          "delayMinutes": 22,
+          "eventStatus": "scheduled",
+          "coordinates": [
+            28.4682,
+            49.2332
+          ]
+        },
+        {
+          "id": "ternopil",
+          "label": "Тернополь",
+          "plannedAt": "2026-07-17T12:40:00.000Z",
+          "delayMinutes": 22,
+          "eventStatus": "scheduled",
+          "coordinates": [
+            25.5984,
+            49.5533
+          ]
+        },
+        {
+          "id": "ivano",
+          "label": "Ивано-Франковск",
+          "plannedAt": "2026-07-17T14:10:00.000Z",
+          "delayMinutes": 22,
+          "eventStatus": "scheduled",
+          "coordinates": [
+            24.7105,
+            48.9221
+          ]
+        }
+      ],
+      "history": [
+        {
+          "timestamp": "2026-07-17T05:00:00.000Z",
+          "label": "Харьков-Пассажирский",
+          "coordinates": [
+            36.2607,
+            49.9897
+          ]
+        },
+        {
+          "timestamp": "2026-07-17T06:38:00.000Z",
+          "label": "Полтава",
+          "coordinates": [
+            34.532,
+            49.599
+          ]
+        },
+        {
+          "timestamp": "2026-07-17T08:42:00.000Z",
+          "label": "Киев-Пассажирский",
+          "coordinates": [
+            30.484,
+            50.4406
+          ]
+        }
+      ]
+    },
+    {
+      "id": "uz-45-46",
+      "trainNumber": "45/46",
+      "transport": "train",
+      "name": "Поезд №45/46",
+      "type": "passenger",
+      "operationalStatus": "moving",
+      "route": "Харьков → Ужгород",
+      "routeId": "corridor-kharkiv-uzhhorod",
+      "regions": [
+        "kharkiv",
+        "poltava",
+        "kyiv",
+        "zhytomyr",
+        "vinnytsia",
+        "khmelnytskyi",
+        "ternopil",
+        "lviv",
+        "zakarpattia"
+      ],
+      "description": "Пассажирский поезд через центральные и западные области. Расчёт не раскрывает служебные, грузовые или военные перевозки.",
+      "rollingStock": "Пассажирский состав локомотивной тяги",
+      "photo": {
+        "src": "assets/trains/chs7.jpg",
+        "fallback": "https://upload.wikimedia.org/wikipedia/commons/6/69/ChS7-186_UZ_with_passenger_train.jpg",
+        "alt": "Электровоз ЧС7 с пассажирским поездом",
+        "credit": "Aivan1ch",
+        "license": "CC0 1.0",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:ChS7-186_UZ_with_passenger_train.jpg",
+        "representative": true
+      },
+      "telemetry": {
+        "speedKph": 70
+      },
+      "position": {
+        "status": "estimated",
+        "lastConfirmedAt": "2026-07-17T08:13:00.000Z"
+      },
+      "schedule": [
+        {
+          "id": "kharkiv",
+          "label": "Харьков",
+          "plannedAt": "2026-07-17T04:00:00.000Z",
+          "delayMinutes": 10,
+          "eventStatus": "confirmed",
+          "coordinates": [
+            36.2607,
+            49.9897
+          ]
+        },
+        {
+          "id": "kyiv",
+          "label": "Киев",
+          "plannedAt": "2026-07-17T08:13:00.000Z",
+          "delayMinutes": 10,
+          "eventStatus": "confirmed",
+          "coordinates": [
+            30.484,
+            50.4406
+          ]
+        },
+        {
+          "id": "vin",
+          "label": "Винница",
+          "plannedAt": "2026-07-17T10:02:00.000Z",
+          "delayMinutes": 10,
+          "eventStatus": "scheduled",
+          "coordinates": [
+            28.4682,
+            49.2332
+          ]
+        },
+        {
+          "id": "lviv",
+          "label": "Львов",
+          "plannedAt": "2026-07-17T13:05:00.000Z",
+          "delayMinutes": 10,
+          "eventStatus": "scheduled",
+          "coordinates": [
+            23.9948,
+            49.839
+          ]
+        },
+        {
+          "id": "muk",
+          "label": "Мукачево",
+          "plannedAt": "2026-07-17T15:00:00.000Z",
+          "delayMinutes": 10,
+          "eventStatus": "scheduled",
+          "coordinates": [
+            22.7181,
+            48.4412
+          ]
+        },
+        {
+          "id": "uzh",
+          "label": "Ужгород",
+          "plannedAt": "2026-07-17T15:35:00.000Z",
+          "delayMinutes": 10,
+          "eventStatus": "scheduled",
+          "coordinates": [
+            22.2878,
+            48.6208
+          ]
+        }
+      ],
+      "history": [
+        {
+          "timestamp": "2026-07-17T04:00:00.000Z",
+          "label": "Харьков",
+          "coordinates": [
+            36.2607,
+            49.9897
+          ]
+        },
+        {
+          "timestamp": "2026-07-17T08:13:00.000Z",
+          "label": "Киев",
+          "coordinates": [
+            30.484,
+            50.4406
+          ]
+        }
+      ]
+    },
+    {
+      "id": "uz-91-92",
+      "trainNumber": "91/92",
+      "transport": "train",
+      "name": "Поезд №91/92",
+      "type": "passenger",
+      "operationalStatus": "station",
+      "route": "Киев → Львов",
+      "routeId": "corridor-kyiv-lviv",
+      "regions": [
+        "kyiv",
+        "vinnytsia",
+        "khmelnytskyi",
+        "ternopil",
+        "lviv"
+      ],
+      "description": "Состав ожидает отправления на пассажирской станции. Статус станции сообщён сценарием, а не датчиком состава.",
+      "rollingStock": "Пассажирские вагоны",
+      "photo": {
+        "src": "assets/trains/chs7.jpg",
+        "fallback": "https://upload.wikimedia.org/wikipedia/commons/6/69/ChS7-186_UZ_with_passenger_train.jpg",
+        "alt": "Электровоз ЧС7 с пассажирским поездом",
+        "credit": "Aivan1ch",
+        "license": "CC0 1.0",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:ChS7-186_UZ_with_passenger_train.jpg",
+        "representative": true
+      },
+      "telemetry": {
+        "speedKph": 0
+      },
+      "position": {
+        "status": "reported",
+        "coordinates": [
+          30.484,
+          50.4406
+        ],
+        "updatedAt": "2026-07-17T08:54:00.000Z",
+        "confidence": 0.76,
+        "errorKm": 1.5,
+        "method": "station-board-report",
+        "sources": [
+          "публичный статус",
+          "демонстрационный сценарий"
+        ],
+        "lastConfirmedAt": "2026-07-17T08:54:00.000Z"
+      },
+      "schedule": [],
+      "history": [
+        {
+          "timestamp": "2026-07-17T08:54:00.000Z",
+          "label": "Ожидает отправления",
+          "coordinates": [
+            30.484,
+            50.4406
+          ]
+        }
+      ]
+    },
+    {
+      "id": "uz-105-106",
+      "trainNumber": "105/106",
+      "transport": "train",
+      "name": "Поезд №105/106",
+      "type": "passenger",
+      "operationalStatus": "moving",
+      "route": "Киев → Одесса",
+      "routeId": "corridor-kyiv-odesa",
+      "regions": [
+        "kyiv",
+        "kirovohrad",
+        "odesa"
+      ],
+      "description": "Пассажирский поезд южного направления. Для демонстрации используется представитель класса Intercity; фотография не подтверждает конкретный состав в рейсе.",
+      "rollingStock": "Электропоезд или пассажирский состав по назначению",
+      "photo": {
+        "src": "assets/trains/hrcs2.jpg",
+        "fallback": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/%D0%A1%D0%BA%D0%BE%D1%80%D0%BE%D1%81%D1%82%D0%BD%D0%BE%D0%B9_%D0%BF%D0%BE%D0%B5%D0%B7%D0%B4_%22%D0%A5%D0%B5%D0%BD%D0%B4%D0%B0%D0%B9%22.jpg/1280px-%D0%A1%D0%BA%D0%BE%D1%80%D0%BE%D1%81%D1%82%D0%BD%D0%BE%D0%B9_%D0%BF%D0%BE%D0%B5%D0%B7%D0%B4_%22%D0%A5%D0%B5%D0%BD%D0%B4%D0%B0%D0%B9%22.jpg",
+        "alt": "Электропоезд HRCS2 Укрзалізниці",
+        "credit": "Николай Чуваев",
+        "license": "CC BY-SA 3.0",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:Скоростной_поезд_\"Хендай\".jpg",
+        "representative": true
+      },
+      "telemetry": {
+        "speedKph": 110
+      },
+      "position": {
+        "status": "estimated",
+        "lastConfirmedAt": "2026-07-17T08:24:00.000Z"
+      },
+      "schedule": [
+        {
+          "id": "kyiv",
+          "label": "Киев",
+          "plannedAt": "2026-07-17T07:20:00.000Z",
+          "delayMinutes": 4,
+          "eventStatus": "confirmed",
+          "coordinates": [
+            30.484,
+            50.4406
+          ]
+        },
+        {
+          "id": "fastiv",
+          "label": "Фастов",
+          "plannedAt": "2026-07-17T08:24:00.000Z",
+          "delayMinutes": 4,
+          "eventStatus": "confirmed",
+          "coordinates": [
+            29.914,
+            50.0774
+          ]
+        },
+        {
+          "id": "krop",
+          "label": "Кропивницкий",
+          "plannedAt": "2026-07-17T10:08:00.000Z",
+          "delayMinutes": 4,
+          "eventStatus": "scheduled",
+          "coordinates": [
+            32.2676,
+            48.5079
+          ]
+        },
+        {
+          "id": "odesa",
+          "label": "Одесса",
+          "plannedAt": "2026-07-17T12:10:00.000Z",
+          "delayMinutes": 4,
+          "eventStatus": "scheduled",
+          "coordinates": [
+            30.7107,
+            46.4673
+          ]
+        }
+      ],
+      "history": [
+        {
+          "timestamp": "2026-07-17T07:20:00.000Z",
+          "label": "Киев",
+          "coordinates": [
+            30.484,
+            50.4406
+          ]
+        },
+        {
+          "timestamp": "2026-07-17T08:24:00.000Z",
+          "label": "Фастов",
+          "coordinates": [
+            29.914,
+            50.0774
+          ]
+        }
+      ]
+    },
+    {
+      "id": "uz-117-118",
+      "trainNumber": "117/118",
+      "transport": "train",
+      "name": "Поезд №117/118",
+      "type": "passenger",
+      "operationalStatus": "depot",
+      "route": "Киев → Черновцы",
+      "routeId": "corridor-kyiv-chernivtsi",
+      "regions": [
+        "kyiv",
+        "vinnytsia",
+        "khmelnytskyi",
+        "chernivtsi"
+      ],
+      "description": "Состав отмечен в депо как демонстрация нового рабочего статуса. Без интеграции с системой депо это сообщение нельзя считать оперативным подтверждением.",
+      "rollingStock": "Пассажирские вагоны",
+      "photo": {
+        "src": "assets/trains/chs7.jpg",
+        "fallback": "https://upload.wikimedia.org/wikipedia/commons/6/69/ChS7-186_UZ_with_passenger_train.jpg",
+        "alt": "Электровоз ЧС7 с пассажирским поездом",
+        "credit": "Aivan1ch",
+        "license": "CC0 1.0",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:ChS7-186_UZ_with_passenger_train.jpg",
+        "representative": true
+      },
+      "telemetry": {
+        "speedKph": 0
+      },
+      "position": {
+        "status": "reported",
+        "coordinates": [
+          30.466,
+          50.43
+        ],
+        "updatedAt": "2026-07-17T08:36:00.000Z",
+        "confidence": 0.58,
+        "errorKm": 1.5,
+        "method": "manual-depot-scenario",
+        "sources": [
+          "публичный статус",
+          "демонстрационный сценарий"
+        ],
+        "lastConfirmedAt": "2026-07-17T08:36:00.000Z"
+      },
+      "schedule": [],
+      "history": [
+        {
+          "timestamp": "2026-07-17T08:36:00.000Z",
+          "label": "Сообщение: в депо",
+          "coordinates": [
+            30.466,
+            50.43
+          ]
+        }
+      ]
+    },
+    {
+      "id": "uz-779-780",
+      "trainNumber": "779/780",
+      "transport": "train",
+      "name": "Поезд №779/780",
+      "type": "commuter",
+      "operationalStatus": "station",
+      "route": "Сумы → Киев",
+      "routeId": "corridor-sumy-kyiv",
+      "regions": [
+        "sumy",
+        "chernihiv",
+        "kyiv"
+      ],
+      "description": "Региональный поезд на станции Сумы. Карточка показывает поддержку остановок, истории и областного фильтра.",
+      "rollingStock": "Региональный пассажирский состав",
+      "photo": {
+        "src": "assets/trains/epl9t.jpg",
+        "fallback": "https://upload.wikimedia.org/wikipedia/commons/2/24/EPL9T-015.jpg",
+        "alt": "Пригородный электропоезд ЭПЛ9Т",
+        "credit": "Сергей Болашенко",
+        "license": "CC BY-SA 3.0",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:EPL9T-015.jpg",
+        "representative": true
+      },
+      "telemetry": {
+        "speedKph": 0
+      },
+      "position": {
+        "status": "reported",
+        "coordinates": [
+          34.7982,
+          50.9102
+        ],
+        "updatedAt": "2026-07-17T08:57:00.000Z",
+        "confidence": 0.78,
+        "errorKm": 1.5,
+        "method": "station-board-report",
+        "sources": [
+          "публичный статус",
+          "демонстрационный сценарий"
+        ],
+        "lastConfirmedAt": "2026-07-17T08:57:00.000Z"
+      },
+      "schedule": [],
+      "history": [
+        {
+          "timestamp": "2026-07-17T08:57:00.000Z",
+          "label": "Стоянка на станции Сумы",
+          "coordinates": [
+            34.7982,
+            50.9102
+          ]
+        }
+      ]
+    },
+    {
+      "id": "uz-epl9t-015",
+      "trainNumber": "EPL9T-015",
+      "transport": "train",
+      "name": "ЭПЛ9Т-015",
+      "type": "commuter",
+      "operationalStatus": "depot",
+      "route": "Днепр → Запорожье",
+      "routeId": "corridor-dnipro-zaporizhzhia",
+      "regions": [
+        "dnipropetrovsk",
+        "zaporizhzhia"
+      ],
+      "description": "Пригородный электропоезд, показанный в депо как демонстрационный объект. Фотография отображает этот тип подвижного состава.",
+      "rollingStock": "Электропоезд ЭПЛ9Т",
+      "photo": {
+        "src": "assets/trains/epl9t.jpg",
+        "fallback": "https://upload.wikimedia.org/wikipedia/commons/2/24/EPL9T-015.jpg",
+        "alt": "Пригородный электропоезд ЭПЛ9Т",
+        "credit": "Сергей Болашенко",
+        "license": "CC BY-SA 3.0",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:EPL9T-015.jpg",
+        "representative": true
+      },
+      "telemetry": {
+        "speedKph": 0
+      },
+      "position": {
+        "status": "reported",
+        "coordinates": [
+          35.025,
+          48.48
+        ],
+        "updatedAt": "2026-07-17T07:50:00.000Z",
+        "confidence": 0.55,
+        "errorKm": 1.5,
+        "method": "manual-depot-scenario",
+        "sources": [
+          "публичный статус",
+          "демонстрационный сценарий"
+        ],
+        "lastConfirmedAt": "2026-07-17T07:50:00.000Z"
+      },
+      "schedule": [],
+      "history": [
+        {
+          "timestamp": "2026-07-17T07:50:00.000Z",
+          "label": "Последнее сообщение депо",
+          "coordinates": [
+            35.025,
+            48.48
+          ]
+        }
+      ]
+    },
+    {
+      "id": "uz-123-124",
+      "trainNumber": "123/124",
+      "transport": "train",
+      "name": "Поезд №123/124",
+      "type": "commuter",
+      "operationalStatus": "source-unavailable",
+      "route": "Киев → Чернигов",
+      "routeId": "corridor-kyiv-chernihiv",
+      "regions": [
+        "kyiv",
+        "chernihiv"
+      ],
+      "description": "Источник текущего положения недоступен. Маркер оставлен в последней публичной точке без попытки выдать её за актуальную.",
+      "rollingStock": "Региональный состав",
+      "photo": {
+        "src": "assets/trains/epl9t.jpg",
+        "fallback": "https://upload.wikimedia.org/wikipedia/commons/2/24/EPL9T-015.jpg",
+        "alt": "Пригородный электропоезд ЭПЛ9Т",
+        "credit": "Сергей Болашенко",
+        "license": "CC BY-SA 3.0",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:EPL9T-015.jpg",
+        "representative": true
+      },
+      "telemetry": {
+        "speedKph": null
+      },
+      "position": {
+        "status": "unknown",
+        "coordinates": [
+          31.2794,
+          51.4982
+        ],
+        "updatedAt": "2026-07-17T06:00:00.000Z",
+        "confidence": 0,
+        "errorKm": null,
+        "method": "source-unavailable",
+        "sources": [
+          "публичное расписание"
+        ],
+        "lastConfirmedAt": null
+      },
+      "schedule": [],
+      "history": []
+    },
+    {
+      "id": "uz-143-144",
+      "trainNumber": "143/144",
+      "transport": "train",
+      "name": "Поезд №143/144",
+      "type": "passenger",
+      "operationalStatus": "moving",
+      "route": "Львов → Луцк → Ровно",
+      "routeId": "corridor-lviv-lutsk",
+      "regions": [
+        "lviv",
+        "volyn",
+        "rivne"
+      ],
+      "description": "Региональный пассажирский маршрут, добавленный для покрытия Волынской и Ровненской областей.",
+      "rollingStock": "Пассажирский состав",
+      "photo": {
+        "src": "assets/trains/chs7.jpg",
+        "fallback": "https://upload.wikimedia.org/wikipedia/commons/6/69/ChS7-186_UZ_with_passenger_train.jpg",
+        "alt": "Электровоз ЧС7 с пассажирским поездом",
+        "credit": "Aivan1ch",
+        "license": "CC0 1.0",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:ChS7-186_UZ_with_passenger_train.jpg",
+        "representative": true
+      },
+      "telemetry": {
+        "speedKph": 61
+      },
+      "position": {
+        "status": "estimated",
+        "lastConfirmedAt": "2026-07-17T08:32:00.000Z"
+      },
+      "schedule": [
+        {
+          "id": "lviv",
+          "label": "Львов",
+          "plannedAt": "2026-07-17T07:10:00.000Z",
+          "delayMinutes": 3,
+          "eventStatus": "confirmed",
+          "coordinates": [
+            23.9948,
+            49.839
+          ]
+        },
+        {
+          "id": "lutsk",
+          "label": "Луцк",
+          "plannedAt": "2026-07-17T08:32:00.000Z",
+          "delayMinutes": 3,
+          "eventStatus": "confirmed",
+          "coordinates": [
+            25.3227,
+            50.7472
+          ]
+        },
+        {
+          "id": "rivne",
+          "label": "Ровно",
+          "plannedAt": "2026-07-17T09:55:00.000Z",
+          "delayMinutes": 3,
+          "eventStatus": "scheduled",
+          "coordinates": [
+            26.2516,
+            50.6199
+          ]
+        }
+      ],
+      "history": [
+        {
+          "timestamp": "2026-07-17T07:10:00.000Z",
+          "label": "Львов",
+          "coordinates": [
+            23.9948,
+            49.839
+          ]
+        },
+        {
+          "timestamp": "2026-07-17T08:32:00.000Z",
+          "label": "Луцк",
+          "coordinates": [
+            25.3227,
+            50.7472
+          ]
+        }
+      ]
+    },
+    {
+      "id": "uz-109-110",
+      "trainNumber": "109/110",
+      "transport": "train",
+      "name": "Поезд №109/110",
+      "type": "passenger",
+      "operationalStatus": "source-unavailable",
+      "route": "Киев → Херсон",
+      "routeId": "corridor-kyiv-kherson",
+      "regions": [
+        "kyiv",
+        "cherkasy",
+        "kirovohrad",
+        "mykolaiv",
+        "kherson"
+      ],
+      "description": "Маршрут включён для территориального покрытия, но текущая позиция намеренно не рассчитывается без надёжного публичного события.",
+      "rollingStock": "Пассажирский состав",
+      "photo": {
+        "src": "assets/trains/chs7.jpg",
+        "fallback": "https://upload.wikimedia.org/wikipedia/commons/6/69/ChS7-186_UZ_with_passenger_train.jpg",
+        "alt": "Электровоз ЧС7 с пассажирским поездом",
+        "credit": "Aivan1ch",
+        "license": "CC0 1.0",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:ChS7-186_UZ_with_passenger_train.jpg",
+        "representative": true
+      },
+      "telemetry": {
+        "speedKph": null
+      },
+      "position": {
+        "status": "unknown",
+        "coordinates": [
+          31.9944,
+          46.9755
+        ],
+        "updatedAt": "2026-07-17T05:00:00.000Z",
+        "confidence": 0,
+        "errorKm": null,
+        "method": "source-unavailable",
+        "sources": [
+          "маршрутный справочник"
+        ],
+        "lastConfirmedAt": null
+      },
+      "schedule": [],
+      "history": []
+    }
+  ]
+}
