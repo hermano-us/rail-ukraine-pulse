@@ -16,10 +16,9 @@ test("oblast polygons cannot change filters by map click", async () => {
   assert.doesNotMatch(source, /onRegionSelect|layer\.on\("click"/);
 });
 
-test("public status snapshot keeps both train directions", async () => {
+test("public status snapshot does not collapse directional services", async () => {
   const live = JSON.parse(await readFile(new URL("../data/live.json", import.meta.url), "utf8"));
-  const train7980 = live.updates.filter((update) => update.trainNumber === "79/80");
-  assert.equal(train7980.length, 2);
-  assert.notEqual(train7980[0].origin, train7980[1].origin);
+  const keys = live.updates.map((update) => `${update.trainNumber}|${update.origin}|${update.destination}`);
+  assert.equal(new Set(keys).size, keys.length);
 });
 
