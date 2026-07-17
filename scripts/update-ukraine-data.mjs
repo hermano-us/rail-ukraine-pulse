@@ -22,7 +22,7 @@ function delayMinutes(label) {
 
 function operationFromStatus(status) {
   const value = status.toLocaleLowerCase("uk");
-  if (value.includes("станц") || value.includes("очіку") || value.includes("відправ")) return "station";
+  if (value.includes("станц") || value.includes("очіку") || value.includes("відправ") || value.includes("готу")) return "station";
   return "moving";
 }
 
@@ -47,6 +47,8 @@ export function parseDelayTable(html) {
       delayLabel,
       publicStatus: status,
       operationalStatus: operationFromStatus(status),
+      forecastDeparture: cells[4] && cells[4] !== "—" ? cells[4] : null,
+      forecastArrival: cells[5] && cells[5] !== "—" ? cells[5] : null,
       reliability: cells[6] || "Не указана",
       reason: cells[7] || null,
       updatedAt: new Date().toISOString(),

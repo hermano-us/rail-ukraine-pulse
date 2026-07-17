@@ -37,7 +37,7 @@ function filteredObjects() {
   const query=state.query.trim().toLocaleLowerCase("ru");
   return state.data.objects.filter((object)=>{
     const matchesTransport=state.transport==="all"||object.transport===state.transport;
-    const matchesRegion=(object.regions||[]).some((id)=>state.regions.has(id));
+    const matchesRegion=!(object.regions||[]).length||(object.regions||[]).some((id)=>state.regions.has(id));
     const matchesSearch=!query||`${object.name} ${object.route} ${object.description}`.toLocaleLowerCase("ru").includes(query);
     return matchesTransport&&matchesRegion&&matchesSearch&&state.statuses.has(object.position.status)&&state.operations.has(object.operationalStatus)&&((object.position.confidence??0)>=state.minConfidence);
   });
@@ -68,8 +68,8 @@ function render() {
   const visible=filteredObjects(); mapView.render(visible,state.data.routeMap); mapView.updateRegionSelection(state.regions); renderLiveFeed();
   elements.visibleCount.textContent=`${visible.length} объектов`; $("#mobile-total").textContent=visible.length;
   $("#running-count").textContent=visible.filter((o)=>o.operationalStatus==="moving").length;
-  $("#depot-count").textContent=visible.filter((o)=>o.operationalStatus==="depot").length;
-  $("#unavailable-count").textContent=visible.filter((o)=>o.operationalStatus==="source-unavailable").length;
+  $("#depot-count").textContent=visible.filter((o)=>o.operationalStatus==="station").length;
+  $("#unavailable-count").textContent=visible.filter((o)=>o.position.status==="unknown").length;
 }
 
 function selectObject(object) {
@@ -139,7 +139,7 @@ function startClock(){const update=()=>{$("#clock").textContent=new Intl.DateTim
 
 async function bootstrap(){
   initDynamicFilters();bindControls();startClock();
-  try{state.data=await loadTransportData(new Date());initRegions();mapView.setRoutes(state.data.routes);$("#last-update").textContent=`Источник: ${state.data.sourceStatus.label||state.data.sourceStatus.status} · ${formatRelative(state.data.generatedAt)}`;$("#source-badge").textContent=state.data.liveFeed.length?"UZ STATUS":"MODEL";$("#marine-status").textContent=state.data.marineStatus.label;elements.freightStatus.textContent=state.data.freightStatus.label;render();mapView.fitAll();}
+  try{state.data=await loadTransportData(new Date());initRegions();mapView.setRoutes(state.data.routes);$("#last-update").textContent=`Источник: ${state.data.sourceStatus.label||state.data.sourceStatus.status} · ${formatRelative(state.data.generatedAt)}`;$("#source-badge").textContent=state.data.liveFeed.length?"UZ REAL":"NO DATA";$("#marine-status").textContent=state.data.marineStatus.label;elements.freightStatus.textContent=state.data.freightStatus.label;render();mapView.fitAll();}
   catch(error){console.error(error);$("#last-update").textContent="Ошибка загрузки данных";showToast("Не удалось загрузить набор данных Украины");}
 }
 async function refreshData() {
