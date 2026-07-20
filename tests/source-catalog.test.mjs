@@ -8,7 +8,7 @@ test("source catalog has unique ids and never claims protected candidates are co
   const catalog = await readJson("sources.json");
   const ids = catalog.sources.map((source) => source.id);
   assert.equal(new Set(ids).size, ids.length);
-  assert.equal(catalog.sources.find((source) => source.id === "uz-public-board").state, "protected");
+  assert.equal(catalog.sources.find((source) => source.id === "uz-public-board").state, "candidate");
   assert.equal(catalog.sources.find((source) => source.id === "ais-provider").state, "requires-key");
 });
 

@@ -42,10 +42,16 @@ export class MapView{
     this.regionLayer.eachLayer((layer)=>layer.setStyle(this.regionStyle(layer.feature.properties.id)));
   }
 
-  setRoutes(routes){this.routeLayer.clearLayers();this.routeLayer.addData(routes);}
+  setRoutes(routes){
+    this.routes=routes;
+    this.routeLayer.clearLayers();
+    this.routeLayer.addData(routes);
+  }
 
-  render(objects,routeMap){
+  render(objects,routeMap,focusedObject=null){
     this.currentRouteMap=routeMap;this.markerLayer.clearLayers();this.uncertaintyLayer.clearLayers();this.selectedLayer.clearLayers();
+    this.routeLayer.clearLayers();
+    if(!focusedObject&&this.routes)this.routeLayer.addData(this.routes);
     this.markers.clear();this.objects=new Map(objects.map((object)=>[object.id,object]));
     const bounds=[];
     objects.forEach((object)=>{
@@ -78,28 +84,43 @@ export class MapView{
 
   focusObject(object){
     const marker=this.markers.get(object.id);
-    if(!marker)return;
     this.selectedLayer.clearLayers();
     this.markerLayer.eachLayer((layer)=>layer.getElement?.()?.classList.remove("is-selected"));
-    marker.getElement()?.classList.add("is-selected");
-    const route=this.currentRouteMap?.get(object.routeId);
+    marker?.getElement()?.classList.add("is-selected");
+    const route=this.currentRouteMap?.get(object.routeId),focusBounds=[];
     if(route){
-      L.polyline(route.geometry.coordinates.map(([lon,lat])=>[lat,lon]),{
+      const routePoints=route.geometry.coordinates.map(([lon,lat])=>[lat,lon]);
+      L.polyline(routePoints,{
         className:"estimated-track selected-track",color:"#ff9d52",weight:3,opacity:.82,dashArray:"7 8",interactive:false,
       }).addTo(this.selectedLayer);
+      focusBounds.push(...routePoints);
     }
     if(object.corridor?.coordinates?.length>1){
       const corridorPoints=object.corridor.coordinates.map(([lon,lat])=>[lat,lon]);
       L.polyline(corridorPoints,{className:"model-corridor-halo",color:"#ff9d52",weight:14,opacity:.14,lineCap:"round",interactive:false}).addTo(this.selectedLayer);
       L.polyline(corridorPoints,{className:"model-corridor",color:"#ffb171",weight:4,opacity:.9,dashArray:"2 7",lineCap:"round",interactive:false}).addTo(this.selectedLayer);
+      focusBounds.push(...corridorPoints);
+    }
+    for(const waypoint of object.waypoints||[]){
+      const [stationLon,stationLat]=waypoint.coordinates||[];
+      if(!Number.isFinite(stationLat)||!Number.isFinite(stationLon))continue;
+      const stationPoint=[stationLat,stationLon],phase=waypoint.phase||"route";
+      L.circleMarker(stationPoint,{
+        radius:phase==="inside-corridor"?6:4,color:phase==="inside-corridor"?"#fff0d8":"#8fdce3",
+        weight:1.5,fillColor:phase==="inside-corridor"?"#ff9d52":"#16313b",fillOpacity:1,
+        interactive:true,className:`focus-station focus-station-${phase}`,
+      }).bindTooltip(`${waypoint.name||waypoint.label||"Станция"} · ${Math.round(waypoint.distanceKm||0)} км`,{direction:"top"}).addTo(this.selectedLayer);
+      focusBounds.push(stationPoint);
     }
     const [lon,lat]=object.position.coordinates||[];
     if(Number.isFinite(lat)&&Number.isFinite(lon)&&Number.isFinite(object.position.errorKm)){
       L.circle([lat,lon],{
         radius:object.position.errorKm*1000,color:"#ffb171",weight:1.5,opacity:.7,fillColor:"#ff9d52",fillOpacity:.07,interactive:false,
       }).addTo(this.selectedLayer);
+      focusBounds.push([lat,lon]);
     }
-    this.map.flyTo(marker.getLatLng(),Math.max(this.map.getZoom(),8),{duration:.6});
+    if(focusBounds.length>1)this.map.fitBounds(focusBounds,{padding:[54,54],maxZoom:9});
+    else if(marker)this.map.flyTo(marker.getLatLng(),Math.max(this.map.getZoom(),8),{duration:.6});
   }
 
   fitAll(){if(this.currentBounds?.length)this.map.fitBounds(this.currentBounds,{padding:[45,45],maxZoom:8});}

@@ -155,14 +155,15 @@ function renderSourceRegistry(){
   $("#source-registry-summary").textContent=`${summary.connected}/${summary.total} подключено`;
   elements.sourceRegistryList.innerHTML=(state.data.sourceRegistry||[]).map((source)=>`<article class="source-item source-${escapeHtml(source.state)}">
     <span></span><div><strong>${escapeHtml(source.name)}</strong><small>${escapeHtml(source.note||"")}</small></div>
-    <b>${escapeHtml(labels[source.state]||source.state)}</b>
+    <b>${escapeHtml(source.authority==="aggregator"?"СВЕРКА":labels[source.state]||source.state)}</b>
   </article>`).join("");
 }
 
 function render(){
   if(!state.data)return;
   const visible=filteredObjects();
-  mapView.render(visible,state.data.routeMap);mapView.updateRegionSelection(state.regions);
+  const focused=state.selected&&visible.find((object)=>object.id===state.selected.id);
+  mapView.render(focused?[focused]:visible,state.data.routeMap,focused||null);mapView.updateRegionSelection(state.regions);
   renderLiveFeed();renderFleet(visible);renderRegionSummary(visible);renderDiagnostics();renderSourceRegistry();renderFreshnessPulse();
   elements.visibleCount.textContent=`${visible.length} объектов`;$("#mobile-total").textContent=visible.length;
   $("#running-count").textContent=visible.filter((object)=>object.operationalStatus==="moving").length;
@@ -209,6 +210,7 @@ function detailTemplate(object){
   const quality=Math.round(object.quality*100);
   const corridor=object.corridor,previousWaypoint=object.journey?.previousWaypoint,nextWaypoint=object.journey?.nextWaypoint;
   return `
+    <p class="detail-focus-note">РЕЖИМ ФОКУСА · НА КАРТЕ ТОЛЬКО ЭТОТ РЕЙС, ЕГО МАРШРУТ И СТАНЦИИ</p>
     <p class="detail-kicker">${TRANSPORT_LABELS[object.transport]} · ${TYPE_LABELS[object.type]||object.type}</p>
     <h2>${escapeHtml(object.name)}</h2>
     <p class="detail-route">${escapeHtml(object.route)}</p>
@@ -261,7 +263,7 @@ function detailTemplate(object){
 }
 
 function selectObject(object){
-  state.selected=object;mapView.focusObject(object);elements.detailContent.innerHTML=detailTemplate(object);
+  state.selected=object;render();mapView.focusObject(object);elements.detailContent.innerHTML=detailTemplate(object);
   elements.detail.scrollTop=0;elements.detail.classList.add("open");elements.detail.setAttribute("aria-hidden","false");
   renderFleet(filteredObjects());
   elements.detailContent.querySelector("#history-button")?.addEventListener("click",()=>showToast(mapView.toggleHistory(object)?"История показана":"Нужно минимум два сохранённых снимка"));
@@ -273,7 +275,7 @@ function selectObject(object){
   });
 }
 
-function closeDetail(){elements.detail.classList.remove("open");elements.detail.setAttribute("aria-hidden","true");mapView.clearHistory();state.selected=null;renderFleet(filteredObjects());}
+function closeDetail(){elements.detail.classList.remove("open");elements.detail.setAttribute("aria-hidden","true");mapView.clearHistory();state.selected=null;render();}
 function showToast(message){elements.toast.textContent=message;elements.toast.classList.add("show");clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>elements.toast.classList.remove("show"),2400);}
 
 function resetFilters(){

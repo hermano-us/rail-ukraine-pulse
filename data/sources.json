@@ -22,7 +22,7 @@
       "name": "УЗ · вокзальное табло",
       "authority": "official",
       "kind": "schedule",
-      "state": "protected",
+      "state": "candidate",
       "priority": 2,
       "url": "https://booking.uz.gov.ua/schedule",
       "capabilities": [
@@ -30,7 +30,7 @@
         "platform",
         "station-board"
       ],
-      "note": "Публичный интерфейс доступен пользователям, но документированный API отсутствует и автоматический доступ защищён."
+      "note": "Подключается серверным browser-adapter через публичный интерфейс УЗ; гостевой API-токен не хранится и защита сайта не обходится."
     },
     {
       "id": "osm-rail-geometry",
@@ -60,7 +60,7 @@
         "schedule-change",
         "service-restored"
       ],
-      "note": "Официальный канал пригородного сообщения; кандидат для событий изменений, не источник координат."
+      "note": "Подключён публичный web-preview официального канала: задержки, отмены и сообщения о прохождении станций; не GPS."
     },
     {
       "id": "geoboundaries-ukraine",

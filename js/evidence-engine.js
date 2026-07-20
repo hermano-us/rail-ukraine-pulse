@@ -6,9 +6,9 @@ export function buildOfficialEvents(update, runId) {
   const base = {
     runId,
     occurredAt: update.updatedAt,
-    receivedAt: update.updatedAt,
-    sourceId: "uz-delay-dashboard",
-    sourceLabel: "Укрзалізниця",
+    receivedAt: update.checkedAt || update.updatedAt,
+    sourceId: update.sourceId || "uz-delay-dashboard",
+    sourceLabel: update.sourceId === "uz-public-board" ? "УЗ · вокзальное табло" : update.sourceId === "uz-suburban-telegram" ? "УЗ · пригородный канал" : "Укрзалізниця",
     authority: "official",
     confidence: 1,
   };
@@ -18,6 +18,7 @@ export function buildOfficialEvents(update, runId) {
     update.forecastDeparture ? { ...base, id: `${runId}:departure-forecast:${update.updatedAt}`, type: "forecast_departure", label: "Прогноз отправления", value: update.forecastDeparture } : null,
     update.forecastArrival ? { ...base, id: `${runId}:arrival-forecast:${update.updatedAt}`, type: "forecast_arrival", label: "Прогноз прибытия", value: update.forecastArrival } : null,
     update.reason && update.reason !== "—" ? { ...base, id: `${runId}:reason:${update.updatedAt}`, type: "disruption_reason", label: "Причина изменения графика", value: update.reason } : null,
+    update.reportedStation ? { ...base, id: `${runId}:station:${update.updatedAt}`, type: "station_report", label: "Станционное событие", value: update.reportedStation, positionEvidence: update.positionEvidence } : null,
   ].filter(Boolean);
 }
 

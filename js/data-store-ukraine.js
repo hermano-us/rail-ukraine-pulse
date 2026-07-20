@@ -35,7 +35,14 @@ const STATIONS = {
 export function normalizePlace(value = "") {
   return value.toLocaleLowerCase("uk").replace(/[.№]/g, "").replace(/\s+/g, " ").trim();
 }
-function stationCoordinates(value) { return STATIONS[normalizePlace(value)] || null; }
+function stationKey(value) { return normalizePlace(value).replace(/пасажирський|пасажирська|пассажирский|пассажирская|пас/g,"пас").replace(/головний|головна|главный|главная/g,"голов").replace(/[^\p{L}\p{N}]+/gu,""); }
+function buildStationLookup(stations=[]) {
+  const lookup=new Map();
+  for(const [name,coordinates] of Object.entries(STATIONS))lookup.set(stationKey(name),coordinates);
+  for(const station of stations)if(station?.coordinates)lookup.set(stationKey(station.name),station.coordinates);
+  return lookup;
+}
+function stationCoordinates(value,lookup) { return STATIONS[normalizePlace(value)] || lookup?.get(stationKey(value)) || null; }
 function pointKey(point) { return `${point[0].toFixed(3)},${point[1].toFixed(3)}`; }
 function slug(value) {
   return normalizePlace(value).replace(/[^\p{L}\p{N}]+/gu,"-").replace(/^-|-$/g,"");
@@ -177,7 +184,7 @@ function estimatePosition(update,routeResult,now,sourceAgeMinutes){
     status:freshness.frozen?"stale":"estimated",coordinates:interpolateAlongRoute(measure,measure.totalKm*progress),
     updatedAt:update.updatedAt,sourceUpdatedAt:update.updatedAt,calculatedAt:now.toISOString(),
     confidence:Number(confidence.toFixed(2)),errorKm:Number(errorKm.toFixed(1)),
-    method:"rail-corridor-v4",lastConfirmedAt:update.updatedAt,freshness,
+    method:"rail-corridor-v5",lastConfirmedAt:update.updatedAt,freshness,
     sources:["UZ official public status","UZ forecast arrival","rail corridor graph"],
     confidenceReasons:freshnessReasons({freshness,hasRoute:true,hasForecast:true,anchorErrorKm:routeResult.anchorErrorKm}),
     calculation:{
@@ -195,20 +202,24 @@ function evidenceFor(update,position,sourceStatus){
     {kind:"official",label:"Статус движения",value:update.publicStatus||"Не указан",timestamp:update.updatedAt,source:"Укрзалізниця"},
     {kind:"official",label:"Задержка",value:update.delayLabel||"Не указана",timestamp:update.updatedAt,source:"Укрзалізниця"},
     {kind:"official",label:"Прогноз прибытия",value:update.forecastArrival||"Не опубликован",timestamp:update.updatedAt,source:"Укрзалізниця"},
-    {kind:positionKind,label:"Положение",value:position.status==="estimated"?"Рассчитано моделью":position.status==="reported"?"Сообщено в пункте отправления":position.status==="stale"?"Экстраполяция остановлена":"Недостаточно данных",timestamp:position.updatedAt,source:position.method},
+    {kind:positionKind,label:"Положение",value:position.status==="estimated"?"Рассчитано моделью":position.status==="reported"?"Сообщено официальным источником на станции":position.status==="stale"?"Экстраполяция остановлена":"Недостаточно данных",timestamp:position.updatedAt,source:position.method},
     {kind:sourceStatus.status==="online"?"official":"stale",label:"Состояние источника",value:sourceStatus.label,timestamp:sourceStatus.checkedAt,source:"Системная диагностика"},
   ];
 }
 
-function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,sourceAgeMinutes,stations){
-  const identity=buildRunIdentity(update,now), origin=stationCoordinates(update.origin);
+function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,sourceAgeMinutes,stations,stationLookup){
+  const identity=buildRunIdentity(update,now), origin=stationCoordinates(update.origin,stationLookup);
+  const reportedAnchor=stationCoordinates(update.reportedStation,stationLookup)||origin;
   const freshness=evaluateFreshness(sourceAgeMinutes);
   const estimated=estimatePosition(update,routeResult,now,sourceAgeMinutes);
-  const reported=freshness.canPosition&&update.operationalStatus!=="moving"&&origin?{
-    status:freshness.frozen?"stale":"reported",coordinates:origin,updatedAt:update.updatedAt,
-    sourceUpdatedAt:update.updatedAt,calculatedAt:now.toISOString(),confidence:freshness.frozen?0.28:0.58,errorKm:freshness.frozen?12:3,
-    method:freshness.frozen?"stale-official-status-at-origin":"official-status-at-origin",lastConfirmedAt:update.updatedAt,
-    freshness,sources:["UZ official public status"],
+  const isStationReport=Boolean(update.reportedStation&&["reported-station-passage","station-board-window"].includes(update.positionEvidence));
+  const reportConfidence=update.positionEvidence==="reported-station-passage"?0.82:update.positionEvidence==="station-board-window"?0.66:0.58;
+  const reportErrorKm=update.positionEvidence==="reported-station-passage"?2:update.positionEvidence==="station-board-window"?5:3;
+  const reported=freshness.canPosition&&reportedAnchor&&(update.operationalStatus!=="moving"||isStationReport)?{
+    status:freshness.frozen?"stale":"reported",coordinates:reportedAnchor,updatedAt:update.updatedAt,
+    sourceUpdatedAt:update.updatedAt,calculatedAt:now.toISOString(),confidence:freshness.frozen?0.28:reportConfidence,errorKm:freshness.frozen?12:reportErrorKm,
+    method:freshness.frozen?"stale-official-station-event":update.positionEvidence==="reported-station-passage"?"official-station-passage-report":update.positionEvidence==="station-board-window"?"official-station-board-window":"official-status-at-origin",lastConfirmedAt:update.updatedAt,
+    freshness,sources:[update.sourceId||"uz-delay-dashboard"],
     confidenceReasons:freshnessReasons({freshness,hasRoute:Boolean(routeResult),hasForecast:Boolean(update.forecastArrival),anchorErrorKm:routeResult?.anchorErrorKm}),
   }:null;
   const position=estimated||reported||{
@@ -248,34 +259,36 @@ function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,so
 }
 
 export async function loadTransportData(now=new Date()){
-  const [baseRoutes,regions,liveData,freightData,vesselData,sourceData,stationData]=await Promise.all([
+  const [baseRoutes,regions,liveData,freightData,vesselData,sourceData,stationData,sourceRuntime]=await Promise.all([
     readJson("data/railways.geojson"),readJson("data/regions.geojson"),
     readJson("data/live.json",true).catch(()=>null),readJson("data/freight-aggregates.json",true).catch(()=>null),
     readJson("data/vessels.json",true).catch(()=>null),readJson("data/sources.json",true).catch(()=>null),
-    readJson("data/stations.json",true).catch(()=>null),
+    readJson("data/stations.json",true).catch(()=>null),readJson("data/source-runtime.json",true).catch(()=>null),
   ]);
   const sourceStatus=liveData?.sourceStatus||{status:"unavailable",label:"UZ: источник недоступен",checkedAt:null};
   const generatedAt=liveData?.generatedAt||now.toISOString();
   const sourceAgeMinutes=Math.max(0,(now.getTime()-Date.parse(generatedAt))/60_000)||0;
+  const runtimeStatuses=Object.fromEntries(Object.entries(sourceRuntime?.sources||{}).map(([id,entry])=>[id,typeof entry?.status==="object"?entry.status:entry]));
   const sourceRegistry=hydrateSourceRegistry(sourceData?.sources||[],{
-    "uz-delay-dashboard":sourceStatus,
+    ...runtimeStatuses,
+    "uz-delay-dashboard":runtimeStatuses["uz-delay-dashboard"]||sourceStatus,
     "osm-rail-geometry":{status:"snapshot",checkedAt:stationData?.generatedAt},
     "ais-provider":vesselData?.sourceStatus,
   },now);
   const sourceSummary=sourceRegistrySummary(sourceRegistry);
-  const stations=stationData?.stations||[];
+  const stations=stationData?.stations||[],stationLookup=buildStationLookup(stations);
   const graph=buildRailGraph(baseRoutes.features),dynamicFeatures=[];
   const objects=(liveData?.updates||[]).map((update,index)=>{
-    const origin=stationCoordinates(update.origin),destination=stationCoordinates(update.destination);
+    const origin=stationCoordinates(update.origin,stationLookup),destination=stationCoordinates(update.destination,stationLookup),reported=stationCoordinates(update.reportedStation,stationLookup);
     const routeResult=origin&&destination?railPath(graph,origin,destination):null;
     const routeId=`uz-live-route-${index}`;
     if(routeResult)dynamicFeatures.push({
       type:"Feature",properties:{id:routeId,quality:0.72,source:"rail-corridor-graph"},
       geometry:{type:"LineString",coordinates:routeResult.coordinates},
     });
-    const regionAnchors=routeResult?.coordinates||(origin||destination?[origin,destination].filter(Boolean):[]);
+    const regionAnchors=routeResult?.coordinates||(reported||origin||destination?[reported,origin,destination].filter(Boolean):[]);
     const updateAgeMinutes=ageOf(update.updatedAt||generatedAt,now);
-    return objectFromUpdate(update,routeResult,routeId,regionsForPoints(regionAnchors,regions.features),now,sourceStatus,updateAgeMinutes,stations);
+    return objectFromUpdate(update,routeResult,routeId,regionsForPoints(regionAnchors,regions.features),now,sourceStatus,updateAgeMinutes,stations,stationLookup);
   });
   const routes={type:"FeatureCollection",features:dynamicFeatures};
   const routeMap=new Map(dynamicFeatures.map((feature)=>[feature.properties.id,feature]));
@@ -291,12 +304,12 @@ export async function loadTransportData(now=new Date()){
     freshness:evaluateFreshness(sourceAgeMinutes),
     freshRuns:objects.filter((object)=>object.position.freshness?.key==="fresh").length,
     frozenRuns:objects.filter((object)=>object.position.freshness?.frozen&&object.position.coordinates).length,
-    algorithmVersion:"rail-corridor-v4",snapshotSchema:liveData?.schemaVersion||null,
+    algorithmVersion:"rail-corridor-v5",snapshotSchema:liveData?.schemaVersion||null,
   };
   const eventFeed=objects.flatMap((object)=>object.events.map((event)=>({...event,objectId:object.id,trainNumber:object.trainNumber,route:object.route,positionStatus:object.position.status})))
     .sort((a,b)=>Date.parse(b.occurredAt)-Date.parse(a.occurredAt));
   return {
-    generatedAt,calculatedAt:now.toISOString(),dataMode:"UZ-public-event-fusion-v4",safetyNote:"Only public passenger status data is displayed.",
+    generatedAt,calculatedAt:now.toISOString(),dataMode:"UZ-public-event-fusion-v5",safetyNote:"Only public passenger status data is displayed.",
     sourceStatus,sourceRegistry,sourceSummary,diagnostics,
     marineStatus:vesselData?.sourceStatus||{status:"unavailable",label:"AIS-провайдер не подключён; суда не отображаются"},
     freightStatus:freightData?.sourceStatus||{status:"unavailable",label:"Грузовые позиции не отображаются"},
