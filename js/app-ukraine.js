@@ -17,6 +17,7 @@ const elements={
   toast:$("#toast"),search:$("#object-search"),liveFeed:$("#live-feed"),liveFeedCount:$("#live-feed-count"),
   freightStatus:$("#freight-status"),fleetPanel:$("#fleet-panel"),fleetList:$("#fleet-list"),fleetCount:$("#fleet-count"),
   fleetSort:$("#fleet-sort"),regionSummary:$("#region-summary"),systemStatus:$("#system-status"),
+  sourceRegistryList:$("#source-registry-list"),
 };
 const mapView=new MapView("map",selectObject);
 
@@ -141,14 +142,24 @@ function renderDiagnostics(){
   const health=d.sourceAgeMinutes<=25&&state.data.sourceStatus.status==="online"?"Свежие":d.sourceAgeMinutes<=90?"С задержкой":"Устарели";
   $("#diagnostic-health").textContent=health;
   $("#diagnostic-health").className=`health-${health==="Свежие"?"online":health==="С задержкой"?"stale":"offline"}`;
-  $("#diagnostic-note").textContent=`Алгоритм ${d.algorithmVersion} · возраст снимка ${Math.round(d.sourceAgeMinutes)} мин · маршруты ${d.routeCoverage}/${d.totalRuns}`;
+  $("#diagnostic-note").textContent=`Алгоритм ${d.algorithmVersion} · возраст снимка ${Math.round(d.sourceAgeMinutes)} мин · маршруты ${d.routeCoverage}/${d.totalRuns} · ориентиры ${d.waypointCoverage}/${d.totalRuns}`;
+}
+
+function renderSourceRegistry(){
+  const labels={online:"LIVE",stale:"УСТАРЕЛ",snapshot:"СНИМОК",archive:"АРХИВ",protected:"ЗАЩИЩЁН",candidate:"К ПОДКЛЮЧЕНИЮ","requires-key":"НУЖЕН КЛЮЧ",unavailable:"НЕДОСТУПЕН"};
+  const summary=state.data.sourceSummary||{connected:0,total:0};
+  $("#source-registry-summary").textContent=`${summary.connected}/${summary.total} подключено`;
+  elements.sourceRegistryList.innerHTML=(state.data.sourceRegistry||[]).map((source)=>`<article class="source-item source-${escapeHtml(source.state)}">
+    <span></span><div><strong>${escapeHtml(source.name)}</strong><small>${escapeHtml(source.note||"")}</small></div>
+    <b>${escapeHtml(labels[source.state]||source.state)}</b>
+  </article>`).join("");
 }
 
 function render(){
   if(!state.data)return;
   const visible=filteredObjects();
   mapView.render(visible,state.data.routeMap);mapView.updateRegionSelection(state.regions);
-  renderLiveFeed();renderFleet(visible);renderRegionSummary(visible);renderDiagnostics();
+  renderLiveFeed();renderFleet(visible);renderRegionSummary(visible);renderDiagnostics();renderSourceRegistry();
   elements.visibleCount.textContent=`${visible.length} объектов`;$("#mobile-total").textContent=visible.length;
   $("#running-count").textContent=visible.filter((object)=>object.operationalStatus==="moving").length;
   $("#depot-count").textContent=visible.filter((object)=>object.operationalStatus==="station").length;
@@ -160,7 +171,15 @@ function evidenceTemplate(items){
 }
 
 function routeTimelineTemplate(object){
-  return `<div class="route-timeline">${object.routeTimeline.map((item)=>`<div class="route-step step-${item.kind}"><span></span><div><small>${item.kind==="origin"?"ОТПРАВЛЕНИЕ":item.kind==="destination"?"ПРИБЫТИЕ":"МОДЕЛЬ"}</small><strong>${escapeHtml(item.label)}</strong><b>${item.timestamp?formatDateTime(item.timestamp):item.evidence==="calculated"?"не подтверждено станцией":"время не опубликовано"}</b></div></div>`).join("")}</div>`;
+  return `<div class="route-timeline">${object.routeTimeline.map((item)=>{
+    const caption=item.caption||(item.kind==="origin"?"ОТПРАВЛЕНИЕ":item.kind==="destination"?"ПРИБЫТИЕ":"МОДЕЛЬ");
+    const note=item.timestamp?formatDateTime(item.timestamp):item.evidence==="calculated"?"не подтверждено станцией":item.evidence==="geometry"?"не является фактом прохождения":"время не опубликовано";
+    return `<div class="route-step step-${item.kind}"><span></span><div><small>${escapeHtml(caption)}</small><strong>${escapeHtml(item.label)}</strong><b>${note}</b></div></div>`;
+  }).join("")}</div>`;
+}
+
+function eventLedgerTemplate(events){
+  return `<div class="event-ledger">${(events||[]).map((event)=>`<article><span>${escapeHtml(event.authority==="official"?"ФАКТ":"СОБЫТИЕ")}</span><div><strong>${escapeHtml(event.label)}</strong><p>${escapeHtml(event.value)}</p><small>${escapeHtml(event.sourceLabel)} · ${formatRelative(event.occurredAt)}</small></div></article>`).join("")}</div>`;
 }
 
 function historyTemplate(object){
@@ -174,6 +193,7 @@ function detailTemplate(object){
   const confidence=Math.round((position.confidence??0)*100),progress=object.journey?.progress==null?null:Math.round(object.journey.progress*100);
   const forecast=object.forecast?.arrivalAt?formatDateTime(object.forecast.arrivalAt):"Не опубликован";
   const quality=Math.round(object.quality*100);
+  const corridor=object.corridor,previousWaypoint=object.journey?.previousWaypoint,nextWaypoint=object.journey?.nextWaypoint;
   return `
     <p class="detail-kicker">${TRANSPORT_LABELS[object.transport]} · ${TYPE_LABELS[object.type]||object.type}</p>
     <h2>${escapeHtml(object.name)}</h2>
@@ -195,6 +215,12 @@ function detailTemplate(object){
     <h3 class="detail-section-title">Маршрут и прогноз</h3>
     ${routeTimelineTemplate(object)}
     ${progress==null?"":`<section class="journey-progress"><header><span>Расчётный прогресс</span><strong>${progress}%</strong></header><div class="journey-track"><i style="width:${progress}%"></i></div></section>`}
+    ${corridor?`<section class="corridor-card">
+      <header><span>ВЕРОЯТНЫЙ УЧАСТОК</span><strong>${corridor.fromKm}–${corridor.toKm} км</strong></header>
+      <div class="corridor-track"><i style="left:${Math.round(corridor.fromKm/corridor.totalKm*100)}%;width:${Math.max(2,Math.round(corridor.widthKm/corridor.totalKm*100))}%"></i></div>
+      <p>Модель допускает нахождение поезда на участке длиной ${corridor.widthKm} км. Это диапазон неопределённости, а не GPS-трек.</p>
+      <div class="corridor-waypoints"><span>Позади модели: <b>${escapeHtml(previousWaypoint?.name||"нет ориентира")}</b></span><span>Впереди модели: <b>${escapeHtml(nextWaypoint?.name||"нет ориентира")}</b></span></div>
+    </section>`:""}
 
     <div class="confidence-block"><div class="confidence-head"><span>Уверенность координаты</span><strong>${confidence}%</strong></div><div class="confidence-bar"><i style="width:${confidence}%"></i></div></div>
     <div class="data-grid">
@@ -206,6 +232,8 @@ function detailTemplate(object){
       <div><small>Области маршрута</small><strong>${(object.regions||[]).length}</strong></div>
     </div>
 
+    <h3 class="detail-section-title">Журнал официальных событий</h3>
+    ${eventLedgerTemplate(object.events)}
     <h3 class="detail-section-title">Цепочка доказательств</h3>
     ${evidenceTemplate(object.evidence)}
     <h3 class="detail-section-title">История в этом браузере</h3>
@@ -277,7 +305,7 @@ function renderSourceStatus(){
   elements.systemStatus.dataset.status=status;
   elements.systemStatus.querySelector("strong").textContent=status==="online"?"Публичный контур активен":status==="stale"?"Используется последний снимок":"Источник недоступен";
   $("#last-update").textContent=`${state.data.sourceStatus.label||status} · ${formatRelative(state.data.generatedAt)}`;
-  $("#source-badge").textContent=state.data.liveFeed.length?"UZ REAL":"NO DATA";
+  $("#source-badge").textContent=status==="online"&&state.data.liveFeed.length?"UZ REAL":status==="stale"?"UZ STALE":"NO DATA";
   $("#marine-status").textContent=state.data.marineStatus.label;
   elements.freightStatus.textContent=state.data.freightStatus.label;
 }

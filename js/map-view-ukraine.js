@@ -88,6 +88,11 @@ export class MapView{
         className:"estimated-track selected-track",color:"#ff9d52",weight:3,opacity:.82,dashArray:"7 8",interactive:false,
       }).addTo(this.selectedLayer);
     }
+    if(object.corridor?.coordinates?.length>1){
+      const corridorPoints=object.corridor.coordinates.map(([lon,lat])=>[lat,lon]);
+      L.polyline(corridorPoints,{className:"model-corridor-halo",color:"#ff9d52",weight:14,opacity:.14,lineCap:"round",interactive:false}).addTo(this.selectedLayer);
+      L.polyline(corridorPoints,{className:"model-corridor",color:"#ffb171",weight:4,opacity:.9,dashArray:"2 7",lineCap:"round",interactive:false}).addTo(this.selectedLayer);
+    }
     const [lon,lat]=object.position.coordinates||[];
     if(Number.isFinite(lat)&&Number.isFinite(lon)&&Number.isFinite(object.position.errorKm)){
       L.circle([lat,lon],{

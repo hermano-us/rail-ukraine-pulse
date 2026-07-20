@@ -91,7 +91,12 @@
           <p id="diagnostic-note">Проверяем актуальность источника и покрытие маршрутов.</p>
         </section>
 
-        <section class="method-note"><div class="note-icon">∿</div><div><strong>Факты отделены от расчёта</strong><p>Объекты берутся из реальной таблицы УЗ. Оранжевая точка и круг погрешности — аналитическая оценка, не GPS.</p></div></section>
+        <section class="source-registry" aria-label="Реестр источников">
+          <header><div><small>КОНТУР ДАННЫХ</small><strong>Источники и покрытие</strong></div><span id="source-registry-summary">—</span></header>
+          <div id="source-registry-list" class="source-registry-list"></div>
+        </section>
+
+        <section class="method-note"><div class="note-icon">∿</div><div><strong>Факты отделены от расчёта</strong><p>Объекты берутся из реальной таблицы УЗ. Оранжевая точка, участок и круг погрешности — аналитическая оценка, не GPS.</p></div></section>
         <section class="freight-note"><span>▦</span><div><strong>Грузовой слой</strong><p id="freight-status">Проверка открытой статистики…</p></div></section>
         <section class="marine-note"><span>⌁</span><div><strong>Морской источник</strong><p id="marine-status">Проверка AIS…</p></div></section>
         <footer class="sidebar-footer"><span>OSM · UZ public · geoBoundaries</span><a href="README.md">Методология ↗</a></footer>

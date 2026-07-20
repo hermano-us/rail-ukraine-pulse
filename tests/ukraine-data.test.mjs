@@ -17,7 +17,7 @@ test("delay table adapter normalizes public updates and forecasts", () => {
     trainNumber:"91/92", route:"Київ — Львів", origin:"Київ", destination:"Львів",
     delayMinutes:72, delayLabel:"+ 01:12", publicStatus:"В дорозі", operationalStatus:"moving",
     forecastDeparture:null, forecastArrival:"18:42", reliability:"Висока", reason:"Операційна причина",
-    sourceEvidence:"official-public-dashboard", positionEvidence:"none",
+    sourceId:"uz-delay-dashboard", sourceEvidence:"official-public-dashboard", positionEvidence:"none",
   }]);
 });
 

@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "id": "uz-delay-dashboard",
+      "name": "УЗ · задержки и прогнозы",
+      "authority": "official",
+      "kind": "operational",
+      "state": "online",
+      "priority": 1,
+      "url": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "capabilities": ["movement-status", "delay", "forecast", "reason"],
+      "note": "Реальные публичные статусы задерживающихся пассажирских поездов; не GPS."
+    },
+    {
+      "id": "uz-public-board",
+      "name": "УЗ · вокзальное табло",
+      "authority": "official",
+      "kind": "schedule",
+      "state": "protected",
+      "priority": 2,
+      "url": "https://booking.uz.gov.ua/schedule",
+      "capabilities": ["schedule", "platform", "station-board"],
+      "note": "Публичный интерфейс доступен пользователям, но документированный API отсутствует и автоматический доступ защищён."
+    },
+    {
+      "id": "osm-rail-geometry",
+      "name": "OpenStreetMap · железнодорожная геометрия",
+      "authority": "community",
+      "kind": "geometry",
+      "state": "snapshot",
+      "priority": 3,
+      "url": "https://www.openstreetmap.org/copyright",
+      "capabilities": ["rail-geometry", "stations", "depots"],
+      "note": "Используется локальный снимок геометрии; положение рассчитывается вдоль пути."
+    },
+    {
+      "id": "geoboundaries-ukraine",
+      "name": "geoBoundaries · области Украины",
+      "authority": "open-data",
+      "kind": "boundary",
+      "state": "snapshot",
+      "priority": 4,
+      "url": "https://www.geoboundaries.org/",
+      "capabilities": ["administrative-boundaries"],
+      "note": "Границы используются только для фильтрации и аналитики."
+    },
+    {
+      "id": "uspa-port-reports",
+      "name": "АМПУ · судозаходы",
+      "authority": "official",
+      "kind": "maritime-events",
+      "state": "candidate",
+      "priority": 5,
+      "url": "https://www.uspa.gov.ua/project_category/passing-ukrainian-ports",
+      "capabilities": ["port-call", "departure", "port-status"],
+      "note": "Источник найден; нужен устойчивый адаптер таблиц и контроль изменений формата."
+    },
+    {
+      "id": "wikimedia-rolling-stock",
+      "name": "Wikimedia Commons · подвижной состав",
+      "authority": "community",
+      "kind": "media",
+      "state": "candidate",
+      "priority": 6,
+      "url": "https://commons.wikimedia.org/",
+      "capabilities": ["photo", "license", "rolling-stock-metadata"],
+      "note": "Фотографии подключаются только с автором, лицензией и пометкой типового состава."
+    },
+    {
+      "id": "ais-provider",
+      "name": "AIS · координаты судов",
+      "authority": "provider",
+      "kind": "position",
+      "state": "requires-key",
+      "priority": 7,
+      "capabilities": ["position", "course", "speed", "vessel-identity"],
+      "note": "Для реальных координат требуется легальный API-ключ и серверный прокси."
+    }
+  ]
+}

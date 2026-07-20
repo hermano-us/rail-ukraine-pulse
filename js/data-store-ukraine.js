@@ -1,4 +1,5 @@
 import { buildRouteMeasure, haversineKm, interpolateAlongRoute } from "./positioning.js";
+import { buildGeometricWaypoints, buildOfficialEvents, buildUncertaintyCorridor, hydrateSourceRegistry, sourceRegistrySummary } from "./evidence-engine.js";
 
 async function readJson(url, optional = false) {
   const response = await fetch(url, { cache: "no-store" });
@@ -53,7 +54,7 @@ export function serviceDateFor(now = new Date()) {
 }
 
 export function buildRunIdentity(update, now = new Date()) {
-  const serviceDate=serviceDateFor(now);
+  const serviceDate=serviceDateFor(update.updatedAt?new Date(update.updatedAt):now);
   const directionId=`${slug(update.origin)}--${slug(update.destination)}`;
   return { serviceDate, directionId, runId:`uz:${serviceDate}:${update.trainNumber}:${directionId}` };
 }
@@ -156,7 +157,9 @@ export function calculateQuality({hasRoute,hasForecast,sourceAgeMinutes,reliabil
 }
 
 function estimatePosition(update,routeResult,now,sourceAgeMinutes){
-  const measure=buildRouteMeasure(routeResult?.coordinates), arrival=zonedClock(update.forecastArrival,now);
+  if(sourceAgeMinutes>180)return null;
+  const referenceTime=update.updatedAt?new Date(update.updatedAt):now;
+  const measure=buildRouteMeasure(routeResult?.coordinates), arrival=zonedClock(update.forecastArrival,referenceTime);
   if(!measure||!arrival||update.operationalStatus!=="moving")return null;
   const remainingHours=Math.max(0,(arrival.getTime()-now.getTime())/3_600_000);
   const nominalSpeedKph=measure.totalKm>900?67:measure.totalKm>450?63:58;
@@ -189,26 +192,32 @@ function evidenceFor(update,position,sourceStatus){
   ];
 }
 
-function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,sourceAgeMinutes){
+function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,sourceAgeMinutes,stations){
   const identity=buildRunIdentity(update,now), origin=stationCoordinates(update.origin);
   const estimated=estimatePosition(update,routeResult,now,sourceAgeMinutes);
-  const reported=update.operationalStatus!=="moving"&&origin?{
+  const reported=sourceAgeMinutes<=180&&update.operationalStatus!=="moving"&&origin?{
     status:"reported",coordinates:origin,updatedAt:update.updatedAt,confidence:0.58,errorKm:3,
     method:"official-status-at-origin",lastConfirmedAt:update.updatedAt,sources:["UZ official public status"],
   }:null;
   const position=estimated||reported||{
     status:"unknown",coordinates:null,updatedAt:update.updatedAt,confidence:0,errorKm:null,
-    method:routeResult?"forecast-arrival-unavailable":"rail-route-unavailable",lastConfirmedAt:update.updatedAt,
+    method:sourceAgeMinutes>180?"source-snapshot-stale":routeResult?"forecast-arrival-unavailable":"rail-route-unavailable",lastConfirmedAt:update.updatedAt,
     sources:["UZ official public status"],
   };
   const quality=calculateQuality({
     hasRoute:Boolean(routeResult),hasForecast:Boolean(update.forecastArrival),sourceAgeMinutes,
     reliability:update.reliability,anchorErrorKm:routeResult?.anchorErrorKm,
   });
-  const forecastArrivalAt=zonedClock(update.forecastArrival,now)?.toISOString()||null;
+  const referenceTime=update.updatedAt?new Date(update.updatedAt):now;
+  const forecastArrivalAt=zonedClock(update.forecastArrival,referenceTime)?.toISOString()||null;
+  const events=buildOfficialEvents(update,identity.runId);
+  const corridor=buildUncertaintyCorridor(position,routeResult?.coordinates);
+  const waypointData=buildGeometricWaypoints(routeResult?.coordinates,stations,corridor);
   const routeTimeline=[
     {kind:"origin",label:update.origin||"Пункт отправления",evidence:"route",timestamp:null},
+    waypointData.previous?{kind:"model-past",label:waypointData.previous.name,evidence:"geometry",caption:"ОРИЕНТИР ПОЗАДИ РАСЧЁТНОГО УЧАСТКА",timestamp:null}:null,
     position.status==="estimated"?{kind:"estimate",label:"Расчётное положение",evidence:"calculated",timestamp:position.updatedAt}:null,
+    waypointData.next?{kind:"model-next",label:waypointData.next.name,evidence:"geometry",caption:"СЛЕДУЮЩИЙ ГЕОМЕТРИЧЕСКИЙ ОРИЕНТИР",timestamp:null}:null,
     {kind:"destination",label:update.destination||"Пункт назначения",evidence:"route",timestamp:forecastArrivalAt},
   ].filter(Boolean);
   return {
@@ -218,20 +227,30 @@ function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,so
     description:`Публичный рейс Укрзалізниці ${update.route}. Официальный статус: ${update.publicStatus}; задержка ${update.delayLabel||"не указана"}.`,
     rollingStock:"Тип состава не опубликован в источнике",operationalStatus:update.operationalStatus,
     liveUpdate:update,telemetry:{speedKph:null},position,quality,
-    evidence:evidenceFor(update,position,sourceStatus),routeTimeline,
-    forecast:{departureAt:zonedClock(update.forecastDeparture,now)?.toISOString()||null,arrivalAt:forecastArrivalAt},
-    journey:{progress:position.calculation?.progress??null,lastEvent:null,nextEvent:null},history:[],
+    evidence:evidenceFor(update,position,sourceStatus),events,corridor,routeTimeline,
+    waypoints:waypointData.waypoints,
+    forecast:{departureAt:zonedClock(update.forecastDeparture,referenceTime)?.toISOString()||null,arrivalAt:forecastArrivalAt},
+    journey:{progress:position.calculation?.progress??null,lastEvent:null,nextEvent:null,previousWaypoint:waypointData.previous,nextWaypoint:waypointData.next},history:[],
   };
 }
 
 export async function loadTransportData(now=new Date()){
-  const [baseRoutes,regions,liveData,freightData]=await Promise.all([
+  const [baseRoutes,regions,liveData,freightData,vesselData,sourceData,stationData]=await Promise.all([
     readJson("data/railways.geojson"),readJson("data/regions.geojson"),
     readJson("data/live.json",true).catch(()=>null),readJson("data/freight-aggregates.json",true).catch(()=>null),
+    readJson("data/vessels.json",true).catch(()=>null),readJson("data/sources.json",true).catch(()=>null),
+    readJson("data/stations.json",true).catch(()=>null),
   ]);
   const sourceStatus=liveData?.sourceStatus||{status:"unavailable",label:"UZ: источник недоступен",checkedAt:null};
   const generatedAt=liveData?.generatedAt||now.toISOString();
   const sourceAgeMinutes=Math.max(0,(now.getTime()-Date.parse(generatedAt))/60_000)||0;
+  const sourceRegistry=hydrateSourceRegistry(sourceData?.sources||[],{
+    "uz-delay-dashboard":sourceStatus,
+    "osm-rail-geometry":{status:"snapshot",checkedAt:stationData?.generatedAt},
+    "ais-provider":vesselData?.sourceStatus,
+  },now);
+  const sourceSummary=sourceRegistrySummary(sourceRegistry);
+  const stations=stationData?.stations||[];
   const graph=buildRailGraph(baseRoutes.features),dynamicFeatures=[];
   const objects=(liveData?.updates||[]).map((update,index)=>{
     const origin=stationCoordinates(update.origin),destination=stationCoordinates(update.destination);
@@ -242,7 +261,7 @@ export async function loadTransportData(now=new Date()){
       geometry:{type:"LineString",coordinates:routeResult.coordinates},
     });
     const regionAnchors=routeResult?.coordinates||(origin||destination?[origin,destination].filter(Boolean):[]);
-    return objectFromUpdate(update,routeResult,routeId,regionsForPoints(regionAnchors,regions.features),now,sourceStatus,sourceAgeMinutes);
+    return objectFromUpdate(update,routeResult,routeId,regionsForPoints(regionAnchors,regions.features),now,sourceStatus,sourceAgeMinutes,stations);
   });
   const routes={type:"FeatureCollection",features:dynamicFeatures};
   const routeMap=new Map(dynamicFeatures.map((feature)=>[feature.properties.id,feature]));
@@ -253,12 +272,14 @@ export async function loadTransportData(now=new Date()){
     sourceAgeMinutes:Number(sourceAgeMinutes.toFixed(1)),totalRuns:objects.length,positionedRuns:positioned,
     unknownRuns:objects.length-positioned,forecastCoverage,routeCoverage:dynamicFeatures.length,
     averageQuality:objects.length?Number((objects.reduce((sum,item)=>sum+item.quality,0)/objects.length).toFixed(2)):0,
-    algorithmVersion:"rail-graph-v2",snapshotSchema:liveData?.schemaVersion||null,
+    waypointCoverage:objects.filter((object)=>object.journey.nextWaypoint||object.journey.previousWaypoint).length,
+    sourcesConnected:sourceSummary.connected,sourcesTotal:sourceSummary.total,
+    algorithmVersion:"rail-corridor-v3",snapshotSchema:liveData?.schemaVersion||null,
   };
   return {
-    generatedAt,dataMode:"UZ-public-real-only-v2",safetyNote:"Only public passenger status data is displayed.",
-    sourceStatus,diagnostics,
-    marineStatus:{status:"unavailable",label:"AIS-провайдер не подключён; суда не отображаются"},
+    generatedAt,dataMode:"UZ-public-evidence-fusion-v3",safetyNote:"Only public passenger status data is displayed.",
+    sourceStatus,sourceRegistry,sourceSummary,diagnostics,
+    marineStatus:vesselData?.sourceStatus||{status:"unavailable",label:"AIS-провайдер не подключён; суда не отображаются"},
     freightStatus:freightData?.sourceStatus||{status:"unavailable",label:"Грузовые позиции не отображаются"},
     liveFeed:(liveData?.updates||[]).map((update,index)=>({...update,objectId:objects[index]?.id||null})),
     objects,routes,routeMap,regions,regionList,
