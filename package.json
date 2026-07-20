@@ -7,12 +7,16 @@
     "serve": "node scripts/serve.mjs",
     "test": "node --test",
     "build-data": "node scripts/build-ukraine-data.mjs && node scripts/build-regions.mjs",
-    "update-data": "node scripts/update-transport-data.mjs"
+    "update-data": "node scripts/update-transport-data.mjs",
+    "push-live-backend": "node scripts/push-backend-snapshot.mjs"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
     "playwright": "1.61.1"
+  },
+  "devDependencies": {
+    "wrangler": "^4.112.0"
   }
 }

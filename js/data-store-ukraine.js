@@ -1,6 +1,8 @@
-import { buildRouteMeasure, haversineKm, interpolateAlongRoute } from "./positioning.js";
+import { buildRouteMeasure, haversineKm, interpolateAlongRoute, projectDistanceOnRoute } from "./positioning.js";
+import { estimatePosterior } from "../shared/rail-posterior.js";
 import { buildGeometricWaypoints, buildOfficialEvents, buildUncertaintyCorridor, hydrateSourceRegistry, sourceRegistrySummary } from "./evidence-engine.js";
 import { evaluateFreshness, freshnessConfidenceFactor, freshnessReasons, sourceAgeMinutes as ageOf } from "./freshness-policy.js";
+import { loadLiveSnapshot } from "./live-data-client.js";
 
 async function readJson(url, optional = false) {
   const response = await fetch(url, { cache: "no-store" });
@@ -164,13 +166,35 @@ export function calculateQuality({hasRoute,hasForecast,sourceAgeMinutes,reliabil
   return Number(Math.max(0,Math.min(1,total)).toFixed(2));
 }
 
-function estimatePosition(update,routeResult,now,sourceAgeMinutes){
+export function estimatePosition(update,routeResult,now,sourceAgeMinutes,stationAnchor=null){
   const freshness=evaluateFreshness(sourceAgeMinutes);
   if(!freshness.canPosition)return null;
   const referenceTime=update.updatedAt?new Date(update.updatedAt):now;
   const measure=buildRouteMeasure(routeResult?.coordinates), arrival=zonedClock(update.forecastArrival,referenceTime);
-  if(!measure||!arrival||update.operationalStatus!=="moving")return null;
+  if(!measure||update.operationalStatus!=="moving")return null;
   const effectiveNow=new Date(referenceTime.getTime()+freshness.modelAgeMinutes*60_000);
+  if(stationAnchor){
+    const routeDistanceKm=projectDistanceOnRoute(measure,stationAnchor);
+    const posterior=estimatePosterior({
+      now,routeLengthKm:measure.totalKm,nominalSpeedKph:measure.totalKm>900?67:measure.totalKm>450?63:58,
+      anchors:[{routeDistanceKm,occurredAt:update.updatedAt,errorKm:update.positionEvidence==="reported-station-passage"?2:5,reliability:update.positionEvidence==="reported-station-passage"?0.9:0.78}],
+      schedule:arrival?[{routeDistanceKm:measure.totalKm,expectedAt:arrival.toISOString()}]:[],
+    });
+    if(posterior.status!=="unknown")return {
+      status:posterior.status,coordinates:interpolateAlongRoute(measure,posterior.distanceKm),
+      updatedAt:update.updatedAt,sourceUpdatedAt:update.updatedAt,calculatedAt:posterior.calculatedAt,
+      confidence:posterior.confidence,errorKm:posterior.errorKm,method:posterior.method,
+      lastConfirmedAt:update.updatedAt,freshness,sources:[update.sourceId||"station-event",arrival?"UZ forecast arrival":null,"rail posterior"].filter(Boolean),
+      confidenceReasons:freshnessReasons({freshness,hasRoute:true,hasForecast:Boolean(arrival),anchorErrorKm:routeResult.anchorErrorKm}),
+      probabilityCorridor:posterior.corridor,distribution:posterior.distribution,
+      calculation:{
+        progress:Number((posterior.distanceKm/measure.totalKm).toFixed(3)),totalKm:Number(measure.totalKm.toFixed(1)),
+        sourceAgeMinutes:posterior.sourceAgeMinutes,forecastArrivalAt:arrival?.toISOString()||null,
+        model:"station-anchored-posterior",p50:posterior.corridor.p50,p90:posterior.corridor.p90,
+      },
+    };
+  }
+  if(!arrival)return null;
   const remainingHours=Math.max(0,(arrival.getTime()-effectiveNow.getTime())/3_600_000);
   const nominalSpeedKph=measure.totalKm>900?67:measure.totalKm>450?63:58;
   const progress=Math.max(0.025,Math.min(0.975,1-(remainingHours*nominalSpeedKph)/measure.totalKm));
@@ -211,8 +235,8 @@ function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,so
   const identity=buildRunIdentity(update,now), origin=stationCoordinates(update.origin,stationLookup);
   const reportedAnchor=stationCoordinates(update.reportedStation,stationLookup)||origin;
   const freshness=evaluateFreshness(sourceAgeMinutes);
-  const estimated=estimatePosition(update,routeResult,now,sourceAgeMinutes);
   const isStationReport=Boolean(update.reportedStation&&["reported-station-passage","station-board-window"].includes(update.positionEvidence));
+  const estimated=estimatePosition(update,routeResult,now,sourceAgeMinutes,isStationReport?reportedAnchor:null);
   const reportConfidence=update.positionEvidence==="reported-station-passage"?0.82:update.positionEvidence==="station-board-window"?0.66:0.58;
   const reportErrorKm=update.positionEvidence==="reported-station-passage"?2:update.positionEvidence==="station-board-window"?5:3;
   const reported=freshness.canPosition&&reportedAnchor&&(update.operationalStatus!=="moving"||isStationReport)?{
@@ -261,7 +285,7 @@ function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,so
 export async function loadTransportData(now=new Date()){
   const [baseRoutes,regions,liveData,freightData,vesselData,sourceData,stationData,sourceRuntime]=await Promise.all([
     readJson("data/railways.geojson"),readJson("data/regions.geojson"),
-    readJson("data/live.json",true).catch(()=>null),readJson("data/freight-aggregates.json",true).catch(()=>null),
+    loadLiveSnapshot().then((result)=>result.snapshot).catch(()=>null),readJson("data/freight-aggregates.json",true).catch(()=>null),
     readJson("data/vessels.json",true).catch(()=>null),readJson("data/sources.json",true).catch(()=>null),
     readJson("data/stations.json",true).catch(()=>null),readJson("data/source-runtime.json",true).catch(()=>null),
   ]);
@@ -304,7 +328,7 @@ export async function loadTransportData(now=new Date()){
     freshness:evaluateFreshness(sourceAgeMinutes),
     freshRuns:objects.filter((object)=>object.position.freshness?.key==="fresh").length,
     frozenRuns:objects.filter((object)=>object.position.freshness?.frozen&&object.position.coordinates).length,
-    algorithmVersion:"rail-corridor-v5",snapshotSchema:liveData?.schemaVersion||null,
+    algorithmVersion:"rail-posterior-v1+rail-corridor-v5",snapshotSchema:liveData?.schemaVersion||null,
   };
   const eventFeed=objects.flatMap((object)=>object.events.map((event)=>({...event,objectId:object.id,trainNumber:object.trainNumber,route:object.route,positionStatus:object.position.status})))
     .sort((a,b)=>Date.parse(b.occurredAt)-Date.parse(a.occurredAt));

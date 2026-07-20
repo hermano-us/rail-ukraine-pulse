@@ -1,4 +1,4 @@
-import { loadTransportData } from "./data-store-ukraine.js?v=20260720-null-source-fix";
+import { loadTransportData } from "./data-store-ukraine.js?v=20260720-event-backend";
 import { MapView } from "./map-view-ukraine.js";
 import { POSITION_STATUSES } from "./positioning.js";
 import { OPERATION_COLORS, OPERATION_LABELS, TRANSPORT_LABELS, TYPE_LABELS, escapeHtml, formatDateTime, formatRelative } from "./formatters-ukraine.js";
@@ -345,4 +345,4 @@ async function refreshData(){
 }
 
 bootstrap();
-window.setInterval(refreshData,60_000);
+window.setInterval(refreshData,30_000);

@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "rail-ukraine-pulse-api",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-07-01",
+  "triggers": { "crons": ["*/3 * * * *"] },
+  "vars": {
+    "UPSTREAM_SNAPSHOT_URL": "https://hermano-us.github.io/rail-ukraine-pulse/data/live.json",
+    "ALLOWED_ORIGIN": "https://hermano-us.github.io"
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "rail-ukraine-pulse",
+    "database_id": "SET_AFTER_WRANGLER_D1_CREATE",
+    "migrations_dir": "migrations"
+  }],
+  "kv_namespaces": [{
+    "binding": "SNAPSHOT",
+    "id": "SET_AFTER_WRANGLER_KV_NAMESPACE_CREATE"
+  }]
+}
+
