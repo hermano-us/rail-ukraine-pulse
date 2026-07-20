@@ -29,7 +29,9 @@ function persistHistory(data){
   for(const object of data.objects){
     if(!object.position.coordinates)continue;
     const entries=Array.isArray(store[object.runId])?store[object.runId]:[];
-    const timestamp=object.position.updatedAt||data.generatedAt;
+    const calculatedAt=object.position.calculatedAt||data.calculatedAt||new Date().toISOString();
+    const bucketMs=Math.floor(Date.parse(calculatedAt)/(15*60_000))*(15*60_000);
+    const timestamp=new Date(bucketMs).toISOString();
     if(!entries.some((entry)=>entry.timestamp===timestamp)){
       entries.push({
         timestamp,coordinates:object.position.coordinates,status:object.position.status,
@@ -72,6 +74,8 @@ function initRegions(){
 function matchesQuick(object){
   if(state.quick==="moving")return object.operationalStatus==="moving";
   if(state.quick==="delayed")return Number(object.liveUpdate?.delayMinutes||0)>=60;
+  if(state.quick==="fresh")return object.position.freshness?.key==="fresh";
+  if(state.quick==="stale")return ["stale","unknown"].includes(object.position.status);
   if(state.quick==="unknown")return object.position.status==="unknown";
   return true;
 }
@@ -139,14 +143,14 @@ function renderDiagnostics(){
   $("#diagnostic-positioned").textContent=`${d.positionedRuns}/${d.totalRuns}`;
   $("#diagnostic-forecast").textContent=`${d.forecastCoverage}/${d.totalRuns}`;
   $("#diagnostic-quality").textContent=`${Math.round(d.averageQuality*100)}%`;
-  const health=d.sourceAgeMinutes<=25&&state.data.sourceStatus.status==="online"?"Свежие":d.sourceAgeMinutes<=90?"С задержкой":"Устарели";
+  const health=d.freshness.key==="fresh"?"Свежие":d.freshness.key==="expired"?"Устарели":"С задержкой";
   $("#diagnostic-health").textContent=health;
   $("#diagnostic-health").className=`health-${health==="Свежие"?"online":health==="С задержкой"?"stale":"offline"}`;
-  $("#diagnostic-note").textContent=`Алгоритм ${d.algorithmVersion} · возраст снимка ${Math.round(d.sourceAgeMinutes)} мин · маршруты ${d.routeCoverage}/${d.totalRuns} · ориентиры ${d.waypointCoverage}/${d.totalRuns}`;
+  $("#diagnostic-note").textContent=`Алгоритм ${d.algorithmVersion} · данные УЗ ${Math.round(d.sourceAgeMinutes)} мин назад · свежие ${d.freshRuns}/${d.totalRuns} · заморожены ${d.frozenRuns}`;
 }
 
 function renderSourceRegistry(){
-  const labels={online:"LIVE",stale:"УСТАРЕЛ",snapshot:"СНИМОК",archive:"АРХИВ",protected:"ЗАЩИЩЁН",candidate:"К ПОДКЛЮЧЕНИЮ","requires-key":"НУЖЕН КЛЮЧ",unavailable:"НЕДОСТУПЕН"};
+  const labels={online:"LIVE",stale:"УСТАРЕЛ",snapshot:"СНИМОК",archive:"АРХИВ",protected:"ЗАЩИЩЁН",candidate:"К ПОДКЛЮЧЕНИЮ","requires-key":"НУЖЕН КЛЮЧ","reference-only":"ТОЛЬКО СВЕРКА",unavailable:"НЕДОСТУПЕН"};
   const summary=state.data.sourceSummary||{connected:0,total:0};
   $("#source-registry-summary").textContent=`${summary.connected}/${summary.total} подключено`;
   elements.sourceRegistryList.innerHTML=(state.data.sourceRegistry||[]).map((source)=>`<article class="source-item source-${escapeHtml(source.state)}">
@@ -159,11 +163,21 @@ function render(){
   if(!state.data)return;
   const visible=filteredObjects();
   mapView.render(visible,state.data.routeMap);mapView.updateRegionSelection(state.regions);
-  renderLiveFeed();renderFleet(visible);renderRegionSummary(visible);renderDiagnostics();renderSourceRegistry();
+  renderLiveFeed();renderFleet(visible);renderRegionSummary(visible);renderDiagnostics();renderSourceRegistry();renderFreshnessPulse();
   elements.visibleCount.textContent=`${visible.length} объектов`;$("#mobile-total").textContent=visible.length;
   $("#running-count").textContent=visible.filter((object)=>object.operationalStatus==="moving").length;
   $("#depot-count").textContent=visible.filter((object)=>object.operationalStatus==="station").length;
   $("#unavailable-count").textContent=visible.filter((object)=>object.position.status==="unknown").length;
+}
+
+function renderFreshnessPulse(){
+  const d=state.data.diagnostics,f=d.freshness;
+  const panel=$("#freshness-pulse");if(!panel)return;
+  panel.dataset.tone=f.tone;
+  $("#pulse-source-age").textContent=Number.isFinite(d.sourceAgeMinutes)?`${Math.round(d.sourceAgeMinutes)} мин`:"—";
+  $("#pulse-calculated-at").textContent=new Intl.DateTimeFormat("ru-RU",{hour:"2-digit",minute:"2-digit",timeZone:"Europe/Kyiv"}).format(new Date(state.data.calculatedAt));
+  $("#pulse-mode").textContent=f.label;
+  $("#pulse-extrapolation").textContent=f.frozen?"остановлена на 90 мин":`${Math.round(f.modelAgeMinutes)} мин`;
 }
 
 function evidenceTemplate(items){
@@ -202,7 +216,7 @@ function detailTemplate(object){
 
     <div class="truth-grid">
       <section><small>ФАКТ УЗ</small><strong>${escapeHtml(object.liveUpdate?.publicStatus||"Нет статуса")}</strong><span>Задержка ${escapeHtml(object.liveUpdate?.delayLabel||"—")}</span></section>
-      <section><small>РАСЧЁТ</small><strong style="color:${status.color}">${status.label}</strong><span>${position.status==="estimated"?"Не является GPS":"Координата не рассчитана"}</span></section>
+      <section><small>РАСЧЁТ</small><strong style="color:${status.color}">${status.label}</strong><span>${position.status==="estimated"?"Не является GPS":position.status==="stale"?"Маркер больше не движется":"Координата не рассчитана"}</span></section>
     </div>
 
     <div class="operation-banner" style="--operation-color:${OPERATION_COLORS[operation]}"><strong>${OPERATION_LABELS[operation]}</strong><span>${escapeHtml(object.rollingStock)}</span></div>
@@ -223,11 +237,14 @@ function detailTemplate(object){
     </section>`:""}
 
     <div class="confidence-block"><div class="confidence-head"><span>Уверенность координаты</span><strong>${confidence}%</strong></div><div class="confidence-bar"><i style="width:${confidence}%"></i></div></div>
+    <div class="confidence-reasons">${(position.confidenceReasons||[]).map((reason)=>`<p class="${reason.positive?"positive":"negative"}"><span>${reason.positive?"+":"−"}</span>${escapeHtml(reason.text)}</p>`).join("")}</div>
     <div class="data-grid">
       <div><small>Погрешность</small><strong>${position.errorKm==null?"Не определена":`± ${position.errorKm} км`}</strong></div>
       <div><small>Прогноз прибытия</small><strong>${forecast}</strong></div>
       <div><small>Метод</small><strong>${escapeHtml(position.method)}</strong></div>
-      <div><small>Снимок УЗ</small><strong>${formatRelative(object.liveUpdate?.updatedAt)}</strong></div>
+      <div><small>Исходные данные УЗ</small><strong>${formatRelative(position.sourceUpdatedAt)}</strong></div>
+      <div><small>Расчёт выполнен</small><strong>${formatRelative(position.calculatedAt)}</strong></div>
+      <div><small>Экстраполяция</small><strong>${Math.round(position.calculation?.extrapolationMinutes??0)} мин${position.freshness?.frozen?" · остановлена":""}</strong></div>
       <div><small>Причина задержки</small><strong>${escapeHtml(object.liveUpdate?.reason||"Не опубликована")}</strong></div>
       <div><small>Области маршрута</small><strong>${(object.regions||[]).length}</strong></div>
     </div>
@@ -305,7 +322,7 @@ function renderSourceStatus(){
   elements.systemStatus.dataset.status=status;
   elements.systemStatus.querySelector("strong").textContent=status==="online"?"Публичный контур активен":status==="stale"?"Используется последний снимок":"Источник недоступен";
   $("#last-update").textContent=`${state.data.sourceStatus.label||status} · ${formatRelative(state.data.generatedAt)}`;
-  $("#source-badge").textContent=status==="online"&&state.data.liveFeed.length?"UZ REAL":status==="stale"?"UZ STALE":"NO DATA";
+  $("#source-badge").textContent=status==="online"&&state.data.liveFeed.length?"UZ EVENT":status==="stale"?"UZ STALE":"NO DATA";
   $("#marine-status").textContent=state.data.marineStatus.label;
   elements.freightStatus.textContent=state.data.freightStatus.label;
 }

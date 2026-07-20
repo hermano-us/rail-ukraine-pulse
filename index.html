@@ -36,6 +36,8 @@
           <button class="quick-chip active" data-quick="all">Все</button>
           <button class="quick-chip" data-quick="moving">В пути</button>
           <button class="quick-chip" data-quick="delayed">Задержка 1ч+</button>
+          <button class="quick-chip" data-quick="fresh">Свежие ≤30м</button>
+          <button class="quick-chip" data-quick="stale">Устаревшие</button>
           <button class="quick-chip" data-quick="unknown">Без координат</button>
         </section>
 
@@ -115,8 +117,14 @@
           <div><span class="legend-marker estimated"></span>Расчётная координата</div>
           <div><span class="legend-marker reported"></span>Сообщено источником</div>
           <div><span class="legend-ring"></span>Зона погрешности</div>
-          <div><span class="legend-marker stale"></span>Нет координаты</div>
+          <div><span class="legend-marker stale"></span>Экстраполяция остановлена</div>
         </div>
+        <section class="freshness-pulse" id="freshness-pulse" aria-label="Свежесть расчёта">
+          <div><small>ДАННЫЕ УЗ</small><strong id="pulse-source-age">—</strong></div>
+          <div><small>РАСЧЁТ</small><strong id="pulse-calculated-at">—</strong></div>
+          <div><small>РЕЖИМ</small><strong id="pulse-mode">—</strong></div>
+          <div><small>ЭКСТРАПОЛЯЦИЯ</small><strong id="pulse-extrapolation">—</strong></div>
+        </section>
         <button class="mobile-summary" id="mobile-summary" aria-label="Открыть фильтры"><strong id="mobile-total">0</strong><span>рейсов в выборке</span></button>
       </section>
 

@@ -16,7 +16,7 @@ test("run identity follows the source event date, not the viewer date", () => {
 
 test("stale public snapshots cannot create calculated or reported positions", async () => {
   const source = await readFile(new URL("../js/data-store-ukraine.js", import.meta.url), "utf8");
-  assert.match(source, /if\(sourceAgeMinutes>180\)return null/);
-  assert.match(source, /sourceAgeMinutes<=180&&update\.operationalStatus/);
-  assert.match(source, /source-snapshot-stale/);
+  assert.match(source, /if\(!freshness\.canPosition\)return null/);
+  assert.match(source, /freshness\.canPosition&&update\.operationalStatus/);
+  assert.match(source, /source-snapshot-expired/);
 });

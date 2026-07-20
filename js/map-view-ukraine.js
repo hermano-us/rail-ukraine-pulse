@@ -52,8 +52,8 @@ export class MapView{
       const [lon,lat]=object.position.coordinates||[];
       if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
       const status=object.position.status,operation=object.operationalStatus||"moving";
-      const color=OPERATION_COLORS[operation]||POSITION_STATUSES[status].color;
-      const estimateLabel=status==="estimated"?"<em>Расчётное · не GPS</em>":`<em>${OPERATION_LABELS[operation]}</em>`;
+      const color=["stale","unknown"].includes(status)?POSITION_STATUSES[status].color:(OPERATION_COLORS[operation]||POSITION_STATUSES[status].color);
+      const estimateLabel=status==="estimated"?"<em>Расчётное · не GPS</em>":status==="stale"?"<em>Расчёт остановлен</em>":`<em>${OPERATION_LABELS[operation]}</em>`;
       const delay=object.liveUpdate?.delayLabel||"—";
       const icon=L.divIcon({
         className:"transport-marker",
@@ -66,9 +66,9 @@ export class MapView{
       marker.on("click",()=>this.onSelect(object));
       marker.bindTooltip(`${object.name} · ${object.route} · ${delay}`,{direction:"top",offset:[0,-14]});
       this.markers.set(object.id,marker);bounds.push([lat,lon]);
-      if(status==="estimated"&&Number.isFinite(object.position.errorKm)){
+      if(["estimated","stale"].includes(status)&&Number.isFinite(object.position.errorKm)){
         L.circle([lat,lon],{
-          radius:object.position.errorKm*1000,color:"#ff9d52",weight:1,opacity:.22,fillColor:"#ff9d52",fillOpacity:.025,
+          radius:object.position.errorKm*1000,color:status==="stale"?"#82919a":"#ff9d52",weight:1,opacity:.22,fillColor:status==="stale"?"#82919a":"#ff9d52",fillOpacity:.025,
           interactive:false,className:"uncertainty-zone",
         }).addTo(this.uncertaintyLayer);
       }

@@ -9,7 +9,12 @@
       "state": "online",
       "priority": 1,
       "url": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "capabilities": ["movement-status", "delay", "forecast", "reason"],
+      "capabilities": [
+        "movement-status",
+        "delay",
+        "forecast",
+        "reason"
+      ],
       "note": "Реальные публичные статусы задерживающихся пассажирских поездов; не GPS."
     },
     {
@@ -20,7 +25,11 @@
       "state": "protected",
       "priority": 2,
       "url": "https://booking.uz.gov.ua/schedule",
-      "capabilities": ["schedule", "platform", "station-board"],
+      "capabilities": [
+        "schedule",
+        "platform",
+        "station-board"
+      ],
       "note": "Публичный интерфейс доступен пользователям, но документированный API отсутствует и автоматический доступ защищён."
     },
     {
@@ -31,8 +40,27 @@
       "state": "snapshot",
       "priority": 3,
       "url": "https://www.openstreetmap.org/copyright",
-      "capabilities": ["rail-geometry", "stations", "depots"],
+      "capabilities": [
+        "rail-geometry",
+        "stations",
+        "depots"
+      ],
       "note": "Используется локальный снимок геометрии; положение рассчитывается вдоль пути."
+    },
+    {
+      "id": "uz-suburban-telegram",
+      "name": "УЗ · приміські поїзди",
+      "authority": "official",
+      "kind": "service-alerts",
+      "state": "candidate",
+      "priority": 3,
+      "url": "https://t.me/UZprymisky",
+      "capabilities": [
+        "cancellation",
+        "schedule-change",
+        "service-restored"
+      ],
+      "note": "Официальный канал пригородного сообщения; кандидат для событий изменений, не источник координат."
     },
     {
       "id": "geoboundaries-ukraine",
@@ -42,7 +70,9 @@
       "state": "snapshot",
       "priority": 4,
       "url": "https://www.geoboundaries.org/",
-      "capabilities": ["administrative-boundaries"],
+      "capabilities": [
+        "administrative-boundaries"
+      ],
       "note": "Границы используются только для фильтрации и аналитики."
     },
     {
@@ -53,7 +83,11 @@
       "state": "candidate",
       "priority": 5,
       "url": "https://www.uspa.gov.ua/project_category/passing-ukrainian-ports",
-      "capabilities": ["port-call", "departure", "port-status"],
+      "capabilities": [
+        "port-call",
+        "departure",
+        "port-status"
+      ],
       "note": "Источник найден; нужен устойчивый адаптер таблиц и контроль изменений формата."
     },
     {
@@ -64,7 +98,11 @@
       "state": "candidate",
       "priority": 6,
       "url": "https://commons.wikimedia.org/",
-      "capabilities": ["photo", "license", "rolling-stock-metadata"],
+      "capabilities": [
+        "photo",
+        "license",
+        "rolling-stock-metadata"
+      ],
       "note": "Фотографии подключаются только с автором, лицензией и пометкой типового состава."
     },
     {
@@ -74,8 +112,42 @@
       "kind": "position",
       "state": "requires-key",
       "priority": 7,
-      "capabilities": ["position", "course", "speed", "vessel-identity"],
+      "capabilities": [
+        "position",
+        "course",
+        "speed",
+        "vessel-identity"
+      ],
       "note": "Для реальных координат требуется легальный API-ключ и серверный прокси."
+    },
+    {
+      "id": "poezdato-station-schedule",
+      "name": "Poezdato · станционные расписания",
+      "authority": "aggregator",
+      "kind": "schedule",
+      "state": "reference-only",
+      "priority": 8,
+      "url": "https://poezdato.net/raspisanie-po-stancyi/lvov/",
+      "capabilities": [
+        "schedule",
+        "station-calls",
+        "train-name"
+      ],
+      "note": "Только резервная сверка: часть описаний и направлений выглядит устаревшей, оперативными фактами не считаются."
+    },
+    {
+      "id": "kiyavia-station-schedule",
+      "name": "Kiyavia · расписания по станциям",
+      "authority": "aggregator",
+      "kind": "schedule",
+      "state": "reference-only",
+      "priority": 9,
+      "url": "https://kiyavia.com/ru/rozklad-poyizdiv-po-ukrayini/rozklad-poizdiv-harkiv-pasagyrskiy",
+      "capabilities": [
+        "schedule",
+        "station-calls"
+      ],
+      "note": "Статическое расписание без видимой метки обновления и первичного источника; используется только для сверки."
     }
   ]
 }
