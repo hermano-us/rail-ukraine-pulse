@@ -1,4 +1,4 @@
-import { loadTransportData } from "./data-store-ukraine.js";
+import { loadTransportData } from "./data-store-ukraine.js?v=20260720-null-source-fix";
 import { MapView } from "./map-view-ukraine.js";
 import { POSITION_STATUSES } from "./positioning.js";
 import { OPERATION_COLORS, OPERATION_LABELS, TRANSPORT_LABELS, TYPE_LABELS, escapeHtml, formatDateTime, formatRelative } from "./formatters-ukraine.js";
