@@ -1,4 +1,5 @@
 import { loadTransportData } from "./data-store-ukraine.js?v=20260720-event-backend";
+import { loadRuntimeConfig, subscribeToLiveUpdates } from "./live-data-client.js";
 import { MapView } from "./map-view-ukraine.js";
 import { POSITION_STATUSES } from "./positioning.js";
 import { OPERATION_COLORS, OPERATION_LABELS, TRANSPORT_LABELS, TYPE_LABELS, escapeHtml, formatDateTime, formatRelative } from "./formatters-ukraine.js";
@@ -383,13 +384,27 @@ async function bootstrap(){
   }catch(error){console.error(error);$("#last-update").textContent="Ошибка загрузки данных";showToast("Не удалось загрузить публичный набор УЗ");}
 }
 
+let refreshInFlight;
 async function refreshData(){
-  try{
-    const refreshed=await loadTransportData(new Date());persistHistory(refreshed);state.data=refreshed;mapView.setRoutes(refreshed.routes);renderSourceStatus();render();
-    if(state.followedId){const followed=refreshed.objects.find((object)=>object.id===state.followedId);if(followed)mapView.focusObject(followed);}
-    if(state.selected){const selected=refreshed.objects.find((object)=>object.id===state.selected.id);if(selected)selectObject(selected);}
-  }catch(error){console.warn("Background data refresh failed",error);}
+  if(refreshInFlight)return refreshInFlight;
+  refreshInFlight=(async()=>{
+    try{
+      const refreshed=await loadTransportData(new Date());persistHistory(refreshed);state.data=refreshed;mapView.setRoutes(refreshed.routes);renderSourceStatus();render();
+      if(state.followedId){const followed=refreshed.objects.find((object)=>object.id===state.followedId);if(followed)mapView.focusObject(followed);}
+      if(state.selected){const selected=refreshed.objects.find((object)=>object.id===state.selected.id);if(selected)selectObject(selected);}
+    }catch(error){console.warn("Background data refresh failed",error);}
+  })();
+  try{return await refreshInFlight;}finally{refreshInFlight=null;}
 }
 
-bootstrap();
-window.setInterval(refreshData,30_000);
+await bootstrap();
+const runtimeConfig=await loadRuntimeConfig();
+let lastStreamSnapshot=state.data?.generatedAt||null;
+const stopLiveStream=await subscribeToLiveUpdates((message)=>{
+  if(message.generatedAt&&message.generatedAt!==lastStreamSnapshot){
+    lastStreamSnapshot=message.generatedAt;
+    refreshData();
+  }
+},(transport)=>{document.documentElement.dataset.liveTransport=transport;});
+window.setInterval(refreshData,Math.max(30_000,Number(runtimeConfig.refreshIntervalMs)||60_000));
+window.addEventListener("beforeunload",stopLiveStream,{once:true});

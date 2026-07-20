@@ -1,8 +1,10 @@
 const DEFAULT_CONFIG = Object.freeze({
   apiBase: "",
   snapshotPath: "/api/v1/snapshot",
+  streamPath: "/api/v1/stream",
   fallbackUrl: "data/live.json",
   requestTimeoutMs: 4500,
+  refreshIntervalMs: 30_000,
 });
 
 let configPromise;
@@ -50,3 +52,20 @@ export async function loadLiveSnapshot() {
   };
 }
 
+export async function subscribeToLiveUpdates(onSnapshot, onState = () => {}) {
+  const config = await loadRuntimeConfig();
+  if (!config.apiBase || typeof EventSource === "undefined") {
+    onState("polling");
+    return () => {};
+  }
+
+  const endpoint = new URL(config.streamPath, `${config.apiBase.replace(/\/$/, "")}/`).toString();
+  const stream = new EventSource(endpoint);
+  stream.addEventListener("open", () => onState("streaming"));
+  stream.addEventListener("snapshot", (event) => {
+    try { onSnapshot(JSON.parse(event.data)); }
+    catch (error) { console.warn("Invalid live stream event", error); }
+  });
+  stream.addEventListener("error", () => onState("reconnecting"));
+  return () => stream.close();
+}

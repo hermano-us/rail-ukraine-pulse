@@ -1,64 +1,62 @@
 # Автономное развёртывание
 
-Проект теперь разделён на три независимых контура:
+Проект состоит из трёх независимых контуров:
 
-1. Collector читает публичные источники, нормализует события и каждые 3 минуты отправляет снимок в API.
-2. Cloudflare Worker хранит рейсы и события в D1/KV, отдаёт API и статические файлы карты.
-3. Cloudflare Access управляет доступом зрителей по email/одноразовому коду без хранения паролей в проекте.
+1. Collector читает публичные источники, нормализует события и отправляет снимок в API. GitHub Actions делает это каждые 10 минут; Docker-версия может работать каждые 3 минуты на отдельном сервере.
+2. Cloudflare Worker постоянно доступен по запросу, хранит рейсы и события в D1/KV, публикует карту и каждые 5 минут проверяет свежесть данных.
+3. Operations Center по адресу `/rail-ops` показывает состояние pipeline, возраст снимка, источники и последние события. API панели дополнительно защищён `RAIL_ADMIN_TOKEN`.
 
-GitHub Pages и GitHub Actions остаются резервным каналом до переключения домена, но не требуются для работы контейнерного сборщика.
+## Постоянный collector
 
-## Сборщик на VPS или домашнем сервере
+Создайте `.env` рядом с compose-файлом:
 
-Требования: Docker Compose и постоянный исходящий HTTPS-доступ.
-
-Создайте файл .env рядом с compose-файлом:
-
-    RAIL_API_URL=https://rail-ukraine-pulse-api.example.workers.dev
-    RAIL_INGEST_TOKEN=отдельный_случайный_секрет_не_короче_24_символов
-    COLLECTOR_INTERVAL_MS=180000
-    BOARD_HEADLESS=true
+```dotenv
+RAIL_API_URL=https://rail-ukraine-pulse-api.example.workers.dev
+RAIL_INGEST_TOKEN=отдельный_случайный_секрет_не_короче_24_символов
+COLLECTOR_INTERVAL_MS=180000
+COLLECTOR_ATTEMPTS=3
+COLLECTOR_SCRIPT_TIMEOUT_MS=480000
+BOARD_HEADLESS=true
+```
 
 Запуск:
 
-    docker compose -f compose.collector.yaml up -d --build
-    docker compose -f compose.collector.yaml ps
+```bash
+docker compose -f compose.collector.yaml up -d --build
+docker compose -f compose.collector.yaml ps
+```
 
-Healthcheck внутри контейнера доступен на http://127.0.0.1:8080/health. Циклы не накладываются: следующий начинается через заданный интервал после завершения предыдущего.
+`/health` и `/ready` возвращают `503`, если успешного цикла ещё не было или последний успех старше трёх интервалов (минимум 15 минут). Циклы не накладываются; каждый получает до трёх попыток и ограничен таймаутом.
 
-## Публикация карты и API в Cloudflare
+## Cloudflare
 
-Workflow Deploy autonomous Cloudflare application запускается вручную. До запуска добавьте GitHub Secrets:
+GitHub workflow `Deploy autonomous Cloudflare application` требует секреты:
 
-- CLOUDFLARE_API_TOKEN
-- CLOUDFLARE_ACCOUNT_ID
-- RAIL_INGEST_TOKEN
-- RAIL_ADMIN_TOKEN
+- `CLOUDFLARE_API_TOKEN`;
+- `CLOUDFLARE_ACCOUNT_ID`;
+- `RAIL_INGEST_TOKEN`;
+- `RAIL_ADMIN_TOKEN`.
 
-RAIL_INGEST_TOKEN должен совпадать у Worker и collector. RAIL_ADMIN_TOKEN используется только страницей /admin.html.
+Production-конфигурация находится в `backend/wrangler.production.jsonc`. Она включает D1, KV, static assets и Cron `*/5 * * * *`.
 
-Статические assets раздаются непосредственно Cloudflare, а пути /api/* обрабатывает Worker. Конфигурация находится в backend/wrangler.production.jsonc.
+## Cloudflare Access
 
-## Доступ пользователей
+Код готов к защите Operations Center через Cloudflare Access, но policy нельзя безопасно создать без списка разрешённых email. Настройка:
 
-Для выдачи и отзыва доступа рекомендуется Cloudflare Zero Trust → Access → Applications → Self-hosted. Политика по конкретным email даёт:
+1. Cloudflare Zero Trust → Access → Applications → Add application → Self-hosted.
+2. Domain: hostname Worker, Path: `rail-ops*`.
+3. Session duration: 8 hours.
+4. Allow policy: только выбранные email или email domain.
+5. Оставить `RAIL_ADMIN_TOKEN` вторым фактором защиты API.
 
-- вход по одноразовому коду или через выбранный identity provider;
-- мгновенный отзыв доступа;
-- журнал входов;
-- отсутствие собственной базы паролей и рисков восстановления учётных данных.
+Для автоматизации через API deployment-токену понадобится отдельное разрешение `Access: Apps and Policies Write`. Не защищайте весь hostname, иначе будет закрыта публичная карта и `/api/v1/snapshot`.
 
-Можно защитить весь Worker или отдельный hostname. Админ-диагностика дополнительно требует RAIL_ADMIN_TOKEN, даже если пользователь уже прошёл внешний Access.
+## Мониторинг
 
-Официальная документация:
+- Worker health: `/api/health`;
+- Operations Center: `/rail-ops`;
+- Collector readiness: `/ready`;
+- GitHub incident: один issue `[monitor] Public data refresh is failing`, обновляемый при повторных падениях и закрываемый после восстановления;
+- SSE: `/api/v1/stream`, резервный polling карты — 60 секунд.
 
-- https://developers.cloudflare.com/workers/static-assets/binding/
-- https://developers.cloudflare.com/cloudflare-one/access-controls/applications/choose-application-type/
-
-## Миграция без простоя
-
-1. Развернуть новую версию Worker вручную.
-2. Запустить collector и убедиться, что /health показывает healthy.
-3. Проверить /api/health, карту и /admin.html.
-4. Подключить домен и Access.
-5. Только после нескольких успешных циклов отключить GitHub schedule.
+Система работает автономно, но «реальное время» ограничено скоростью публичных источников. SSE уменьшает задержку между появлением нового снимка в API и отображением на карте, не подменяя GPS-телеметрию.

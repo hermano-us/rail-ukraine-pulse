@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>Rail Ukraine Pulse · Operations Center</title>
+  <link rel="stylesheet" href="css/admin.css?v=ops-center-v1">
+</head>
+<body>
+  <div class="ops-backdrop" aria-hidden="true"></div>
+  <main class="ops-shell">
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="Вернуться на карту">
+        <span class="brand-mark">R</span>
+        <span><b>RAIL UKRAINE PULSE</b><small>OPERATIONS CENTER</small></span>
+      </a>
+      <div class="topbar-actions">
+        <span id="connection-badge" class="connection-badge" data-tone="idle"><i></i>Ожидание</span>
+        <a class="map-link" href="./">Открыть карту</a>
+      </div>
+    </header>
+
+    <section id="login-panel" class="login-layout">
+      <div class="login-copy">
+        <p class="eyebrow">ЗАКРЫТЫЙ КОНТУР</p>
+        <h1>Центр управления транспортными данными</h1>
+        <p>Контроль свежести снимков, состояния источников, событийного хранилища и автоматических циклов обновления.</p>
+        <div class="security-note"><span>01</span><p>Ключ хранится только в текущей вкладке браузера и не записывается в постоянное хранилище.</p></div>
+      </div>
+      <form id="login-form" class="login-card">
+        <span class="card-kicker">OPERATOR AUTH</span>
+        <h2>Доступ к консоли</h2>
+        <label for="admin-token">Токен администратора</label>
+        <input id="admin-token" type="password" autocomplete="current-password" placeholder="Введите RAIL_ADMIN_TOKEN" required>
+        <button id="login-button" type="submit">Подключиться</button>
+        <p id="login-error" class="error" role="alert"></p>
+      </form>
+    </section>
+
+    <section id="dashboard" hidden>
+      <section id="system-hero" class="system-hero" data-tone="idle">
+        <div>
+          <p class="eyebrow">SYSTEM PULSE</p>
+          <h1 id="system-title">Проверяем контур…</h1>
+          <p id="system-caption" class="muted">Получение диагностических данных</p>
+        </div>
+        <div class="pulse-orbit" aria-hidden="true"><span></span><i></i></div>
+        <div class="toolbar">
+          <button id="refresh-button" type="button">Обновить сейчас</button>
+          <button id="logout-button" type="button" class="secondary">Завершить сеанс</button>
+        </div>
+      </section>
+
+      <div id="metrics" class="metrics" aria-live="polite"></div>
+
+      <div class="ops-grid">
+        <section class="panel pipeline-panel">
+          <header class="panel-header"><div><p class="eyebrow">PIPELINE</p><h2>Цикл обновления</h2></div><span id="pipeline-badge" class="tag">—</span></header>
+          <div class="pipeline-flow">
+            <article><span>01</span><div><b>Публичные источники</b><small id="source-summary">—</small></div></article>
+            <i></i>
+            <article><span>02</span><div><b>Collector</b><small>Нормализация и проверка</small></div></article>
+            <i></i>
+            <article><span>03</span><div><b>Cloudflare D1 + KV</b><small id="storage-summary">—</small></div></article>
+            <i></i>
+            <article><span>04</span><div><b>Карта</b><small>Event stream + fallback polling</small></div></article>
+          </div>
+        </section>
+
+        <section class="panel security-panel">
+          <p class="eyebrow">SECURITY</p>
+          <h2>Контур доступа</h2>
+          <ul>
+            <li><span>API</span><b>Bearer token</b></li>
+            <li><span>Страница</span><b>/rail-ops</b></li>
+            <li><span>Сессия</span><b>sessionStorage</b></li>
+            <li><span>Cloudflare Access</span><b id="access-status">Готов к подключению</b></li>
+          </ul>
+        </section>
+      </div>
+
+      <section class="panel">
+        <header class="panel-header"><div><p class="eyebrow">SOURCE WATCH</p><h2>Источники данных</h2></div><span id="updated-at" class="muted"></span></header>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Источник</th><th>Состояние</th><th>Возраст</th><th>Записей</th><th>Последняя ошибка</th></tr></thead>
+            <tbody id="source-rows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <header class="panel-header"><div><p class="eyebrow">EVENT LEDGER</p><h2>Последние события</h2></div><span id="events-caption" class="muted"></span></header>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Время</th><th>Поезд</th><th>Событие</th><th>Станция</th><th>Источник</th></tr></thead>
+            <tbody id="event-rows"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </main>
+  <script type="module" src="js/admin.js?v=ops-center-v1"></script>
+</body>
+</html>

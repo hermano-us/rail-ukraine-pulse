@@ -1,45 +1,22 @@
-# Live event backend
-
-The dynamic layer keeps GitHub Pages as a safe static fallback while moving operational data to a Cloudflare Worker.
-
-## Data flow
+# Live backend
 
 ```text
 public UZ collectors
-  -> POST /api/v1/ingest
-  -> immutable events + current run projection (D1)
-  -> cached compatible snapshot (KV)
+  -> normalized immutable events
+  -> authenticated ingest with retries
+  -> D1 event ledger + KV snapshot
   -> GET /api/v1/snapshot
-  -> browser refresh every 30 seconds
+  -> GET /api/v1/stream
+  -> map refresh on stream signal
+  -> 60-second polling fallback
 ```
 
-The collector sends the existing `live.json` contract. The backend expands every source update into immutable domain events and also keeps a current projection for backwards compatibility.
+The stream is a lightweight SSE version signal. It reconnects every 10 seconds and asks the browser to load a new snapshot only when `generatedAt` changes. It does not claim GPS telemetry and cannot make an upstream source update faster.
 
-## API
+Freshness thresholds:
 
-- `GET /api/health` — database and source health;
-- `GET /api/v1/snapshot` — current public passenger snapshot;
-- `GET /api/v1/events?since=<ISO>&runId=<id>` — traceable event history;
-- `POST /api/v1/ingest` — authenticated collector input.
+- up to 20 minutes: `ok`;
+- 20–60 minutes: `degraded`;
+- over 60 minutes or no snapshot: `unavailable`.
 
-All public responses are CORS-scoped and marked `no-store`. Ingestion requires a bearer token of at least 24 characters.
-
-## Cloudflare resources
-
-1. Copy `backend/wrangler.example.jsonc` to `backend/wrangler.jsonc`.
-2. Create a D1 database and put its id in the configuration.
-3. Create a KV namespace and put its id in the configuration.
-4. Apply `backend/migrations/0001_initial.sql`.
-5. Store `INGEST_TOKEN` as a Worker secret.
-6. Deploy the Worker.
-7. Add `RAIL_API_URL` and `RAIL_INGEST_TOKEN` as GitHub Actions secrets.
-8. Put the Worker origin into `data/runtime-config.json`.
-
-Until step 8, the browser continues to use `data/live.json`. If the live API later fails, the client automatically falls back to that published snapshot.
-
-## Position model
-
-`rail-posterior-v1` represents a train as a probability distribution over distance along its rail route. It exposes nested 50% and 90% corridors, confidence, error radius, source age and the last station confirmation. It never creates a position without route evidence, and freezes after 90 minutes without a new anchor.
-
-The existing `rail-corridor-v5` remains as a conservative fallback for runs that have an arrival forecast but no station anchor. This preserves coverage during the migration without upgrading weak evidence to a confirmed position.
-
+The collector retries failed cycles three times. The persistent Docker collector exposes `/health` and `/ready`; GitHub Actions opens one deduplicated incident issue when the scheduled collector fails and closes it after recovery.

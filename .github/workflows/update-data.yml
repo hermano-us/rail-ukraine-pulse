@@ -13,14 +13,16 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: ukraine-public-data-refresh
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -33,18 +35,78 @@ jobs:
       - run: npm install --omit=dev --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
       - run: npm test
-      - run: xvfb-run --auto-servernum npm run update-data
+      - name: Collect public transport evidence
+        shell: bash
         env:
           BOARD_HEADLESS: "false"
+        run: |
+          retry() {
+            local attempt=1
+            local maximum=3
+            local delay=10
+            until "$@"; do
+              if [ "$attempt" -ge "$maximum" ]; then
+                echo "Command failed after $attempt attempts" >&2
+                return 1
+              fi
+              echo "Attempt $attempt failed; retrying in ${delay}s" >&2
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          }
+          retry xvfb-run --auto-servernum npm run update-data
       - name: Push snapshot to live backend
-        run: npm run push-live-backend
+        shell: bash
         env:
           RAIL_API_URL: ${{ secrets.RAIL_API_URL }}
           RAIL_INGEST_TOKEN: ${{ secrets.RAIL_INGEST_TOKEN }}
+        run: |
+          retry() {
+            local attempt=1
+            local maximum=3
+            local delay=5
+            until "$@"; do
+              if [ "$attempt" -ge "$maximum" ]; then return 1; fi
+              echo "Backend push failed; retrying in ${delay}s" >&2
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          }
+          retry npm run push-live-backend
       - name: Commit public snapshot
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/live.json data/source-runtime.json
           git diff --cached --quiet || git commit -m "data: refresh public transport source fusion"
+          git pull --rebase origin main
           git push
+      - name: Open or update collector incident
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          title="[monitor] Public data refresh is failing"
+          issue="$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number // empty')"
+          body="Автоматический цикл обновления завершился ошибкой: $RUN_URL"
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
+      - name: Resolve collector incident after recovery
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          title="[monitor] Public data refresh is failing"
+          issue="$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number // empty')"
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --body "Автоматический контур снова работает штатно. Инцидент закрыт этим успешным запуском."
+            gh issue close "$issue" --reason completed
+          fi

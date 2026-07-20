@@ -1,6 +1,25 @@
 import { updatesToEvents, validateEvent } from "./domain/events.js";
 
 const SNAPSHOT_KEY = "public:v1:snapshot";
+const WORKER_VERSION = "ops-center-v1";
+const FRESH_MINUTES = 20;
+const DEGRADED_MINUTES = 60;
+const STREAM_RETRY_MS = 10_000;
+
+function snapshotFreshness(snapshot, now = Date.now()) {
+  const generatedAt = Date.parse(snapshot?.generatedAt || "");
+  if (!Number.isFinite(generatedAt)) {
+    return { status: "unavailable", ageMinutes: null, label: "Снимок отсутствует", message: "Нет корректного времени последнего снимка" };
+  }
+  const ageMinutes = Math.max(0, (now - generatedAt) / 60_000);
+  if (ageMinutes <= FRESH_MINUTES) {
+    return { status: "ok", ageMinutes, label: "Свежие данные", message: "Автоматический контур обновляется штатно" };
+  }
+  if (ageMinutes <= DEGRADED_MINUTES) {
+    return { status: "degraded", ageMinutes, label: "Задержка обновления", message: "Новый снимок не поступил в ожидаемое окно" };
+  }
+  return { status: "unavailable", ageMinutes, label: "Данные устарели", message: "Расчётные позиции должны считаться замороженными" };
+}
 
 function corsHeaders(request, env) {
   const origin = request.headers.get("Origin");
@@ -135,9 +154,13 @@ async function snapshotFromDb(env) {
   };
 }
 
-async function getSnapshot(request, env) {
+async function readSnapshot(env) {
   const cached = env.SNAPSHOT ? await env.SNAPSHOT.get(SNAPSHOT_KEY, "json") : null;
-  const snapshot = cached || await snapshotFromDb(env);
+  return cached || snapshotFromDb(env);
+}
+
+async function getSnapshot(request, env) {
+  const snapshot = await readSnapshot(env);
   const body = `${JSON.stringify(snapshot)}\n`;
   const etag = `W/\"${body.length}-${snapshot.generatedAt}\"`;
   if (request.headers.get("If-None-Match") === etag) {
@@ -170,24 +193,46 @@ async function getEvents(request, env) {
 }
 
 async function getHealth(request, env) {
-  const database = await env.DB.prepare("SELECT COUNT(*) AS runs FROM runs").first();
-  const sources = await env.DB.prepare("SELECT * FROM source_health ORDER BY checked_at DESC").all();
+  const [database, sources, snapshot] = await Promise.all([
+    env.DB.prepare("SELECT COUNT(*) AS runs FROM runs").first(),
+    env.DB.prepare("SELECT * FROM source_health ORDER BY checked_at DESC").all(),
+    readSnapshot(env),
+  ]);
+  const freshness = snapshotFreshness(snapshot);
   return json({
-    status: "ok", checkedAt: new Date().toISOString(), runs: Number(database?.runs || 0),
+    status: freshness.status,
+    checkedAt: new Date().toISOString(),
+    version: WORKER_VERSION,
+    runs: Number(database?.runs || 0),
+    snapshot: { generatedAt: snapshot?.generatedAt || null, ageMinutes: freshness.ageMinutes, updates: snapshot?.updates?.length || 0 },
     sources: sources.results || [],
   }, { headers: { "Cache-Control": "no-store" } }, request, env);
 }
-
 async function getAdminOverview(request, env) {
-  const [runs, events, sources] = await Promise.all([
+  const [runs, events, sources, recentEvents, snapshot] = await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS total, MAX(last_observed_at) AS latest FROM runs").first(),
     env.DB.prepare("SELECT COUNT(*) AS total, MAX(observed_at) AS latest FROM events").first(),
     env.DB.prepare("SELECT * FROM source_health ORDER BY checked_at DESC").all(),
+    env.DB.prepare(`
+      SELECT e.run_id, e.event_type, e.station, e.observed_at, e.source_id, r.train_number
+      FROM events e LEFT JOIN runs r ON r.run_id=e.run_id
+      ORDER BY e.observed_at DESC LIMIT 30
+    `).all(),
+    readSnapshot(env),
   ]);
-  const snapshot = env.SNAPSHOT ? await env.SNAPSHOT.get(SNAPSHOT_KEY, "json") : null;
+  const freshness = snapshotFreshness(snapshot);
   return json({
-    status: "ok",
+    status: freshness.status,
     checkedAt: new Date().toISOString(),
+    version: WORKER_VERSION,
+    pipeline: {
+      status: freshness.status,
+      snapshotAgeMinutes: freshness.ageMinutes,
+      freshnessLabel: freshness.label,
+      message: freshness.message,
+      expectedRefreshMinutes: 10,
+      streamRetryMs: STREAM_RETRY_MS,
+    },
     runs: { total: Number(runs?.total || 0), latest: runs?.latest || null },
     events: { total: Number(events?.total || 0), latest: events?.latest || null },
     snapshot: snapshot ? {
@@ -197,13 +242,47 @@ async function getAdminOverview(request, env) {
       sourceStatus: snapshot.sourceStatus || null,
     } : null,
     sources: sources.results || [],
+    recentEvents: (recentEvents.results || []).map((event) => ({
+      runId: event.run_id,
+      trainNumber: event.train_number || null,
+      type: event.event_type,
+      station: event.station || null,
+      observedAt: event.observed_at,
+      sourceId: event.source_id,
+    })),
   }, { headers: { "Cache-Control": "no-store" } }, request, env);
+}
+
+async function getSnapshotStream(request, env) {
+  const snapshot = await readSnapshot(env);
+  const freshness = snapshotFreshness(snapshot);
+  const event = {
+    generatedAt: snapshot?.generatedAt || null,
+    updates: Array.isArray(snapshot?.updates) ? snapshot.updates.length : 0,
+    status: freshness.status,
+  };
+  const headers = new Headers(corsHeaders(request, env));
+  headers.set("Content-Type", "text/event-stream; charset=utf-8");
+  headers.set("Cache-Control", "no-cache, no-transform");
+  return new Response(`retry: ${STREAM_RETRY_MS}\nevent: snapshot\ndata: ${JSON.stringify(event)}\n\n`, { headers });
 }
 export async function handleRequest(request, env) {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request, env) });
   const url = new URL(request.url);
   try {
+    if (request.method === "GET" && ["/admin.html", "/rail-ops-center.html"].includes(url.pathname)) {
+      return json({ error: "not_found" }, { status: 404, headers: { "X-Robots-Tag": "noindex, nofollow" } }, request, env);
+    }
+    if (request.method === "GET" && ["/rail-ops", "/rail-ops/"].includes(url.pathname) && env.ASSETS) {
+      const assetUrl = new URL("/rail-ops-center.html", request.url);
+      const response = await env.ASSETS.fetch(new Request(assetUrl, request));
+      const headers = new Headers(response.headers);
+      headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+      headers.set("Cache-Control", "no-store");
+      return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+    }
     if (request.method === "GET" && url.pathname === "/api/health") return getHealth(request, env);
+    if (request.method === "GET" && url.pathname === "/api/v1/stream") return getSnapshotStream(request, env);
     if (request.method === "GET" && url.pathname === "/api/admin/overview") {
       if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, { status: 401 }, request, env);
       return getAdminOverview(request, env);
@@ -223,13 +302,45 @@ export async function handleRequest(request, env) {
   }
 }
 
-export async function scheduledRefresh(env) {
-  if (!env.UPSTREAM_SNAPSHOT_URL) return { skipped: true };
-  const response = await fetch(env.UPSTREAM_SNAPSHOT_URL, { headers: { Accept: "application/json" } });
-  if (!response.ok) throw new Error(`upstream snapshot HTTP ${response.status}`);
-  return ingestPayload(env, await response.json());
+async function fetchWithRetry(url, attempts = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!response.ok) throw new Error(`upstream snapshot HTTP ${response.status}`);
+      return response;
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, attempt * 750));
+    }
+  }
+  throw lastError;
 }
 
+export async function scheduledRefresh(env) {
+  const checkedAt = new Date().toISOString();
+  if (!env.UPSTREAM_SNAPSHOT_URL) {
+    const snapshot = await readSnapshot(env);
+    const freshness = snapshotFreshness(snapshot);
+    await storeSourceHealth(env, {
+      sourceId: "pipeline-monitor",
+      status: freshness.status === "ok" ? "online" : freshness.status === "degraded" ? "stale" : "unavailable",
+      checkedAt,
+      error: freshness.status === "ok" ? null : freshness.message,
+    }, Array.isArray(snapshot?.updates) ? snapshot.updates.length : 0);
+    return { monitored: true, freshness };
+  }
+  try {
+    const response = await fetchWithRetry(env.UPSTREAM_SNAPSHOT_URL);
+    const payload = await response.json();
+    const result = await ingestPayload(env, payload);
+    await storeSourceHealth(env, { sourceId: "pipeline-monitor", status: "online", checkedAt }, payload?.updates?.length || 0);
+    return result;
+  } catch (error) {
+    await storeSourceHealth(env, { sourceId: "pipeline-monitor", status: "unavailable", checkedAt, error: String(error?.message || error) }, 0);
+    throw error;
+  }
+}
 export default {
   fetch: handleRequest,
   scheduled(_controller, env, context) {

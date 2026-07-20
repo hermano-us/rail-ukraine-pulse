@@ -9,9 +9,11 @@ services:
       RAIL_INGEST_TOKEN: ${RAIL_INGEST_TOKEN:?set RAIL_INGEST_TOKEN}
       COLLECTOR_INTERVAL_MS: ${COLLECTOR_INTERVAL_MS:-180000}
       BOARD_HEADLESS: ${BOARD_HEADLESS:-true}
+      COLLECTOR_ATTEMPTS: ${COLLECTOR_ATTEMPTS:-3}
+      COLLECTOR_SCRIPT_TIMEOUT_MS: ${COLLECTOR_SCRIPT_TIMEOUT_MS:-480000}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/health').then(r=>{if(!r.ok)process.exit(1)})"]
       interval: 30s
       timeout: 5s
-      retries: 3
+      retries: 4
       start_period: 90s

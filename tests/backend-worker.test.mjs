@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { handleRequest, ingestPayload } from "../backend/src/worker.js";
+import { handleRequest, ingestPayload, scheduledRefresh } from "../backend/src/worker.js";
 
 class Statement {
   constructor(database, sql) { this.database = database; this.sql = sql; this.values = []; }
@@ -64,7 +64,7 @@ test("admin overview is private and serves aggregate diagnostics", async () => {
     headers: { Authorization: "Bearer " + env.ADMIN_TOKEN },
   }), env);
   assert.equal(allowed.status, 200);
-  assert.equal((await allowed.json()).status, "ok");
+  assert.equal((await allowed.json()).status, "unavailable");
 });
 
 test("worker delegates static requests to the asset binding", async () => {
@@ -80,3 +80,44 @@ test("ingestion endpoint rejects missing credentials", async () => {
   assert.equal(response.status, 401);
 });
 
+
+test("health reports snapshot freshness instead of unconditional ok", async () => {
+  const env = environment();
+  await ingestPayload(env, { ...payload, generatedAt: new Date().toISOString() });
+  const response = await handleRequest(new Request("https://api.example/api/health"), env);
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.status, "ok");
+  assert.equal(body.version, "ops-center-v1");
+  assert.equal(body.snapshot.updates, 1);
+});
+
+test("snapshot event stream advertises reconnect and current generation", async () => {
+  const env = environment();
+  await ingestPayload(env, { ...payload, generatedAt: new Date().toISOString() });
+  const response = await handleRequest(new Request("https://api.example/api/v1/stream"), env);
+  const body = await response.text();
+  assert.match(response.headers.get("Content-Type"), /text\/event-stream/);
+  assert.match(body, /retry: 10000/);
+  assert.match(body, /event: snapshot/);
+});
+
+test("custom operations route replaces the legacy admin page", async () => {
+  const env = environment();
+  env.ASSETS = { fetch: async (request) => new Response(new URL(request.url).pathname) };
+  const custom = await handleRequest(new Request("https://api.example/rail-ops"), env);
+  assert.equal(await custom.text(), "/rail-ops-center.html");
+  assert.match(custom.headers.get("X-Robots-Tag"), /noindex/);
+  const legacy = await handleRequest(new Request("https://api.example/admin.html"), env);
+  assert.equal(legacy.status, 404);
+  const directAsset = await handleRequest(new Request("https://api.example/rail-ops-center.html"), env);
+  assert.equal(directAsset.status, 404);
+});
+
+test("scheduled monitor records stale pipeline state without refreshing timestamps", async () => {
+  const env = environment();
+  const result = await scheduledRefresh(env);
+  assert.equal(result.monitored, true);
+  assert.equal(env.DB.runs.length, 1);
+  assert.match(env.DB.runs[0].sql, /source_health/);
+});
