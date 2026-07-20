@@ -41,13 +41,19 @@ async function readStation(page, station, observedAt) {
 
 export async function collectOfficialBoard({ stations = BOARD_STATIONS } = {}) {
   const { chromium } = await import("playwright");
-  const browser = await chromium.launch({ headless: true, args: ["--disable-blink-features=AutomationControlled"] });
+  const browser = await chromium.launch({ headless: process.env.BOARD_HEADLESS !== "false" });
   const checkedAt = new Date().toISOString(), records = [], failures = [];
   try {
     const context = await browser.newContext({ locale: "uk-UA", timezoneId: "Europe/Kyiv", userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/145 Safari/537.36" });
     const page = await context.newPage();
-    await page.goto(BOARD_URL, { waitUntil: "domcontentloaded", timeout: 45_000 });
-    await page.waitForSelector("main h3", { timeout: 45_000 });
+    await page.goto(BOARD_URL, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    try {
+      await page.waitForSelector("main h3", { timeout: 90_000 });
+    } catch (error) {
+      const title=await page.title().catch(()=>"");
+      const heading=await page.locator("h1").textContent().catch(()=>"");
+      throw new Error(`Official board did not render (title=${title}; heading=${heading||"none"}): ${error.message}`);
+    }
     for (const station of stations) {
       try {
         const current = await page.locator("main h3").textContent();

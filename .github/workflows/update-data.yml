@@ -33,7 +33,9 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
       - run: npm test
-      - run: npm run update-data
+      - run: xvfb-run --auto-servernum npm run update-data
+        env:
+          BOARD_HEADLESS: "false"
       - name: Commit public snapshot
         run: |
           git config user.name "github-actions[bot]"
