@@ -55,6 +55,24 @@ test("backend ingests runs and events and publishes a compatible snapshot", asyn
   assert.equal(response.headers.get("Access-Control-Allow-Origin"), "https://hermano-us.github.io");
 });
 
+test("admin overview is private and serves aggregate diagnostics", async () => {
+  const env = environment();
+  env.ADMIN_TOKEN = "a-secure-admin-token-1234567";
+  const denied = await handleRequest(new Request("https://api.example/api/admin/overview"), env);
+  assert.equal(denied.status, 401);
+  const allowed = await handleRequest(new Request("https://api.example/api/admin/overview", {
+    headers: { Authorization: "Bearer " + env.ADMIN_TOKEN },
+  }), env);
+  assert.equal(allowed.status, 200);
+  assert.equal((await allowed.json()).status, "ok");
+});
+
+test("worker delegates static requests to the asset binding", async () => {
+  const env = environment();
+  env.ASSETS = { fetch: async () => new Response("map", { status: 200 }) };
+  const response = await handleRequest(new Request("https://api.example/index.html"), env);
+  assert.equal(await response.text(), "map");
+});
 test("ingestion endpoint rejects missing credentials", async () => {
   const response = await handleRequest(new Request("https://api.example/api/v1/ingest", {
     method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" },

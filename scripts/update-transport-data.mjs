@@ -4,7 +4,7 @@ import { parseDelayTable } from "./update-ukraine-data.mjs";
 import { fetchText } from "./source-adapters/html.mjs";
 import { collectOfficialBoard } from "./source-adapters/official-board.mjs";
 import { checkReferences } from "./source-adapters/references.mjs";
-import { collectTelegram } from "./source-adapters/telegram.mjs";
+import { collectTelegram, rehydrateTelegramPosts, telegramUpdates } from "./source-adapters/telegram.mjs";
 
 const DELAY_URL = "https://uz-vezemo.uz.gov.ua/delayform/";
 const liveTarget = resolve("data/live.json");
@@ -63,10 +63,13 @@ async function main() {
   const previousLive = await readJson(liveTarget, { updates: [] });
   const previousRuntime = await readJson(runtimeTarget, { sources: {} });
   const delayPromise = collectDelay(previousLive.updates || []);
-  const telegramPromise = collectTelegram().catch((error) => ({
-    status: staleStatus(previousRuntime.sources?.["uz-suburban-telegram"]?.posts?.length, error, "УЗ Пригород"),
-    posts: previousRuntime.sources?.["uz-suburban-telegram"]?.posts || [], updates: [],
-  }));
+  const telegramPromise = collectTelegram().catch((error) => {
+    const posts = rehydrateTelegramPosts(previousRuntime.sources?.["uz-suburban-telegram"]?.posts || []);
+    return {
+      status: staleStatus(posts.length, error, "УЗ Пригород"),
+      posts, updates: telegramUpdates(posts),
+    };
+  });
   const boardPromise = process.env.SKIP_BROWSER_SOURCE === "1"
     ? Promise.resolve({ status: { status: "unavailable", checkedAt: new Date().toISOString(), label: "Табло УЗ: browser-adapter отключён" }, records: [], updates: [] })
     : collectOfficialBoard().catch((error) => ({

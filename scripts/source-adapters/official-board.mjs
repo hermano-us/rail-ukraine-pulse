@@ -5,6 +5,8 @@ export const BOARD_STATIONS = [
   "Київ-Пасажирський", "Львів", "Дніпро-Головний", "Запоріжжя 1", "Харків-Пасажирський",
   "Одеса-Головна", "Вінниця", "Чернівці", "Суми", "Хмельницький", "Рівне", "Івано-Франківськ",
   "Тернопіль", "Луцьк", "Ужгород", "Ковель", "Полтава-Київська", "Херсон", "Черкаси",
+  "Миколаїв-Пасажирський", "Кропивницький", "Чернігів", "Житомир", "Жмеринка-Пасажирська",
+  "Козятин-1", "Фастів-1", "Ніжин", "Конотоп-Пасажирський", "Гребінка", "Шепетівка",
 ];
 
 export function boardRowsToUpdates(records) {
@@ -46,6 +48,7 @@ export async function collectOfficialBoard({ stations = BOARD_STATIONS } = {}) {
   try {
     const context = await browser.newContext({ locale: "uk-UA", timezoneId: "Europe/Kyiv", userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/145 Safari/537.36" });
     const page = await context.newPage();
+    page.setDefaultTimeout(10_000);
     await page.goto(BOARD_URL, { waitUntil: "domcontentloaded", timeout: 60_000 });
     try {
       await page.waitForSelector("main h3", { timeout: 90_000 });

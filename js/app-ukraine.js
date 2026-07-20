@@ -4,6 +4,7 @@ import { POSITION_STATUSES } from "./positioning.js";
 import { OPERATION_COLORS, OPERATION_LABELS, TRANSPORT_LABELS, TYPE_LABELS, escapeHtml, formatDateTime, formatRelative } from "./formatters-ukraine.js";
 
 const HISTORY_KEY="rail-ukraine-pulse:run-history:v2";
+const LAYOUT_KEY="rail-ukraine-pulse:workspace-layout:v1";
 const state={
   data:null,transport:"all",statuses:new Set(Object.keys(POSITION_STATUSES)),
   operations:new Set(Object.keys(OPERATION_LABELS)),regions:new Set(),minConfidence:0,
@@ -20,6 +21,34 @@ const elements={
   sourceRegistryList:$("#source-registry-list"),
 };
 const mapView=new MapView("map",selectObject);
+const layoutState=(()=>{
+  try{return {...{leftCollapsed:false,rightCollapsed:false,mapOnly:false},...JSON.parse(localStorage.getItem(LAYOUT_KEY)||"{}")};}
+  catch{return {leftCollapsed:false,rightCollapsed:false,mapOnly:false};}
+})();
+
+function persistLayout(){
+  try{localStorage.setItem(LAYOUT_KEY,JSON.stringify(layoutState));}catch{}
+}
+
+function updateLayoutButtons(){
+  const leftHidden=layoutState.leftCollapsed||layoutState.mapOnly;
+  const rightHidden=layoutState.rightCollapsed||layoutState.mapOnly;
+  $("#left-panel-toggle")?.setAttribute("aria-pressed",String(leftHidden));
+  $("#left-panel-toggle")?.setAttribute("aria-label",leftHidden?"Развернуть левую панель":"Свернуть левую панель");
+  $("#fleet-toggle")?.setAttribute("aria-pressed",String(rightHidden));
+  $("#fleet-toggle")?.setAttribute("aria-label",rightHidden?"Развернуть реестр":"Свернуть реестр");
+  $("#map-only-toggle")?.setAttribute("aria-pressed",String(layoutState.mapOnly));
+}
+
+function applyWorkspaceLayout(){
+  const shell=document.querySelector(".app-shell");
+  shell.classList.toggle("left-collapsed",layoutState.leftCollapsed||layoutState.mapOnly);
+  shell.classList.toggle("right-collapsed",layoutState.rightCollapsed||layoutState.mapOnly);
+  shell.classList.toggle("map-only",layoutState.mapOnly);
+  if(layoutState.mapOnly){elements.sidebar.classList.remove("open");elements.fleetPanel.classList.remove("open");}
+  updateLayoutButtons();persistLayout();
+  window.setTimeout(()=>mapView.invalidateSize(),270);
+}
 
 function readHistory(){
   try{return JSON.parse(localStorage.getItem(HISTORY_KEY)||"{}");}catch{return {};}
@@ -302,16 +331,34 @@ function bindControls(){
   $("#reset-filters").addEventListener("click",resetFilters);
   $("#fit-button").addEventListener("click",()=>mapView.fitAll());
   $("#detail-close").addEventListener("click",closeDetail);
-  $("#menu-button").addEventListener("click",()=>elements.sidebar.classList.add("open"));
-  $("#mobile-summary").addEventListener("click",()=>elements.sidebar.classList.add("open"));
+  const openMobileSidebar=()=>{layoutState.mapOnly=false;applyWorkspaceLayout();elements.sidebar.classList.add("open");};
+  $("#menu-button").addEventListener("click",openMobileSidebar);
+  $("#mobile-summary").addEventListener("click",openMobileSidebar);
   $("#sidebar-close").addEventListener("click",()=>elements.sidebar.classList.remove("open"));
-  $("#fleet-toggle").addEventListener("click",()=>elements.fleetPanel.classList.toggle("open"));
-  $("#fleet-close").addEventListener("click",()=>elements.fleetPanel.classList.remove("open"));
+  $("#left-panel-toggle").addEventListener("click",()=>{
+    layoutState.mapOnly=false;layoutState.leftCollapsed=!layoutState.leftCollapsed;applyWorkspaceLayout();
+  });
+  $("#fleet-toggle").addEventListener("click",()=>{
+    layoutState.mapOnly=false;
+    if(window.innerWidth>1180){layoutState.rightCollapsed=!layoutState.rightCollapsed;applyWorkspaceLayout();}
+    else{elements.fleetPanel.classList.toggle("open");updateLayoutButtons();}
+  });
+  $("#fleet-close").addEventListener("click",()=>{
+    elements.fleetPanel.classList.remove("open");
+    if(window.innerWidth>1180){layoutState.rightCollapsed=true;applyWorkspaceLayout();}
+  });
+  $("#map-only-toggle").addEventListener("click",()=>{
+    layoutState.mapOnly=!layoutState.mapOnly;
+    if(layoutState.mapOnly)closeDetail();
+    applyWorkspaceLayout();
+  });
   document.addEventListener("click",(event)=>{
     const target=event.target.closest("[data-object-id]");if(!target)return;
     const object=state.data?.objects.find((item)=>item.id===target.dataset.objectId);if(object)selectObject(object);
   });
   document.addEventListener("keydown",(event)=>{if(event.key==="Escape"){closeDetail();elements.fleetPanel.classList.remove("open");}});
+  window.addEventListener("resize",()=>{clearTimeout(applyWorkspaceLayout.timer);applyWorkspaceLayout.timer=setTimeout(applyWorkspaceLayout,120);});
+  applyWorkspaceLayout();
 }
 
 function startClock(){
@@ -332,7 +379,7 @@ function renderSourceStatus(){
 async function bootstrap(){
   initDynamicFilters();bindControls();startClock();
   try{
-    state.data=await loadTransportData(new Date());persistHistory(state.data);initRegions();mapView.setRoutes(state.data.routes);renderSourceStatus();render();mapView.fitAll();
+    state.data=await loadTransportData(new Date());persistHistory(state.data);initRegions();mapView.setRoutes(state.data.routes);renderSourceStatus();render();mapView.fitUkraine();
   }catch(error){console.error(error);$("#last-update").textContent="Ошибка загрузки данных";showToast("Не удалось загрузить публичный набор УЗ");}
 }
 

@@ -30,12 +30,22 @@ export function splitRoute(value = "") {
 }
 
 export function parseDelayMinutes(value = "") {
-  const clock = value.match(/\+?\s*(\d{1,2})\s*[:.]\s*(\d{2})/u);
-  if (clock) return Number(clock[1]) * 60 + Number(clock[2]);
-  const hours = value.match(/(\d+(?:[.,]\d+)?)\s*(?:год(?:ина|ини|ин)?|г(?:од)?)/iu);
-  const minutes = value.match(/(\d+)\s*(?:хв(?:илин[аи]?)?|мин)/iu);
+  // Train identifiers are not durations. Mask them before looking for clocks so
+  // a fragment such as №6366: ... 40 хв cannot become a 66-hour delay.
+  const clean = String(value).replace(
+    /(?:№\s*|[Пп]оїзд(?:а|и)?\s+|[Пп]оезд(?:а|ы)?\s+)(\d{1,4}(?:\s*\/\s*\d{1,4})?)/gu,
+    (match) => " ".repeat(match.length),
+  );
+  const bounded = (minutes) => Number.isFinite(minutes) && minutes >= 0 && minutes <= 24 * 60 ? minutes : null;
+
+  // A clock-shaped value is a delay only with an explicit plus or a nearby
+  // delay/holding cue. Plain timetable values such as 09:26 are ignored.
+  const clock = clean.match(/(?:\+\s*|(?:затрим\w*|запізнен\w*|задерж\w*|притрима\w*|очіку\w*|до|на)\D{0,24})(\d{1,2})\s*[:.]\s*(\d{2})(?!\d)/iu);
+  if (clock && Number(clock[2]) < 60) return bounded(Number(clock[1]) * 60 + Number(clock[2]));
+  const hours = clean.match(/(\d{1,2}(?:[.,]\d+)?)\s*(?:год(?:ина|ини|ин)?|г(?:од)?)(?!\p{L})/iu);
+  const minutes = clean.match(/(\d{1,3})\s*(?:хв(?:илин[аи]?)?|мин(?:ут[ыа]?)?)(?!\p{L})/iu);
   if (!hours && !minutes) return null;
-  return Math.round(Number(String(hours?.[1] || 0).replace(",", ".")) * 60) + Number(minutes?.[1] || 0);
+  return bounded(Math.round(Number(String(hours?.[1] || 0).replace(",", ".")) * 60) + Number(minutes?.[1] || 0));
 }
 
 export async function fetchText(url, { timeoutMs = 25_000, headers = {} } = {}) {

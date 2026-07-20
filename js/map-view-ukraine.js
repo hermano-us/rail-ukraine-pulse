@@ -123,6 +123,9 @@ export class MapView{
     else if(marker)this.map.flyTo(marker.getLatLng(),Math.max(this.map.getZoom(),8),{duration:.6});
   }
 
+  invalidateSize(){this.map.invalidateSize({pan:false});}
+
+  fitUkraine(){this.map.fitBounds([[44.2,22.0],[52.6,40.3]],{padding:[32,32],maxZoom:7});}
   fitAll(){if(this.currentBounds?.length)this.map.fitBounds(this.currentBounds,{padding:[45,45],maxZoom:8});}
 
   toggleHistory(object){

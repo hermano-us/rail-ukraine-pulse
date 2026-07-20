@@ -26,6 +26,10 @@ function authorized(request, env) {
   return token.length >= 24 && request.headers.get("Authorization") === `Bearer ${token}`;
 }
 
+function authorizedAdmin(request, env) {
+  const token = String(env.ADMIN_TOKEN || "");
+  return token.length >= 24 && request.headers.get("Authorization") === "Bearer " + token;
+}
 function safeJson(value) {
   return JSON.stringify(value ?? null);
 }
@@ -174,11 +178,36 @@ async function getHealth(request, env) {
   }, { headers: { "Cache-Control": "no-store" } }, request, env);
 }
 
+async function getAdminOverview(request, env) {
+  const [runs, events, sources] = await Promise.all([
+    env.DB.prepare("SELECT COUNT(*) AS total, MAX(last_observed_at) AS latest FROM runs").first(),
+    env.DB.prepare("SELECT COUNT(*) AS total, MAX(observed_at) AS latest FROM events").first(),
+    env.DB.prepare("SELECT * FROM source_health ORDER BY checked_at DESC").all(),
+  ]);
+  const snapshot = env.SNAPSHOT ? await env.SNAPSHOT.get(SNAPSHOT_KEY, "json") : null;
+  return json({
+    status: "ok",
+    checkedAt: new Date().toISOString(),
+    runs: { total: Number(runs?.total || 0), latest: runs?.latest || null },
+    events: { total: Number(events?.total || 0), latest: events?.latest || null },
+    snapshot: snapshot ? {
+      generatedAt: snapshot.generatedAt,
+      observedAt: snapshot.observedAt || null,
+      updates: Array.isArray(snapshot.updates) ? snapshot.updates.length : 0,
+      sourceStatus: snapshot.sourceStatus || null,
+    } : null,
+    sources: sources.results || [],
+  }, { headers: { "Cache-Control": "no-store" } }, request, env);
+}
 export async function handleRequest(request, env) {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request, env) });
   const url = new URL(request.url);
   try {
     if (request.method === "GET" && url.pathname === "/api/health") return getHealth(request, env);
+    if (request.method === "GET" && url.pathname === "/api/admin/overview") {
+      if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, { status: 401 }, request, env);
+      return getAdminOverview(request, env);
+    }
     if (request.method === "GET" && url.pathname === "/api/v1/snapshot") return getSnapshot(request, env);
     if (request.method === "GET" && url.pathname === "/api/v1/events") return getEvents(request, env);
     if (request.method === "POST" && url.pathname === "/api/v1/ingest") {
@@ -186,6 +215,7 @@ export async function handleRequest(request, env) {
       const result = await ingestPayload(env, await request.json());
       return json(result, { status: 202, headers: { "Cache-Control": "no-store" } }, request, env);
     }
+    if (request.method === "GET" && env.ASSETS) return env.ASSETS.fetch(request);
     return json({ error: "not_found" }, { status: 404 }, request, env);
   } catch (error) {
     console.error("request failed", error);

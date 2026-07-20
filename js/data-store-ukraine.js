@@ -41,7 +41,10 @@ function stationKey(value) { return normalizePlace(value).replace(/пасажи�
 function buildStationLookup(stations=[]) {
   const lookup=new Map();
   for(const [name,coordinates] of Object.entries(STATIONS))lookup.set(stationKey(name),coordinates);
-  for(const station of stations)if(station?.coordinates)lookup.set(stationKey(station.name),station.coordinates);
+  for(const station of stations)if(station?.coordinates){
+    lookup.set(stationKey(station.name),station.coordinates);
+    for(const alias of station.aliases||[])lookup.set(stationKey(alias),station.coordinates);
+  }
   return lookup;
 }
 function stationCoordinates(value,lookup) { return STATIONS[normalizePlace(value)] || lookup?.get(stationKey(value)) || null; }

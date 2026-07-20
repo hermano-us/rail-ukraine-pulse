@@ -1,0 +1,17 @@
+services:
+  collector:
+    build:
+      context: .
+      dockerfile: Dockerfile.collector
+    restart: unless-stopped
+    environment:
+      RAIL_API_URL: ${RAIL_API_URL:?set RAIL_API_URL}
+      RAIL_INGEST_TOKEN: ${RAIL_INGEST_TOKEN:?set RAIL_INGEST_TOKEN}
+      COLLECTOR_INTERVAL_MS: ${COLLECTOR_INTERVAL_MS:-180000}
+      BOARD_HEADLESS: ${BOARD_HEADLESS:-true}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/health').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s

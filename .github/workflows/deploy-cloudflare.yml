@@ -1,0 +1,32 @@
+name: Deploy autonomous Cloudflare application
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+      - run: npm run build:web
+      - name: Configure backend secrets
+        run: |
+          printf '%s' "$RAIL_INGEST_TOKEN" | npx wrangler secret put INGEST_TOKEN --config backend/wrangler.production.jsonc
+          printf '%s' "$RAIL_ADMIN_TOKEN" | npx wrangler secret put ADMIN_TOKEN --config backend/wrangler.production.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RAIL_INGEST_TOKEN: ${{ secrets.RAIL_INGEST_TOKEN }}
+          RAIL_ADMIN_TOKEN: ${{ secrets.RAIL_ADMIN_TOKEN }}
+      - run: npx wrangler deploy --config backend/wrangler.production.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
