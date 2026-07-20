@@ -33,7 +33,7 @@ const STATIONS = {
 };
 
 export function normalizePlace(value = "") {
-  return value.toLocaleLowerCase("uk").replace(/[.№]/g, "").replace(/\s+/g, " ").trim();
+  return String(value ?? "").toLocaleLowerCase("uk").replace(/[.№]/g, "").replace(/\s+/g, " ").trim();
 }
 function stationKey(value) { return normalizePlace(value).replace(/пасажирський|пасажирська|пассажирский|пассажирская|пас/g,"пас").replace(/головний|головна|главный|главная/g,"голов").replace(/[^\p{L}\p{N}]+/gu,""); }
 function buildStationLookup(stations=[]) {
