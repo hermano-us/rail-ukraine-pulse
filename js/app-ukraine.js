@@ -299,7 +299,7 @@ function detailTemplate(object){
     <button class="detail-action" id="history-button">Показать накопленную историю на карте</button>
     <button class="detail-action follow-button ${state.followedId===object.id?"active":""}" id="follow-button">${state.followedId===object.id?"Отменить слежение":"Следить за рейсом"}</button>
     <button class="detail-action" id="favorite-button">${state.favorites.has(object.runId)?"Удалить из избранного":"Добавить в избранное"}</button>
-    <button class="detail-action" id="share-button">Скопировать ссылку на рейс</button><button class="detail-action" id="export-button">Экспорт истории GeoJSON</button>
+    <button class="detail-action" id="share-button">Скопировать ссылку на рейс</button><button class="detail-action" id="export-button">Экспорт истории GeoJSON</button><button class="detail-action" id="export-csv-button">CSV</button>
   `;
 }
 
@@ -312,7 +312,7 @@ function selectObject(object){
     state.favorites.has(object.runId)?state.favorites.delete(object.runId):state.favorites.add(object.runId);
     localStorage.setItem(FAVORITES_KEY,JSON.stringify([...state.favorites]));event.currentTarget.textContent=state.favorites.has(object.runId)?"Удалить из избранного":"Добавить в избранное";
   });
-  elements.detailContent.querySelector("#export-button")?.addEventListener("click",()=>{
+  elements.detailContent.querySelector("#export-csv-button")?.addEventListener("click",()=>{const rows=[["timestamp","longitude","latitude","status","confidence","error_km","delay_minutes"],...(object.history||[]).map(item=>[item.timestamp,item.coordinates?.[0],item.coordinates?.[1],item.status,item.confidence,item.errorKm,item.delayMinutes])];const csv=rows.map(row=>row.map(value=>`"${String(value??"").replaceAll('"','""')}"`).join(",")).join("\n");const blob=new Blob([csv],{type:"text/csv;charset=utf-8"}),link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download=`${object.trainNumber}-history.csv`;link.click();URL.revokeObjectURL(link.href);});  elements.detailContent.querySelector("#export-button")?.addEventListener("click",()=>{
     const features=(object.history||[]).filter(item=>item.coordinates).map(item=>({type:"Feature",geometry:{type:"Point",coordinates:item.coordinates},properties:{runId:object.runId,label:item.label,at:item.at||item.timestamp||null,status:item.status||"estimated"}}));
     const blob=new Blob([JSON.stringify({type:"FeatureCollection",features},null,2)],{type:"application/geo+json"});const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download=`${object.trainNumber}-${object.serviceDate||"history"}.geojson`;link.click();URL.revokeObjectURL(link.href);
   });  elements.detailContent.querySelector("#share-button")?.addEventListener("click",async()=>{

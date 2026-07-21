@@ -318,7 +318,11 @@ async function handleAdminAction(request, env) {
     await env.DB.prepare("UPDATE quarantine SET status='resolved',resolution=?1,resolved_at=?2,resolved_by='token-admin' WHERE quarantine_id=?3").bind(body.resolution||"dismissed",new Date().toISOString(),body.id).run();
     await auditAdmin(env,body.action,body.id,{resolution:body.resolution}); return json({ok:true}, {}, request, env);
   }
-  if(body.action==="configure-source") {
+  if(body.action==="correct-station") {
+    const run=body.runId?await env.DB.prepare("SELECT * FROM runs WHERE run_id=?1").bind(body.runId).first():await env.DB.prepare("SELECT * FROM runs WHERE train_number=?1 ORDER BY last_observed_at DESC LIMIT 1").bind(String(body.trainNumber||"")).first();
+    if(!run)return json({error:"run_not_found"},{status:404},request,env);const update=JSON.parse(run.current_update_json);update.reportedStation=String(body.station||"").trim();update.positionEvidence="reported-manual-review";update.sourceId="admin-correction";update.sourceEvidence="operator-reviewed";update.reliability=Math.min(Number(update.reliability)||.5,.65);update.updatedAt=new Date().toISOString();
+    await env.DB.prepare("UPDATE runs SET current_update_json=?1,last_observed_at=?2 WHERE run_id=?3").bind(safeJson(update),update.updatedAt,run.run_id).run();await auditAdmin(env,body.action,run.run_id,{station:update.reportedStation,reason:body.reason||null});if(env.SNAPSHOT)await env.SNAPSHOT.delete(SNAPSHOT_KEY);return json({ok:true,runId:run.run_id,station:update.reportedStation},{},request,env);
+  }  if(body.action==="configure-source") {
     await env.DB.prepare("INSERT INTO source_config(source_id,enabled,priority,reliability,updated_at,updated_by) VALUES(?1,?2,?3,?4,?5,'token-admin') ON CONFLICT(source_id) DO UPDATE SET enabled=excluded.enabled,priority=excluded.priority,reliability=excluded.reliability,updated_at=excluded.updated_at,updated_by=excluded.updated_by").bind(body.sourceId,body.enabled===false?0:1,Number(body.priority)||50,Math.max(0,Math.min(1,Number(body.reliability)||.5)),new Date().toISOString()).run();
     await auditAdmin(env,body.action,body.sourceId,body); return json({ok:true}, {}, request, env);
   }
