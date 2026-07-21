@@ -3,7 +3,7 @@ import { cp, mkdir, rm } from "node:fs/promises";
 const output = new URL("../dist/", import.meta.url);
 const root = new URL("../", import.meta.url);
 const requiredEntries = ["index.html", "rail-ops-center.html", "css", "data", "js", "shared", "THIRD_PARTY_NOTICES.md"];
-const optionalEntries = ["assets"];
+const optionalEntries = ["assets", "manifest.webmanifest", "sw.js"];
 
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });

@@ -420,3 +420,4 @@ const stopLiveStream=await subscribeToLiveUpdates((message)=>{
 },(transport)=>{document.documentElement.dataset.liveTransport=transport;});
 window.setInterval(refreshData,Math.max(30_000,Number(runtimeConfig.refreshIntervalMs)||60_000));
 window.addEventListener("beforeunload",stopLiveStream,{once:true});
+if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
