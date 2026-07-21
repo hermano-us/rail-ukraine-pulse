@@ -34,3 +34,7 @@ export function screenUpdates(updates, now = Date.now()) {
   }
   return { accepted, quarantined, warningCounts, checkedAt: new Date(now).toISOString() };
 }
+
+export function detectSourceVolumeDrop(previousCount, nextCount, ratio = 0.45) {
+  const previous=Number(previousCount),next=Number(nextCount);return previous>=20&&next<previous*ratio?{anomaly:true,previous,next,ratio:Number((next/previous).toFixed(2))}:{anomaly:false,previous,next};
+}

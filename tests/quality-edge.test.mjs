@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assessUpdate, screenUpdates } from "../backend/src/domain/quality.js";
+import { assessUpdate, detectSourceVolumeDrop, screenUpdates } from "../backend/src/domain/quality.js";
 import { parseEdgeDelayDashboard, parseRelayDelayMarkdown } from "../backend/src/adapters/delay-dashboard.js";
 
 test("quality gate quarantines impossible updates but keeps incomplete public evidence", () => {
@@ -38,3 +38,4 @@ test("relay markdown preserves official dashboard provenance",()=>{
   const markdown="| №15/16 | Харків-Пас.→ Івано-Франківськ | +3:24 | В дорозі | — | 10:21 | Середня | технічна причина |";
   const updates=parseRelayDelayMarkdown(markdown,"2026-07-21T07:00:00Z");assert.equal(updates.length,1);assert.equal(updates[0].delayMinutes,204);assert.equal(updates[0].sourceEvidence,"official-public-dashboard-relay");
 });
+test("source volume anomaly prevents a collapsed snapshot",()=>{assert.equal(detectSourceVolumeDrop(100,20).anomaly,true);assert.equal(detectSourceVolumeDrop(100,60).anomaly,false);assert.equal(detectSourceVolumeDrop(10,1).anomaly,false);});

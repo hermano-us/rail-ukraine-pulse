@@ -1,5 +1,5 @@
 import { normalizeToken, updatesToEvents, validateEvent } from "./domain/events.js";
-import { screenUpdates } from "./domain/quality.js";
+import { detectSourceVolumeDrop, screenUpdates } from "./domain/quality.js";
 import { DASHBOARD_URL, parseEdgeDelayDashboard, parseRelayDelayMarkdown } from "./adapters/delay-dashboard.js";
 import { collectTelegram } from "../../scripts/source-adapters/telegram.mjs";
 
@@ -407,13 +407,13 @@ export async function scheduledRefresh(env) {
   let freshSources = 0;
 
   try {
-    const response=await fetchWithRetry(DASHBOARD_URL);const edgeUpdates=parseEdgeDelayDashboard(await response.text(),checkedAt);if(!edgeUpdates.length)throw new Error("edge delay dashboard returned no trains");
+    const response=await fetchWithRetry(DASHBOARD_URL);const edgeUpdates=parseEdgeDelayDashboard(await response.text(),checkedAt);if(!edgeUpdates.length)throw new Error("edge delay dashboard returned no trains");const previousDashboard=merged.filter(update=>update.sourceId==="uz-delay-dashboard").length;const directDrop=detectSourceVolumeDrop(previousDashboard,edgeUpdates.length);if(directDrop.anomaly)throw new Error(`dashboard volume anomaly ${directDrop.next}/${directDrop.previous}`);
     merged=[...merged.filter(update=>update.sourceId!=="uz-delay-dashboard"),...edgeUpdates];freshSources+=1;
     await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-direct",status:"online",checkedAt},edgeUpdates.length);await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:"online",checkedAt},edgeUpdates.length);
   } catch(error) {
     const directError=String(error?.message||error);errors.push(`dashboard-direct: ${directError}`);await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-direct",status:"unavailable",checkedAt,error:directError},0);
     try {
-      const relayResponse=await fetchWithRetry("https://r.jina.ai/https://uz-vezemo.uz.gov.ua/delayform/");const relayUpdates=parseRelayDelayMarkdown(await relayResponse.text(),checkedAt);if(!relayUpdates.length)throw new Error("relay returned no dashboard rows");
+      const relayResponse=await fetchWithRetry("https://r.jina.ai/https://uz-vezemo.uz.gov.ua/delayform/");const relayUpdates=parseRelayDelayMarkdown(await relayResponse.text(),checkedAt);if(!relayUpdates.length)throw new Error("relay returned no dashboard rows");const previousDashboard=merged.filter(update=>update.sourceId==="uz-delay-dashboard").length;const relayDrop=detectSourceVolumeDrop(previousDashboard,relayUpdates.length);if(relayDrop.anomaly)throw new Error(`relay volume anomaly ${relayDrop.next}/${relayDrop.previous}`);
       merged=[...merged.filter(update=>update.sourceId!=="uz-delay-dashboard"),...relayUpdates];freshSources+=1;await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-relay",status:"online",checkedAt},relayUpdates.length);await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:"online",checkedAt,error:`direct channel: ${directError}; read-only relay active`},relayUpdates.length);
     } catch(relayError) {
       errors.push(`dashboard-relay: ${String(relayError?.message||relayError)}`);
