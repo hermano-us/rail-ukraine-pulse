@@ -1,7 +1,10 @@
-import { updatesToEvents, validateEvent } from "./domain/events.js";
+import { normalizeToken, updatesToEvents, validateEvent } from "./domain/events.js";
+import { screenUpdates } from "./domain/quality.js";
+import { DASHBOARD_URL, parseEdgeDelayDashboard } from "./adapters/delay-dashboard.js";
+import { collectTelegram } from "../../scripts/source-adapters/telegram.mjs";
 
 const SNAPSHOT_KEY = "public:v1:snapshot";
-const WORKER_VERSION = "ops-center-v1";
+const WORKER_VERSION = "positioning-v2-edge";
 const FRESH_MINUTES = 20;
 const DEGRADED_MINUTES = 60;
 const STREAM_RETRY_MS = 10_000;
@@ -71,7 +74,8 @@ async function storeSourceHealth(env, sourceStatus, recordsCount) {
 }
 
 export async function ingestPayload(env, payload, observedAt = new Date().toISOString()) {
-  const updates = Array.isArray(payload?.updates) ? payload.updates : [];
+  const quality = screenUpdates(Array.isArray(payload?.updates) ? payload.updates : [], Date.parse(observedAt));
+  const updates = quality.accepted;
   const generated = updatesToEvents(updates, { observedAt });
   const provided = Array.isArray(payload?.events) ? payload.events : [];
   const events = [...new Map([...generated, ...provided].map((event) => [event.eventId, event])).values()];
@@ -97,6 +101,27 @@ export async function ingestPayload(env, payload, observedAt = new Date().toISOS
       event.runId, event.trainNumber, event.serviceDate, update.route || null,
       update.origin || null, update.destination || null, safeJson(update), event.observedAt,
     ));
+  }
+  for (const event of validEvents.filter((item) => item.type === "station_report" && item.station)) {
+    const previous = await env.DB.prepare(`
+      SELECT station, occurred_at FROM events
+      WHERE run_id=?1 AND event_type='station_report' AND occurred_at<?2
+      ORDER BY occurred_at DESC LIMIT 1
+    `).bind(event.runId, event.occurredAt).first();
+    const minutes = previous?.occurred_at ? (Date.parse(event.occurredAt) - Date.parse(previous.occurred_at)) / 60_000 : null;
+    if (previous?.station && previous.station !== event.station && minutes > 1 && minutes < 12 * 60) {
+      statements.push(env.DB.prepare(`
+        INSERT INTO segment_stats(from_station_id,to_station_id,train_family,sample_count,mean_minutes,variance_minutes,p10_minutes,p50_minutes,p90_minutes,updated_at)
+        VALUES(?1,?2,?3,1,?4,0,?4,?4,?4,?5)
+        ON CONFLICT(from_station_id,to_station_id,train_family) DO UPDATE SET
+          mean_minutes=(segment_stats.mean_minutes*segment_stats.sample_count+excluded.mean_minutes)/(segment_stats.sample_count+1),
+          sample_count=segment_stats.sample_count+1,
+          p10_minutes=MIN(COALESCE(segment_stats.p10_minutes,excluded.p10_minutes),excluded.p10_minutes),
+          p50_minutes=(segment_stats.mean_minutes*segment_stats.sample_count+excluded.mean_minutes)/(segment_stats.sample_count+1),
+          p90_minutes=MAX(COALESCE(segment_stats.p90_minutes,excluded.p90_minutes),excluded.p90_minutes),
+          updated_at=excluded.updated_at
+      `).bind(normalizeToken(previous.station), normalizeToken(event.station), event.trainNumber, Number(minutes.toFixed(2)), observedAt));
+    }
   }
   for (const event of validEvents) {
     statements.push(env.DB.prepare(`
@@ -125,9 +150,10 @@ export async function ingestPayload(env, payload, observedAt = new Date().toISOS
     },
     updates,
     eventCount: validEvents.length,
+    quality: { accepted: updates.length, quarantined: quality.quarantined.length, warningCounts: quality.warningCounts, checkedAt: quality.checkedAt },
   };
   if (env.SNAPSHOT) await env.SNAPSHOT.put(SNAPSHOT_KEY, JSON.stringify(snapshot), { expirationTtl: 900 });
-  return { accepted: validEvents.length, rejected: events.length - validEvents.length, runs: updateByRun.size, snapshot };
+  return { accepted: validEvents.length, rejected: events.length - validEvents.length, quarantined: quality.quarantined.length, runs: updateByRun.size, snapshot };
 }
 
 async function snapshotFromDb(env) {
@@ -159,8 +185,17 @@ async function readSnapshot(env) {
   return cached || snapshotFromDb(env);
 }
 
+async function readSegmentStats(env, limit = 300) {
+  const result = await env.DB.prepare(`
+    SELECT from_station_id, to_station_id, train_family, sample_count, mean_minutes, p10_minutes, p50_minutes, p90_minutes, updated_at
+    FROM segment_stats ORDER BY sample_count DESC, updated_at DESC LIMIT ?1
+  `).bind(limit).all();
+  return result.results || [];
+}
+
 async function getSnapshot(request, env) {
-  const snapshot = await readSnapshot(env);
+  const [baseSnapshot, segmentStats] = await Promise.all([readSnapshot(env), readSegmentStats(env)]);
+  const snapshot = { ...baseSnapshot, segmentStats };
   const body = `${JSON.stringify(snapshot)}\n`;
   const etag = `W/\"${body.length}-${snapshot.generatedAt}\"`;
   if (request.headers.get("If-None-Match") === etag) {
@@ -193,10 +228,11 @@ async function getEvents(request, env) {
 }
 
 async function getHealth(request, env) {
-  const [database, sources, snapshot] = await Promise.all([
+  const [database, sources, snapshot, segmentStats] = await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS runs FROM runs").first(),
     env.DB.prepare("SELECT * FROM source_health ORDER BY checked_at DESC").all(),
     readSnapshot(env),
+    readSegmentStats(env),
   ]);
   const freshness = snapshotFreshness(snapshot);
   return json({
@@ -206,10 +242,11 @@ async function getHealth(request, env) {
     runs: Number(database?.runs || 0),
     snapshot: { generatedAt: snapshot?.generatedAt || null, ageMinutes: freshness.ageMinutes, updates: snapshot?.updates?.length || 0 },
     sources: sources.results || [],
+    positioning: { learnedSegments: segmentStats.length, model: "rail-posterior-v2" },
   }, { headers: { "Cache-Control": "no-store" } }, request, env);
 }
 async function getAdminOverview(request, env) {
-  const [runs, events, sources, recentEvents, snapshot] = await Promise.all([
+  const [runs, events, sources, recentEvents, snapshot, segmentStats] = await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS total, MAX(last_observed_at) AS latest FROM runs").first(),
     env.DB.prepare("SELECT COUNT(*) AS total, MAX(observed_at) AS latest FROM events").first(),
     env.DB.prepare("SELECT * FROM source_health ORDER BY checked_at DESC").all(),
@@ -219,6 +256,7 @@ async function getAdminOverview(request, env) {
       ORDER BY e.observed_at DESC LIMIT 30
     `).all(),
     readSnapshot(env),
+    readSegmentStats(env),
   ]);
   const freshness = snapshotFreshness(snapshot);
   return json({
@@ -230,7 +268,7 @@ async function getAdminOverview(request, env) {
       snapshotAgeMinutes: freshness.ageMinutes,
       freshnessLabel: freshness.label,
       message: freshness.message,
-      expectedRefreshMinutes: 10,
+      expectedRefreshMinutes: 5,
       streamRetryMs: STREAM_RETRY_MS,
     },
     runs: { total: Number(runs?.total || 0), latest: runs?.latest || null },
@@ -241,6 +279,15 @@ async function getAdminOverview(request, env) {
       updates: Array.isArray(snapshot.updates) ? snapshot.updates.length : 0,
       sourceStatus: snapshot.sourceStatus || null,
     } : null,
+    coverage: {
+      discovered: snapshot?.updates?.length || 0,
+      routed: (snapshot?.updates || []).filter((item) => item.origin && item.destination).length,
+      forecasted: (snapshot?.updates || []).filter((item) => item.forecastArrival || item.forecastDeparture).length,
+      stationAnchored: (snapshot?.updates || []).filter((item) => item.reportedStation).length,
+      quarantined: snapshot?.quality?.quarantined || 0,
+      qualityWarnings: snapshot?.quality?.warningCounts || {},
+      learnedSegments: segmentStats.length,
+    },
     sources: sources.results || [],
     recentEvents: (recentEvents.results || []).map((event) => ({
       runId: event.run_id,
@@ -283,6 +330,7 @@ export async function handleRequest(request, env) {
     }
     if (request.method === "GET" && url.pathname === "/api/health") return getHealth(request, env);
     if (request.method === "GET" && url.pathname === "/api/v1/stream") return getSnapshotStream(request, env);
+    if (request.method === "GET" && url.pathname === "/api/v1/segment-stats") return json({ segments: await readSegmentStats(env), aggregateOnly: true }, { headers: { "Cache-Control": "public, max-age=300" } }, request, env);
     if (request.method === "GET" && url.pathname === "/api/admin/overview") {
       if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, { status: 401 }, request, env);
       return getAdminOverview(request, env);
@@ -319,27 +367,66 @@ async function fetchWithRetry(url, attempts = 3) {
 
 export async function scheduledRefresh(env) {
   const checkedAt = new Date().toISOString();
-  if (!env.UPSTREAM_SNAPSHOT_URL) {
-    const snapshot = await readSnapshot(env);
-    const freshness = snapshotFreshness(snapshot);
-    await storeSourceHealth(env, {
-      sourceId: "pipeline-monitor",
-      status: freshness.status === "ok" ? "online" : freshness.status === "degraded" ? "stale" : "unavailable",
-      checkedAt,
-      error: freshness.status === "ok" ? null : freshness.message,
-    }, Array.isArray(snapshot?.updates) ? snapshot.updates.length : 0);
-    return { monitored: true, freshness };
-  }
+  const previous = await readSnapshot(env);
+  let merged = [...(previous?.updates || [])];
+  const errors = [];
+  let freshSources = 0;
+
   try {
-    const response = await fetchWithRetry(env.UPSTREAM_SNAPSHOT_URL);
-    const payload = await response.json();
-    const result = await ingestPayload(env, payload);
-    await storeSourceHealth(env, { sourceId: "pipeline-monitor", status: "online", checkedAt }, payload?.updates?.length || 0);
-    return result;
+    const response = await fetchWithRetry(DASHBOARD_URL);
+    const edgeUpdates = parseEdgeDelayDashboard(await response.text(), checkedAt);
+    if (!edgeUpdates.length) throw new Error("edge delay dashboard returned no trains");
+    merged = [...merged.filter((update) => update.sourceId !== "uz-delay-dashboard"), ...edgeUpdates];
+    freshSources += 1;
+    await storeSourceHealth(env, { sourceId: "uz-delay-dashboard-edge", status: "online", checkedAt }, edgeUpdates.length);
   } catch (error) {
-    await storeSourceHealth(env, { sourceId: "pipeline-monitor", status: "unavailable", checkedAt, error: String(error?.message || error) }, 0);
-    throw error;
+    errors.push(`dashboard: ${String(error?.message || error)}`);
+    await storeSourceHealth(env, { sourceId: "uz-delay-dashboard-edge", status: "unavailable", checkedAt, error: String(error?.message || error) }, 0);
   }
+
+  try {
+    const telegram = await collectTelegram();
+    merged = [...merged.filter((update) => update.sourceId !== "uz-suburban-telegram"), ...(telegram.updates || [])];
+    freshSources += 1;
+    await storeSourceHealth(env, { sourceId: "uz-telegram-edge", status: "online", checkedAt }, telegram.updates?.length || 0);
+  } catch (error) {
+    errors.push(`telegram: ${String(error?.message || error)}`);
+    await storeSourceHealth(env, { sourceId: "uz-telegram-edge", status: "unavailable", checkedAt, error: String(error?.message || error) }, 0);
+  }
+
+  if (freshSources > 0) {
+    const result = await ingestPayload(env, {
+      generatedAt: checkedAt,
+      sourceStatus: {
+        sourceId: "uz-public-fusion", status: "online", checkedAt,
+        label: `UZ edge fusion: ${merged.length} событий · ${freshSources}/2 edge-источников`,
+        capabilities: { officialStatus: true, forecast: true, stationPassage: true, gps: false, scope: "public-passenger-and-commuter-events" },
+      },
+      updates: merged,
+    }, checkedAt);
+    await storeSourceHealth(env, { sourceId: "pipeline-monitor", status: "online", checkedAt }, merged.length);
+    return { edge: true, freshSources, errors, ...result };
+  }
+
+  if (env.UPSTREAM_SNAPSHOT_URL) {
+    try {
+      const response = await fetchWithRetry(env.UPSTREAM_SNAPSHOT_URL);
+      const payload = await response.json();
+      const result = await ingestPayload(env, payload);
+      await storeSourceHealth(env, { sourceId: "pipeline-monitor", status: "online", checkedAt }, payload?.updates?.length || 0);
+      return result;
+    } catch (error) {
+      errors.push(`upstream: ${String(error?.message || error)}`);
+    }
+  }
+
+  const freshness = snapshotFreshness(previous);
+  await storeSourceHealth(env, {
+    sourceId: "pipeline-monitor",
+    status: freshness.status === "ok" ? "online" : freshness.status === "degraded" ? "stale" : "unavailable",
+    checkedAt, error: errors.join("; ").slice(0, 500),
+  }, Array.isArray(previous?.updates) ? previous.updates.length : 0);
+  return { monitored: true, errors, freshness };
 }
 export default {
   fetch: handleRequest,

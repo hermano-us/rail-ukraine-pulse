@@ -88,7 +88,7 @@ test("health reports snapshot freshness instead of unconditional ok", async () =
   const body = await response.json();
   assert.equal(response.status, 200);
   assert.equal(body.status, "ok");
-  assert.equal(body.version, "ops-center-v1");
+  assert.equal(body.version, "positioning-v2-edge");
   assert.equal(body.snapshot.updates, 1);
 });
 
@@ -114,10 +114,16 @@ test("custom operations route replaces the legacy admin page", async () => {
   assert.equal(directAsset.status, 404);
 });
 
-test("scheduled monitor records stale pipeline state without refreshing timestamps", async () => {
+test("scheduled edge collector refreshes the snapshot independently of GitHub cron", async () => {
   const env = environment();
-  const result = await scheduledRefresh(env);
-  assert.equal(result.monitored, true);
-  assert.equal(env.DB.runs.length, 1);
-  assert.match(env.DB.runs[0].sql, /source_health/);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(`<table><tr><td>№ 91</td><td>Київ → Львів</td><td>+0:12</td><td>В дорозі</td><td>—</td><td>12:30</td></tr></table>`);
+  try {
+    const result = await scheduledRefresh(env);
+    assert.equal(result.edge, true);
+    assert.equal(result.snapshot.updates.length, 1);
+    assert.equal(result.snapshot.sourceStatus.status, "online");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

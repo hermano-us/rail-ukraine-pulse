@@ -5,9 +5,11 @@ import { POSITION_STATUSES } from "./positioning.js";
 import { OPERATION_COLORS, OPERATION_LABELS, TRANSPORT_LABELS, TYPE_LABELS, escapeHtml, formatDateTime, formatRelative } from "./formatters-ukraine.js";
 
 const HISTORY_KEY="rail-ukraine-pulse:run-history:v2";
+const FAVORITES_KEY="rail-ukraine-pulse:favorites:v1";
+function readFavorites(){try{return new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY)||"[]"));}catch{return new Set();}}
 const LAYOUT_KEY="rail-ukraine-pulse:workspace-layout:v1";
 const state={
-  data:null,transport:"all",statuses:new Set(Object.keys(POSITION_STATUSES)),
+  data:null,transport:"all",favorites:readFavorites(),statuses:new Set(Object.keys(POSITION_STATUSES)),
   operations:new Set(Object.keys(OPERATION_LABELS)),regions:new Set(),minConfidence:0,
   query:"",quick:"all",sort:"delay",selected:null,followedId:null,
 };
@@ -107,6 +109,7 @@ function matchesQuick(object){
   if(state.quick==="fresh")return object.position.freshness?.key==="fresh";
   if(state.quick==="stale")return ["stale","unknown"].includes(object.position.status);
   if(state.quick==="unknown")return object.position.status==="unknown";
+  if(state.quick==="favorites")return state.favorites.has(object.runId);
   return true;
 }
 
@@ -289,14 +292,23 @@ function detailTemplate(object){
     <div class="timeline">${historyTemplate(object)}</div>
     <button class="detail-action" id="history-button">Показать накопленную историю на карте</button>
     <button class="detail-action follow-button ${state.followedId===object.id?"active":""}" id="follow-button">${state.followedId===object.id?"Отменить слежение":"Следить за рейсом"}</button>
+    <button class="detail-action" id="favorite-button">${state.favorites.has(object.runId)?"Удалить из избранного":"Добавить в избранное"}</button>
+    <button class="detail-action" id="share-button">Скопировать ссылку на рейс</button>
   `;
 }
 
 function selectObject(object){
-  state.selected=object;render();mapView.focusObject(object);elements.detailContent.innerHTML=detailTemplate(object);
+  state.selected=object;const url=new URL(location.href);url.searchParams.set("train",object.runId);history.replaceState(null,"",url);render();mapView.focusObject(object);elements.detailContent.innerHTML=detailTemplate(object);
   elements.detail.scrollTop=0;elements.detail.classList.add("open");elements.detail.setAttribute("aria-hidden","false");
   renderFleet(filteredObjects());
   elements.detailContent.querySelector("#history-button")?.addEventListener("click",()=>showToast(mapView.toggleHistory(object)?"История показана":"Нужно минимум два сохранённых снимка"));
+  elements.detailContent.querySelector("#favorite-button")?.addEventListener("click",(event)=>{
+    state.favorites.has(object.runId)?state.favorites.delete(object.runId):state.favorites.add(object.runId);
+    localStorage.setItem(FAVORITES_KEY,JSON.stringify([...state.favorites]));event.currentTarget.textContent=state.favorites.has(object.runId)?"Удалить из избранного":"Добавить в избранное";
+  });
+  elements.detailContent.querySelector("#share-button")?.addEventListener("click",async()=>{
+    try{await navigator.clipboard.writeText(location.href);showToast("Ссылка на рейс скопирована");}catch{showToast(location.href);}
+  });
   elements.detailContent.querySelector("#follow-button")?.addEventListener("click",(event)=>{
     state.followedId=state.followedId===object.id?null:object.id;
     event.currentTarget.classList.toggle("active",state.followedId===object.id);
@@ -305,7 +317,7 @@ function selectObject(object){
   });
 }
 
-function closeDetail(){elements.detail.classList.remove("open");elements.detail.setAttribute("aria-hidden","true");mapView.clearHistory();state.selected=null;render();}
+function closeDetail(){const url=new URL(location.href);url.searchParams.delete("train");history.replaceState(null,"",url);elements.detail.classList.remove("open");elements.detail.setAttribute("aria-hidden","true");mapView.clearHistory();state.selected=null;render();}
 function showToast(message){elements.toast.textContent=message;elements.toast.classList.add("show");clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>elements.toast.classList.remove("show"),2400);}
 
 function resetFilters(){
@@ -380,7 +392,7 @@ function renderSourceStatus(){
 async function bootstrap(){
   initDynamicFilters();bindControls();startClock();
   try{
-    state.data=await loadTransportData(new Date());persistHistory(state.data);initRegions();mapView.setRoutes(state.data.routes);renderSourceStatus();render();mapView.fitUkraine();
+    state.data=await loadTransportData(new Date());persistHistory(state.data);initRegions();mapView.setRoutes(state.data.routes);renderSourceStatus();render();mapView.fitUkraine();const requested=new URL(location.href).searchParams.get("train");const target=state.data.objects.find((object)=>object.runId===requested);if(target)selectObject(target);
   }catch(error){console.error(error);$("#last-update").textContent="Ошибка загрузки данных";showToast("Не удалось загрузить публичный набор УЗ");}
 }
 

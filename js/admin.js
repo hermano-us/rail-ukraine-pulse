@@ -5,6 +5,7 @@ const nodes = {
   dashboard: document.querySelector("#dashboard"),
   error: document.querySelector("#login-error"),
   metrics: document.querySelector("#metrics"),
+  coverageMetrics: document.querySelector("#coverage-metrics"),
   sourceRows: document.querySelector("#source-rows"),
   eventRows: document.querySelector("#event-rows"),
   updatedAt: document.querySelector("#updated-at"),
@@ -138,6 +139,15 @@ function render(data) {
     metric("Источники online", `${activeSources}/${(data.sources || []).length}`, staleSources ? `${staleSources} требуют проверки` : "Все доступные источники активны", staleSources ? "warning" : "ok"),
   );
 
+  const coverage = data.coverage || {};
+  nodes.coverageMetrics.replaceChildren(
+    metric("Найдено", coverage.discovered, "Все публичные рейсы"),
+    metric("Маршрут определён", coverage.routed, "Начало и назначение"),
+    metric("Есть прогноз", coverage.forecasted, "Прибытие или отправление"),
+    metric("Станционный факт", coverage.stationAnchored, "Якоря позиционирования", coverage.stationAnchored ? "ok" : "warning"),
+    metric("Изучено перегонов", coverage.learnedSegments, "Историческая калибровка"),
+    metric("Карантин", coverage.quarantined, "Отклонённые аномалии", coverage.quarantined ? "warning" : "ok"),
+  );
   renderSources(data.sources || []);
   renderEvents(data.recentEvents || []);
   nodes.updatedAt.textContent = `Диагностика: ${formatDate(data.checkedAt)}`;

@@ -62,10 +62,11 @@ export function estimatePosterior(input) {
     const toKm = clamp(Number(next.routeDistanceKm), fromKm, routeLengthKm);
     meanKm = fromKm + (toKm - fromKm) * progress;
     const segmentKm = Math.max(1, toKm - fromKm);
-    const timingSpread = Number(next.p90Minutes) > Number(next.p10Minutes)
+    const scheduleSpread = Number(next.p90Minutes) > Number(next.p10Minutes)
       ? (Number(next.p90Minutes) - Number(next.p10Minutes)) * defaultSpeed / 120
       : segmentKm * 0.12;
-    sigmaKm = Math.max(Number(anchor.errorKm) || 1.5, timingSpread, 1.2 + ageMinutes * 0.055);
+    const historicalSpread = Math.max(0, Number(input.historicalSpreadMinutes) || 0) * defaultSpeed / 120;
+    sigmaKm = Math.max(Number(anchor.errorKm) || 1.5, scheduleSpread, historicalSpread, 1.2 + ageMinutes * 0.055);
   } else {
     meanKm = clamp(fromKm + defaultSpeed * ageMinutes / 60, fromKm, routeLengthKm);
     sigmaKm = Math.max(Number(anchor.errorKm) || 2, 2 + ageMinutes * 0.16);
@@ -99,7 +100,7 @@ export function estimatePosterior(input) {
 
   return {
     status: frozen ? "stale" : ageMinutes <= 3 && errorKm <= 5 ? "reported" : "estimated",
-    method: "rail-posterior-v1",
+    method: "rail-posterior-v2",
     distanceKm: Number(p50.toFixed(2)),
     confidence: Number((frozen ? Math.min(confidence, 0.32) : confidence).toFixed(2)),
     errorKm: Number(errorKm.toFixed(1)),
@@ -111,6 +112,7 @@ export function estimatePosterior(input) {
       p90: [Number(p05.toFixed(2)), Number(p95.toFixed(2))],
     },
     distribution: bins.filter((_, index) => index % Math.max(1, Math.floor(bins.length / 40)) === 0),
+    calibration: { historicalSamples: Number(input.historicalSamples) || 0, historicalSpreadMinutes: Number(input.historicalSpreadMinutes) || 0 },
   };
 }
 

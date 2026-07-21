@@ -17,8 +17,8 @@ test("station evidence uses posterior positioning in the live data store", () =>
     forecastArrival: "13:00",
   }, routeResult, new Date("2026-07-20T10:20:00Z"), 20, [30.25, 50.1]);
 
-  assert.equal(position.method, "rail-posterior-v1");
-  assert.equal(position.calculation.model, "station-anchored-posterior");
+  assert.equal(position.method, "rail-posterior-v2");
+  assert.equal(position.calculation.model, "station-anchored-posterior-v2");
   assert.ok(position.probabilityCorridor.p90[0] <= position.probabilityCorridor.p50[0]);
   assert.ok(position.coordinates);
 });

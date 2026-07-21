@@ -169,7 +169,7 @@ export function calculateQuality({hasRoute,hasForecast,sourceAgeMinutes,reliabil
   return Number(Math.max(0,Math.min(1,total)).toFixed(2));
 }
 
-export function estimatePosition(update,routeResult,now,sourceAgeMinutes,stationAnchor=null){
+export function estimatePosition(update,routeResult,now,sourceAgeMinutes,stationAnchor=null,segmentCalibration=null){
   const freshness=evaluateFreshness(sourceAgeMinutes);
   if(!freshness.canPosition)return null;
   const referenceTime=update.updatedAt?new Date(update.updatedAt):now;
@@ -182,6 +182,7 @@ export function estimatePosition(update,routeResult,now,sourceAgeMinutes,station
       now,routeLengthKm:measure.totalKm,nominalSpeedKph:measure.totalKm>900?67:measure.totalKm>450?63:58,
       anchors:[{routeDistanceKm,occurredAt:update.updatedAt,errorKm:update.positionEvidence==="reported-station-passage"?2:5,reliability:update.positionEvidence==="reported-station-passage"?0.9:0.78}],
       schedule:arrival?[{routeDistanceKm:measure.totalKm,expectedAt:arrival.toISOString()}]:[],
+      historicalSamples:segmentCalibration?.samples||0,historicalSpreadMinutes:segmentCalibration?.spreadMinutes||0,
     });
     if(posterior.status!=="unknown")return {
       status:posterior.status,coordinates:interpolateAlongRoute(measure,posterior.distanceKm),
@@ -193,7 +194,7 @@ export function estimatePosition(update,routeResult,now,sourceAgeMinutes,station
       calculation:{
         progress:Number((posterior.distanceKm/measure.totalKm).toFixed(3)),totalKm:Number(measure.totalKm.toFixed(1)),
         sourceAgeMinutes:posterior.sourceAgeMinutes,forecastArrivalAt:arrival?.toISOString()||null,
-        model:"station-anchored-posterior",p50:posterior.corridor.p50,p90:posterior.corridor.p90,
+        model:"station-anchored-posterior-v2",p50:posterior.corridor.p50,p90:posterior.corridor.p90,calibration:posterior.calibration,
       },
     };
   }
@@ -234,12 +235,12 @@ function evidenceFor(update,position,sourceStatus){
   ];
 }
 
-function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,sourceAgeMinutes,stations,stationLookup){
+function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,sourceAgeMinutes,stations,stationLookup,segmentCalibration){
   const identity=buildRunIdentity(update,now), origin=stationCoordinates(update.origin,stationLookup);
   const reportedAnchor=stationCoordinates(update.reportedStation,stationLookup)||origin;
   const freshness=evaluateFreshness(sourceAgeMinutes);
   const isStationReport=Boolean(update.reportedStation&&["reported-station-passage","station-board-window"].includes(update.positionEvidence));
-  const estimated=estimatePosition(update,routeResult,now,sourceAgeMinutes,isStationReport?reportedAnchor:null);
+  const estimated=estimatePosition(update,routeResult,now,sourceAgeMinutes,isStationReport?reportedAnchor:null,segmentCalibration);
   const reportConfidence=update.positionEvidence==="reported-station-passage"?0.82:update.positionEvidence==="station-board-window"?0.66:0.58;
   const reportErrorKm=update.positionEvidence==="reported-station-passage"?2:update.positionEvidence==="station-board-window"?5:3;
   const reported=freshness.canPosition&&reportedAnchor&&(update.operationalStatus!=="moving"||isStationReport)?{
@@ -285,6 +286,14 @@ function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,so
   };
 }
 
+function segmentCalibrationFor(stats=[],trainNumber=""){
+  const relevant=stats.filter((item)=>String(item.train_family)===String(trainNumber)&&Number(item.sample_count)>0);
+  if(!relevant.length)return null;
+  const samples=relevant.reduce((sum,item)=>sum+Number(item.sample_count||0),0);
+  const spreadMinutes=relevant.reduce((sum,item)=>sum+Math.max(0,Number(item.p90_minutes||0)-Number(item.p10_minutes||0))*Number(item.sample_count||0),0)/Math.max(samples,1);
+  return {samples,spreadMinutes:Number(spreadMinutes.toFixed(1)),segments:relevant.length};
+}
+
 export async function loadTransportData(now=new Date()){
   const [baseRoutes,regions,liveData,freightData,vesselData,sourceData,stationData,sourceRuntime]=await Promise.all([
     readJson("data/railways.geojson"),readJson("data/regions.geojson"),
@@ -315,7 +324,8 @@ export async function loadTransportData(now=new Date()){
     });
     const regionAnchors=routeResult?.coordinates||(reported||origin||destination?[reported,origin,destination].filter(Boolean):[]);
     const updateAgeMinutes=ageOf(update.updatedAt||generatedAt,now);
-    return objectFromUpdate(update,routeResult,routeId,regionsForPoints(regionAnchors,regions.features),now,sourceStatus,updateAgeMinutes,stations,stationLookup);
+    const segmentCalibration=segmentCalibrationFor(liveData?.segmentStats||[],update.trainNumber);
+    return objectFromUpdate(update,routeResult,routeId,regionsForPoints(regionAnchors,regions.features),now,sourceStatus,updateAgeMinutes,stations,stationLookup,segmentCalibration);
   });
   const routes={type:"FeatureCollection",features:dynamicFeatures};
   const routeMap=new Map(dynamicFeatures.map((feature)=>[feature.properties.id,feature]));
@@ -331,7 +341,7 @@ export async function loadTransportData(now=new Date()){
     freshness:evaluateFreshness(sourceAgeMinutes),
     freshRuns:objects.filter((object)=>object.position.freshness?.key==="fresh").length,
     frozenRuns:objects.filter((object)=>object.position.freshness?.frozen&&object.position.coordinates).length,
-    algorithmVersion:"rail-posterior-v1+rail-corridor-v5",snapshotSchema:liveData?.schemaVersion||null,
+    learnedSegments:(liveData?.segmentStats||[]).length,algorithmVersion:"rail-posterior-v2+rail-corridor-v5",snapshotSchema:liveData?.schemaVersion||null,
   };
   const eventFeed=objects.flatMap((object)=>object.events.map((event)=>({...event,objectId:object.id,trainNumber:object.trainNumber,route:object.route,positionStatus:object.position.status})))
     .sort((a,b)=>Date.parse(b.occurredAt)-Date.parse(a.occurredAt));

@@ -13,7 +13,7 @@ test("posterior produces nested probability corridors along the route", () => {
     schedule: [{ routeDistanceKm: 160, expectedAt: "2026-07-20T11:00:00Z", p10Minutes: 52, p90Minutes: 70 }],
   });
   assert.equal(result.status, "estimated");
-  assert.equal(result.method, "rail-posterior-v1");
+  assert.equal(result.method, "rail-posterior-v2");
   assert.ok(result.distanceKm > 110 && result.distanceKm < 130);
   assert.ok(result.corridor.p90[0] <= result.corridor.p50[0]);
   assert.ok(result.corridor.p90[1] >= result.corridor.p50[1]);
