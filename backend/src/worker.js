@@ -1,6 +1,6 @@
 import { normalizeToken, updatesToEvents, validateEvent } from "./domain/events.js";
 import { detectSourceVolumeDrop, screenUpdates } from "./domain/quality.js";
-import { DASHBOARD_URL, parseEdgeDelayDashboard, parseRelayDelayMarkdown } from "./adapters/delay-dashboard.js";
+import { DASHBOARD_URL, parseEdgeDelayDashboard } from "./adapters/delay-dashboard.js";
 import { collectTelegram } from "../../scripts/source-adapters/telegram.mjs";
 
 const SNAPSHOT_KEY = "public:v1:snapshot";
@@ -414,20 +414,14 @@ export async function scheduledRefresh(env) {
   try {
     if(!sourceEnabled("uz-delay-dashboard"))throw new Error("source disabled by operator");
     const response=await fetchWithRetry(DASHBOARD_URL);const edgeUpdates=parseEdgeDelayDashboard(await response.text(),checkedAt);if(!edgeUpdates.length)throw new Error("edge delay dashboard returned no trains");const previousDashboard=merged.filter(update=>update.sourceId==="uz-delay-dashboard").length;const directDrop=detectSourceVolumeDrop(previousDashboard,edgeUpdates.length);if(directDrop.anomaly)throw new Error(`dashboard volume anomaly ${directDrop.next}/${directDrop.previous}`);
-    merged=[...merged.filter(update=>update.sourceId!=="uz-delay-dashboard"),...edgeUpdates];freshSources+=1;
-    await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-direct",status:"online",checkedAt},edgeUpdates.length);await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:"online",checkedAt},edgeUpdates.length);
+    merged=[...merged.filter(update=>update.sourceId!=="uz-delay-dashboard"),...edgeUpdates];freshSources+=1;await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-direct",status:"online",checkedAt},edgeUpdates.length);await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:"online",checkedAt},edgeUpdates.length);
   } catch(error) {
     const directError=String(error?.message||error);errors.push(`dashboard-direct: ${directError}`);await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-direct",status:"unavailable",checkedAt,error:directError},0);
     try {
-      const relayResponse=await fetchWithRetry("https://r.jina.ai/http://uz-vezemo.uz.gov.ua/delayform/");const relayUpdates=parseRelayDelayMarkdown(await relayResponse.text(),checkedAt);if(!relayUpdates.length)throw new Error("relay returned no dashboard rows");const previousDashboard=merged.filter(update=>update.sourceId==="uz-delay-dashboard").length;const relayDrop=detectSourceVolumeDrop(previousDashboard,relayUpdates.length);if(relayDrop.anomaly)throw new Error(`relay volume anomaly ${relayDrop.next}/${relayDrop.previous}`);
-      merged=[...merged.filter(update=>update.sourceId!=="uz-delay-dashboard"),...relayUpdates];freshSources+=1;await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-relay",status:"online",checkedAt},relayUpdates.length);await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:"online",checkedAt,error:`direct channel: ${directError}; read-only relay active`},relayUpdates.length);
-    } catch(relayError) {
-      errors.push(`dashboard-relay: ${String(relayError?.message||relayError)}`);
-      try {
-        const mirrorResponse=await fetchWithRetry("https://raw.githubusercontent.com/hermano-us/rail-ukraine-pulse/main/data/live.json");const mirror=await mirrorResponse.json();const mirrorUpdates=(mirror.updates||[]).filter(update=>update.sourceId==="uz-delay-dashboard");const mirrorAge=Math.max(0,(Date.parse(checkedAt)-Date.parse(mirror.generatedAt||""))/60000);if(!mirrorUpdates.length||!Number.isFinite(mirrorAge)||mirrorAge>180)throw new Error(`official mirror is too old (${Math.round(mirrorAge)} min)`);
-        merged=[...merged.filter(update=>update.sourceId!=="uz-delay-dashboard"),...mirrorUpdates];const mirrorStatus=mirrorAge<=30?"online":"stale";if(mirrorStatus==="online")freshSources+=1;await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:mirrorStatus,checkedAt,error:`direct: ${directError}; relay: ${String(relayError?.message||relayError)}; mirror age ${Math.round(mirrorAge)} min`},mirrorUpdates.length);
-      } catch(mirrorError) { await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:"unavailable",checkedAt,error:`${directError}; relay: ${String(relayError?.message||relayError)}; mirror: ${String(mirrorError?.message||mirrorError)}`},0); }
-    }
+      if(!sourceEnabled("uz-delay-dashboard"))throw new Error("source disabled by operator");const mirrorResponse=await fetchWithRetry("https://raw.githubusercontent.com/hermano-us/rail-ukraine-pulse/main/data/live.json");const mirror=await mirrorResponse.json();const mirrorUpdates=(mirror.updates||[]).filter(update=>update.sourceId==="uz-delay-dashboard");const mirrorAge=Math.max(0,(Date.parse(checkedAt)-Date.parse(mirror.generatedAt||""))/60000);if(!mirrorUpdates.length||!Number.isFinite(mirrorAge)||mirrorAge>180)throw new Error(`official mirror is too old (${Math.round(mirrorAge)} min)`);
+      merged=[...merged.filter(update=>update.sourceId!=="uz-delay-dashboard"),...mirrorUpdates];const mirrorStatus=mirrorAge<=20?"online":"stale";if(mirrorStatus==="online")freshSources+=1;await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:mirrorStatus,checkedAt,error:`direct: ${directError}; official GitHub mirror age ${Math.round(mirrorAge)} min`},mirrorUpdates.length);
+      if(mirrorAge>12&&env.GITHUB_DISPATCH_TOKEN){const last=Number(await env.SNAPSHOT?.get("github-dispatch:last")||0);if(Date.now()-last>10*60000){const dispatched=await fetch("https://api.github.com/repos/hermano-us/rail-ukraine-pulse/actions/workflows/update-data.yml/dispatches",{method:"POST",headers:{Authorization:`Bearer ${env.GITHUB_DISPATCH_TOKEN}`,Accept:"application/vnd.github+json","User-Agent":"RailUkrainePulse/1.0","X-GitHub-Api-Version":"2022-11-28"},body:JSON.stringify({ref:"main"})});if(!dispatched.ok)throw new Error(`GitHub dispatch HTTP ${dispatched.status}`);await env.SNAPSHOT?.put("github-dispatch:last",String(Date.now()),{expirationTtl:900});await storeSourceHealth(env,{sourceId:"github-enrichment-dispatch",status:"online",checkedAt},1);}}
+    } catch(mirrorError) {await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:"unavailable",checkedAt,error:`${directError}; mirror: ${String(mirrorError?.message||mirrorError)}`},0);}
   }
   try {
     if(!sourceEnabled("uz-suburban-telegram"))throw new Error("source disabled by operator");
