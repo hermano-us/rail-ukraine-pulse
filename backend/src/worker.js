@@ -1,6 +1,6 @@
 import { normalizeToken, updatesToEvents, validateEvent } from "./domain/events.js";
 import { screenUpdates } from "./domain/quality.js";
-import { DASHBOARD_URL, parseEdgeDelayDashboard } from "./adapters/delay-dashboard.js";
+import { DASHBOARD_URL, parseEdgeDelayDashboard, parseRelayDelayMarkdown } from "./adapters/delay-dashboard.js";
 import { collectTelegram } from "../../scripts/source-adapters/telegram.mjs";
 
 const SNAPSHOT_KEY = "public:v1:snapshot";
@@ -418,29 +418,20 @@ export async function scheduledRefresh(env) {
   let freshSources = 0;
 
   try {
-    const response = await fetchWithRetry(DASHBOARD_URL);
-    const edgeUpdates = parseEdgeDelayDashboard(await response.text(), checkedAt);
-    if (!edgeUpdates.length) throw new Error("edge delay dashboard returned no trains");
-    merged = [...merged.filter((update) => update.sourceId !== "uz-delay-dashboard"), ...edgeUpdates];
-    freshSources += 1;
-    await storeSourceHealth(env, { sourceId: "uz-delay-dashboard-direct", status: "online", checkedAt }, edgeUpdates.length);
-    await storeSourceHealth(env, { sourceId: "uz-delay-dashboard-edge", status: "online", checkedAt }, edgeUpdates.length);
-  } catch (error) {
-    const directError=String(error?.message || error);
-    errors.push(`dashboard-direct: ${directError}`);
-    await storeSourceHealth(env, { sourceId: "uz-delay-dashboard-direct", status: "unavailable", checkedAt, error: directError }, 0);
+    const response=await fetchWithRetry(DASHBOARD_URL);const edgeUpdates=parseEdgeDelayDashboard(await response.text(),checkedAt);if(!edgeUpdates.length)throw new Error("edge delay dashboard returned no trains");
+    merged=[...merged.filter(update=>update.sourceId!=="uz-delay-dashboard"),...edgeUpdates];freshSources+=1;
+    await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-direct",status:"online",checkedAt},edgeUpdates.length);await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:"online",checkedAt},edgeUpdates.length);
+  } catch(error) {
+    const directError=String(error?.message||error);errors.push(`dashboard-direct: ${directError}`);await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-direct",status:"unavailable",checkedAt,error:directError},0);
     try {
-      const mirrorResponse=await fetchWithRetry("https://raw.githubusercontent.com/hermano-us/rail-ukraine-pulse/main/data/live.json");
-      const mirror=await mirrorResponse.json();
-      const mirrorUpdates=(mirror.updates||[]).filter((update)=>update.sourceId==="uz-delay-dashboard");
-      const mirrorAge=Math.max(0,(Date.parse(checkedAt)-Date.parse(mirror.generatedAt||""))/60000);
-      if(!mirrorUpdates.length||!Number.isFinite(mirrorAge)||mirrorAge>180)throw new Error(`official mirror is too old (${Math.round(mirrorAge)} min)`);
-      merged=[...merged.filter((update)=>update.sourceId!=="uz-delay-dashboard"),...mirrorUpdates];
-      const mirrorStatus=mirrorAge<=30?"online":"stale";
-      if(mirrorStatus==="online")freshSources+=1;
-      await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:mirrorStatus,checkedAt,error:`direct channel: ${directError}; GitHub mirror age ${Math.round(mirrorAge)} min`},mirrorUpdates.length);
-    } catch(mirrorError) {
-      await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:"unavailable",checkedAt,error:`${directError}; mirror: ${String(mirrorError?.message||mirrorError)}`},0);
+      const relayResponse=await fetchWithRetry("https://r.jina.ai/https://uz-vezemo.uz.gov.ua/delayform/");const relayUpdates=parseRelayDelayMarkdown(await relayResponse.text(),checkedAt);if(!relayUpdates.length)throw new Error("relay returned no dashboard rows");
+      merged=[...merged.filter(update=>update.sourceId!=="uz-delay-dashboard"),...relayUpdates];freshSources+=1;await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-relay",status:"online",checkedAt},relayUpdates.length);await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:"online",checkedAt,error:`direct channel: ${directError}; read-only relay active`},relayUpdates.length);
+    } catch(relayError) {
+      errors.push(`dashboard-relay: ${String(relayError?.message||relayError)}`);
+      try {
+        const mirrorResponse=await fetchWithRetry("https://raw.githubusercontent.com/hermano-us/rail-ukraine-pulse/main/data/live.json");const mirror=await mirrorResponse.json();const mirrorUpdates=(mirror.updates||[]).filter(update=>update.sourceId==="uz-delay-dashboard");const mirrorAge=Math.max(0,(Date.parse(checkedAt)-Date.parse(mirror.generatedAt||""))/60000);if(!mirrorUpdates.length||!Number.isFinite(mirrorAge)||mirrorAge>180)throw new Error(`official mirror is too old (${Math.round(mirrorAge)} min)`);
+        merged=[...merged.filter(update=>update.sourceId!=="uz-delay-dashboard"),...mirrorUpdates];const mirrorStatus=mirrorAge<=30?"online":"stale";if(mirrorStatus==="online")freshSources+=1;await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:mirrorStatus,checkedAt,error:`direct: ${directError}; relay: ${String(relayError?.message||relayError)}; mirror age ${Math.round(mirrorAge)} min`},mirrorUpdates.length);
+      } catch(mirrorError) { await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:"unavailable",checkedAt,error:`${directError}; relay: ${String(relayError?.message||relayError)}; mirror: ${String(mirrorError?.message||mirrorError)}`},0); }
     }
   }
   try {

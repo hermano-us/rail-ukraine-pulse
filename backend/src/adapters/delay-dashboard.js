@@ -65,4 +65,15 @@ export function parseEdgeDelayDashboard(html, observedAt = new Date().toISOStrin
   return updates;
 }
 
+export function parseRelayDelayMarkdown(markdown, observedAt = new Date().toISOString()) {
+  const updates=[];
+  for(const line of String(markdown||"").split(/\r?\n/)){
+    if(!/^\|\s*№\s*\d/u.test(line))continue;
+    const cells=line.split("|").slice(1,-1).map(cell=>cell.trim());if(cells.length<8)continue;
+    const number=cells[0].match(/(\d{1,4}(?:\/\d{1,4})?)/u)?.[1];if(!number)continue;
+    const route=cells[1], parts=route.split(/\s*→\s*/u);
+    updates.push({trainNumber:number,route,origin:parts[0]||"",destination:parts.slice(1).join(" → "),delayMinutes:delayMinutes(cells[2]),delayLabel:cells[2],publicStatus:cells[3],operationalStatus:operationFromStatus(cells[3]),forecastDeparture:cells[4]!=="—"?cells[4]:null,forecastArrival:cells[5]!=="—"?cells[5]:null,reliability:cells[6],reason:cells[7]||null,updatedAt:observedAt,source:DASHBOARD_URL,sourceId:"uz-delay-dashboard",sourceEvidence:"official-public-dashboard-relay",sourceTransport:"r.jina.ai read-only relay",positionEvidence:"none"});
+  }
+  return updates;
+}
 export { DASHBOARD_URL };

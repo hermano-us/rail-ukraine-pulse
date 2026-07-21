@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { assessUpdate, screenUpdates } from "../backend/src/domain/quality.js";
-import { parseEdgeDelayDashboard } from "../backend/src/adapters/delay-dashboard.js";
+import { parseEdgeDelayDashboard, parseRelayDelayMarkdown } from "../backend/src/adapters/delay-dashboard.js";
 
 test("quality gate quarantines impossible updates but keeps incomplete public evidence", () => {
   const now = Date.parse("2026-07-21T06:00:00Z");
@@ -32,4 +32,9 @@ test("posterior v3 exposes historical calibration metadata", async () => {
   });
   assert.equal(result.method, "rail-posterior-v3");
   assert.deepEqual(result.calibration, { historicalSamples: 12, historicalSpreadMinutes: 18 });
+});
+
+test("relay markdown preserves official dashboard provenance",()=>{
+  const markdown="| №15/16 | Харків-Пас.→ Івано-Франківськ | +3:24 | В дорозі | — | 10:21 | Середня | технічна причина |";
+  const updates=parseRelayDelayMarkdown(markdown,"2026-07-21T07:00:00Z");assert.equal(updates.length,1);assert.equal(updates[0].delayMinutes,204);assert.equal(updates[0].sourceEvidence,"official-public-dashboard-relay");
 });
