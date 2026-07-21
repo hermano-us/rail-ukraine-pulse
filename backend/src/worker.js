@@ -4,7 +4,7 @@ import { DASHBOARD_URL, parseEdgeDelayDashboard } from "./adapters/delay-dashboa
 import { collectTelegram } from "../../scripts/source-adapters/telegram.mjs";
 
 const SNAPSHOT_KEY = "public:v1:snapshot";
-const WORKER_VERSION = "positioning-v2-edge";
+const WORKER_VERSION = "intelligence-v3";
 const FRESH_MINUTES = 20;
 const DEGRADED_MINUTES = 60;
 const STREAM_RETRY_MS = 10_000;
@@ -86,6 +86,12 @@ export async function ingestPayload(env, payload, observedAt = new Date().toISOS
   }
 
   const statements = [];
+  for (const item of quality.quarantined) {
+    statements.push(env.DB.prepare(`
+      INSERT OR IGNORE INTO quarantine(quarantine_id,observed_at,source_id,train_number,reasons_json,raw_update_json)
+      VALUES(?1,?2,?3,?4,?5,?6)
+    `).bind(crypto.randomUUID(), observedAt, item.sourceId, item.trainNumber, safeJson(item.errors), safeJson(item.update)));
+  }
   for (const event of updateByRun.values()) {
     const update = event.rawUpdate;
     statements.push(env.DB.prepare(`
@@ -300,6 +306,35 @@ async function getAdminOverview(request, env) {
   }, { headers: { "Cache-Control": "no-store" } }, request, env);
 }
 
+async function getAdminIntelligence(request, env) {
+  const [quarantine, cycles, audit, sources, incomplete] = await Promise.all([
+    env.DB.prepare("SELECT * FROM quarantine ORDER BY observed_at DESC LIMIT 100").all(),
+    env.DB.prepare("SELECT * FROM collection_cycles ORDER BY started_at DESC LIMIT 288").all(),
+    env.DB.prepare("SELECT * FROM admin_audit ORDER BY occurred_at DESC LIMIT 100").all(),
+    env.DB.prepare("SELECT * FROM source_config ORDER BY priority DESC").all(),
+    env.DB.prepare("SELECT run_id,train_number,route,origin,destination,last_observed_at FROM runs WHERE route IS NULL OR origin IS NULL OR destination IS NULL ORDER BY last_observed_at DESC LIMIT 100").all(),
+  ]);
+  return json({ quarantine: quarantine.results||[], cycles: cycles.results||[], audit: audit.results||[], sourceConfig: sources.results||[], incompleteRuns: incomplete.results||[] }, {headers:{"Cache-Control":"no-store"}}, request, env);
+}
+
+async function auditAdmin(env, action, target, details={}) {
+  await env.DB.prepare("INSERT INTO admin_audit(audit_id,occurred_at,actor,role,action,target,details_json) VALUES(?1,?2,'token-admin','admin',?3,?4,?5)")
+    .bind(crypto.randomUUID(),new Date().toISOString(),action,target||null,safeJson(details)).run();
+}
+
+async function handleAdminAction(request, env) {
+  const body=await request.json();
+  if(body.action==="retry-collector") { await auditAdmin(env,body.action,"pipeline"); return json(await scheduledRefresh(env),{status:202},request,env); }
+  if(body.action==="resolve-quarantine") {
+    await env.DB.prepare("UPDATE quarantine SET status='resolved',resolution=?1,resolved_at=?2,resolved_by='token-admin' WHERE quarantine_id=?3").bind(body.resolution||"dismissed",new Date().toISOString(),body.id).run();
+    await auditAdmin(env,body.action,body.id,{resolution:body.resolution}); return json({ok:true}, {}, request, env);
+  }
+  if(body.action==="configure-source") {
+    await env.DB.prepare("INSERT INTO source_config(source_id,enabled,priority,reliability,updated_at,updated_by) VALUES(?1,?2,?3,?4,?5,'token-admin') ON CONFLICT(source_id) DO UPDATE SET enabled=excluded.enabled,priority=excluded.priority,reliability=excluded.reliability,updated_at=excluded.updated_at,updated_by=excluded.updated_by").bind(body.sourceId,body.enabled===false?0:1,Number(body.priority)||50,Math.max(0,Math.min(1,Number(body.reliability)||.5)),new Date().toISOString()).run();
+    await auditAdmin(env,body.action,body.sourceId,body); return json({ok:true}, {}, request, env);
+  }
+  return json({error:"unknown_action"},{status:400},request,env);
+}
 async function getSnapshotStream(request, env) {
   const snapshot = await readSnapshot(env);
   const freshness = snapshotFreshness(snapshot);
@@ -331,7 +366,10 @@ export async function handleRequest(request, env) {
     if (request.method === "GET" && url.pathname === "/api/health") return getHealth(request, env);
     if (request.method === "GET" && url.pathname === "/api/v1/stream") return getSnapshotStream(request, env);
     if (request.method === "GET" && url.pathname === "/api/v1/segment-stats") return json({ segments: await readSegmentStats(env), aggregateOnly: true }, { headers: { "Cache-Control": "public, max-age=300" } }, request, env);
-    if (request.method === "GET" && url.pathname === "/api/admin/overview") {
+    if (["GET","POST"].includes(request.method) && url.pathname === "/api/admin/intelligence") {
+      if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, { status: 401 }, request, env);
+      return request.method === "GET" ? getAdminIntelligence(request, env) : handleAdminAction(request, env);
+    }    if (request.method === "GET" && url.pathname === "/api/admin/overview") {
       if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, { status: 401 }, request, env);
       return getAdminOverview(request, env);
     }
@@ -365,8 +403,15 @@ async function fetchWithRetry(url, attempts = 3) {
   throw lastError;
 }
 
+async function finishCycle(env, cycleId, startedMs, result, status="success", error=null) {
+  await env.DB.prepare("UPDATE collection_cycles SET finished_at=?1,status=?2,duration_ms=?3,new_events=?4,accepted_updates=?5,quarantined_updates=?6,sources_online=?7,sources_total=2,error=?8 WHERE cycle_id=?9")
+    .bind(new Date().toISOString(),status,Date.now()-startedMs,Number(result?.accepted||0),Number(result?.snapshot?.updates?.length||0),Number(result?.quarantined||0),Number(result?.freshSources||0),error,cycleId).run();
+  return result;
+}
 export async function scheduledRefresh(env) {
   const checkedAt = new Date().toISOString();
+  const cycleId=crypto.randomUUID(), cycleStarted=Date.now();
+  await env.DB.prepare("INSERT INTO collection_cycles(cycle_id,started_at,status) VALUES(?1,?2,?3)").bind(cycleId,checkedAt,"running").run();
   const previous = await readSnapshot(env);
   let merged = [...(previous?.updates || [])];
   const errors = [];
@@ -405,7 +450,7 @@ export async function scheduledRefresh(env) {
       updates: merged,
     }, checkedAt);
     await storeSourceHealth(env, { sourceId: "pipeline-monitor", status: "online", checkedAt }, merged.length);
-    return { edge: true, freshSources, errors, ...result };
+    return finishCycle(env,cycleId,cycleStarted,{ edge: true, freshSources, errors, ...result });
   }
 
   if (env.UPSTREAM_SNAPSHOT_URL) {
@@ -414,7 +459,7 @@ export async function scheduledRefresh(env) {
       const payload = await response.json();
       const result = await ingestPayload(env, payload);
       await storeSourceHealth(env, { sourceId: "pipeline-monitor", status: "online", checkedAt }, payload?.updates?.length || 0);
-      return result;
+      return finishCycle(env,cycleId,cycleStarted,result);
     } catch (error) {
       errors.push(`upstream: ${String(error?.message || error)}`);
     }
@@ -426,7 +471,7 @@ export async function scheduledRefresh(env) {
     status: freshness.status === "ok" ? "online" : freshness.status === "degraded" ? "stale" : "unavailable",
     checkedAt, error: errors.join("; ").slice(0, 500),
   }, Array.isArray(previous?.updates) ? previous.updates.length : 0);
-  return { monitored: true, errors, freshness };
+  return finishCycle(env,cycleId,cycleStarted,{ monitored: true, errors, freshness },"failed",errors.join("; ").slice(0,500));
 }
 export default {
   fetch: handleRequest,

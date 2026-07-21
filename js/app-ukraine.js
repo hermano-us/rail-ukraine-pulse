@@ -293,7 +293,7 @@ function detailTemplate(object){
     <button class="detail-action" id="history-button">Показать накопленную историю на карте</button>
     <button class="detail-action follow-button ${state.followedId===object.id?"active":""}" id="follow-button">${state.followedId===object.id?"Отменить слежение":"Следить за рейсом"}</button>
     <button class="detail-action" id="favorite-button">${state.favorites.has(object.runId)?"Удалить из избранного":"Добавить в избранное"}</button>
-    <button class="detail-action" id="share-button">Скопировать ссылку на рейс</button>
+    <button class="detail-action" id="share-button">Скопировать ссылку на рейс</button><button class="detail-action" id="export-button">Экспорт истории GeoJSON</button>
   `;
 }
 
@@ -306,7 +306,10 @@ function selectObject(object){
     state.favorites.has(object.runId)?state.favorites.delete(object.runId):state.favorites.add(object.runId);
     localStorage.setItem(FAVORITES_KEY,JSON.stringify([...state.favorites]));event.currentTarget.textContent=state.favorites.has(object.runId)?"Удалить из избранного":"Добавить в избранное";
   });
-  elements.detailContent.querySelector("#share-button")?.addEventListener("click",async()=>{
+  elements.detailContent.querySelector("#export-button")?.addEventListener("click",()=>{
+    const features=(object.history||[]).filter(item=>item.coordinates).map(item=>({type:"Feature",geometry:{type:"Point",coordinates:item.coordinates},properties:{runId:object.runId,label:item.label,at:item.at||item.timestamp||null,status:item.status||"estimated"}}));
+    const blob=new Blob([JSON.stringify({type:"FeatureCollection",features},null,2)],{type:"application/geo+json"});const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download=`${object.trainNumber}-${object.serviceDate||"history"}.geojson`;link.click();URL.revokeObjectURL(link.href);
+  });  elements.detailContent.querySelector("#share-button")?.addEventListener("click",async()=>{
     try{await navigator.clipboard.writeText(location.href);showToast("Ссылка на рейс скопирована");}catch{showToast(location.href);}
   });
   elements.detailContent.querySelector("#follow-button")?.addEventListener("click",(event)=>{
@@ -343,6 +346,7 @@ function bindControls(){
   $("#region-clear").addEventListener("click",()=>{state.regions.clear();elements.regionFilters.querySelectorAll("input").forEach((input)=>input.checked=false);render();});
   $("#reset-filters").addEventListener("click",resetFilters);
   $("#fit-button").addEventListener("click",()=>mapView.fitAll());
+  $("#position-view")?.addEventListener("change",(event)=>{mapView.setViewMode(event.target.value);render();if(state.selected)mapView.focusObject(state.selected);});
   $("#detail-close").addEventListener("click",closeDetail);
   const openMobileSidebar=()=>{layoutState.mapOnly=false;applyWorkspaceLayout();elements.sidebar.classList.add("open");};
   $("#menu-button").addEventListener("click",openMobileSidebar);

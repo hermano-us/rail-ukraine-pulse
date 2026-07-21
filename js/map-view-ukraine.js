@@ -5,7 +5,7 @@ const GLYPHS={moving:"↗",station:"■",depot:"D","source-unavailable":"?"};
 
 export class MapView{
   constructor(elementId,onSelect){
-    this.onSelect=onSelect;
+    this.onSelect=onSelect;this.viewMode="all";
     this.map=L.map(elementId,{zoomControl:false,minZoom:4,worldCopyJump:false}).setView([49.1,31.1],6);
     L.control.zoom({position:"bottomleft"}).addTo(this.map);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
@@ -72,7 +72,7 @@ export class MapView{
       marker.on("click",()=>this.onSelect(object));
       marker.bindTooltip(`${object.name} · ${object.route} · ${delay}`,{direction:"top",offset:[0,-14]});
       this.markers.set(object.id,marker);bounds.push([lat,lon]);
-      if(["estimated","stale"].includes(status)&&Number.isFinite(object.position.errorKm)){
+      if(this.viewMode==="all"&&["estimated","stale"].includes(status)&&Number.isFinite(object.position.errorKm)){
         L.circle([lat,lon],{
           radius:object.position.errorKm*1000,color:status==="stale"?"#82919a":"#ff9d52",weight:1,opacity:.22,fillColor:status==="stale"?"#82919a":"#ff9d52",fillOpacity:.025,
           interactive:false,className:"uncertainty-zone",
@@ -95,7 +95,7 @@ export class MapView{
       }).addTo(this.selectedLayer);
       focusBounds.push(...routePoints);
     }
-    if(object.corridor?.coordinates?.length>1){
+    if(this.viewMode!=="point"&&object.corridor?.coordinates?.length>1){
       const corridorPoints=object.corridor.coordinates.map(([lon,lat])=>[lat,lon]);
       L.polyline(corridorPoints,{className:"model-corridor-halo",color:"#ff9d52",weight:14,opacity:.14,lineCap:"round",interactive:false}).addTo(this.selectedLayer);
       L.polyline(corridorPoints,{className:"model-corridor",color:"#ffb171",weight:4,opacity:.9,dashArray:"2 7",lineCap:"round",interactive:false}).addTo(this.selectedLayer);
@@ -113,7 +113,7 @@ export class MapView{
       focusBounds.push(stationPoint);
     }
     const [lon,lat]=object.position.coordinates||[];
-    if(Number.isFinite(lat)&&Number.isFinite(lon)&&Number.isFinite(object.position.errorKm)){
+    if(this.viewMode==="all"&&Number.isFinite(lat)&&Number.isFinite(lon)&&Number.isFinite(object.position.errorKm)){
       L.circle([lat,lon],{
         radius:object.position.errorKm*1000,color:"#ffb171",weight:1.5,opacity:.7,fillColor:"#ff9d52",fillOpacity:.07,interactive:false,
       }).addTo(this.selectedLayer);
@@ -123,6 +123,7 @@ export class MapView{
     else if(marker)this.map.flyTo(marker.getLatLng(),Math.max(this.map.getZoom(),8),{duration:.6});
   }
 
+  setViewMode(mode){this.viewMode=["all","corridor","point"].includes(mode)?mode:"all";}
   invalidateSize(){this.map.invalidateSize({pan:false});}
 
   fitUkraine(){this.map.fitBounds([[44.2,22.0],[52.6,40.3]],{padding:[32,32],maxZoom:7});}

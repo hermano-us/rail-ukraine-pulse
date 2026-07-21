@@ -14,6 +14,11 @@ export function assessUpdate(update, now = Date.now()) {
   if (!String(update?.route || "").trim()) warnings.push("missing_route");
   if (!update?.forecastArrival && !update?.forecastDeparture) warnings.push("missing_forecast");
   if (Number.isFinite(timestamp) && now - timestamp > 6 * 60 * 60_000) warnings.push("old_event");
+  const coordinates = update?.coordinates;
+  if (coordinates && (!Array.isArray(coordinates) || coordinates.length < 2 || Math.abs(Number(coordinates[0])) > 180 || Math.abs(Number(coordinates[1])) > 90)) errors.push("invalid_coordinates");
+  const rawText = String(update?.rawText || update?.description || "");
+  const mentioned = new Set([...rawText.matchAll(/(?:№|#)\s*(\d{1,4}(?:\/\d{1,4})?)/gu)].map((match) => match[1]));
+  if (mentioned.size > 1 && !update?.multiTrainParsed) warnings.push("multi_train_message");
   return { accepted: errors.length === 0, errors, warnings };
 }
 
@@ -24,7 +29,7 @@ export function screenUpdates(updates, now = Date.now()) {
   for (const update of Array.isArray(updates) ? updates : []) {
     const assessment = assessUpdate(update, now);
     for (const warning of assessment.warnings) warningCounts[warning] = (warningCounts[warning] || 0) + 1;
-    if (!assessment.accepted) quarantined.push({ trainNumber: update?.trainNumber || null, sourceId: update?.sourceId || null, errors: assessment.errors });
+    if (!assessment.accepted) quarantined.push({ trainNumber: update?.trainNumber || null, sourceId: update?.sourceId || null, errors: assessment.errors, update });
     else accepted.push(assessment.warnings.length ? { ...update, qualityFlags: assessment.warnings } : update);
   }
   return { accepted, quarantined, warningCounts, checkedAt: new Date(now).toISOString() };

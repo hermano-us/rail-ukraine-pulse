@@ -18,10 +18,13 @@ const nodes = {
   storageSummary: document.querySelector("#storage-summary"),
   eventsCaption: document.querySelector("#events-caption"),
   refreshButton: document.querySelector("#refresh-button"),
+  intelligenceMetrics: document.querySelector("#intelligence-metrics"),
+  quarantineRows: document.querySelector("#quarantine-rows"),
 };
 
 let token = sessionStorage.getItem("rail-ops-token") || "";
 let endpoint = "/api/admin/overview";
+let intelligenceEndpoint = "/api/admin/intelligence";
 let refreshTimer;
 let requestInFlight = false;
 
@@ -154,6 +157,12 @@ function render(data) {
   setConnection("Подключено", tone);
 }
 
+function renderIntelligence(data={}) {
+  const cycles=data.cycles||[], quarantine=data.quarantine||[], incomplete=data.incompleteRuns||[];
+  nodes.intelligenceMetrics?.replaceChildren(metric("Циклы 24ч",cycles.length,"История collector"),metric("Карантин",quarantine.filter(x=>x.status==="open").length,"Требуют решения",quarantine.some(x=>x.status==="open")?"warning":"ok"),metric("Без полного маршрута",incomplete.length,"Нужна геометрия"),metric("Аудит",(data.audit||[]).length,"Административные действия"));
+  nodes.quarantineRows?.replaceChildren(...quarantine.slice(0,50).map(item=>{const row=document.createElement("tr");appendCell(row,formatDate(item.observed_at));appendCell(row,item.source_id);appendCell(row,item.train_number);appendCell(row,item.reasons_json);appendCell(row,item.status,`status-pill ${item.status}`);return row;}));
+}
+async function adminAction(body){const response=await fetch(intelligenceEndpoint,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify(body)});if(!response.ok)throw new Error(`Action HTTP ${response.status}`);return response.json();}
 async function loadConfig() {
   try {
     const response = await fetch("data/runtime-config.json", { cache: "no-store" });
@@ -161,6 +170,7 @@ async function loadConfig() {
     if (config.apiBase) {
       const base = config.apiBase.endsWith("/") ? config.apiBase.slice(0, -1) : config.apiBase;
       endpoint = new URL("/api/admin/overview", `${base}/`).toString();
+      intelligenceEndpoint = new URL("/api/admin/intelligence", `${base}/`).toString();
     }
   } catch {}
 }
@@ -178,6 +188,7 @@ async function refresh() {
     if (response.status === 401) throw new Error("Неверный токен администратора");
     if (!response.ok) throw new Error(`Backend ответил HTTP ${response.status}`);
     render(await response.json());
+    const intelligence=await fetch(intelligenceEndpoint,{cache:"no-store",headers:{Authorization:`Bearer ${token}`}});if(intelligence.ok)renderIntelligence(await intelligence.json());
     nodes.loginPanel.hidden = true;
     nodes.dashboard.hidden = false;
     nodes.error.textContent = "";
@@ -221,6 +232,7 @@ function logout() {
 }
 
 nodes.loginForm.addEventListener("submit", login);
+document.querySelector("#retry-collector")?.addEventListener("click",()=>adminAction({action:"retry-collector"}).then(refresh).catch(error=>{nodes.systemCaption.textContent=error.message;}));
 nodes.refreshButton.addEventListener("click", () => refresh().catch((error) => { nodes.systemCaption.textContent = error.message; }));
 document.querySelector("#logout-button").addEventListener("click", logout);
 document.addEventListener("visibilitychange", () => {
