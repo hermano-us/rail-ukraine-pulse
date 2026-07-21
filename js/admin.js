@@ -28,6 +28,7 @@ let endpoint = "/api/admin/overview";
 let intelligenceEndpoint = "/api/admin/intelligence";
 let refreshTimer;
 let requestInFlight = false;
+let sourceConfigById=new Map();
 
 function formatDate(value) {
   if (!value) return "—";
@@ -75,6 +76,7 @@ function appendCell(row, value, className = "") {
   return cell;
 }
 
+function sourceControlId(id){return String(id).includes("telegram")?"uz-suburban-telegram":String(id).includes("delay-dashboard")?"uz-delay-dashboard":id;}
 function renderSources(sources) {
   nodes.sourceRows.replaceChildren();
   if (!sources.length) {
@@ -91,6 +93,7 @@ function renderSources(sources) {
     appendCell(row, formatAge(source.checked_at));
     appendCell(row, source.records_count);
     appendCell(row, source.error);
+    const control=document.createElement("td"),id=sourceControlId(source.source_id),config=sourceConfigById.get(id)||{enabled:1,priority:50};const priority=document.createElement("input");priority.type="number";priority.min="1";priority.max="100";priority.value=config.priority;priority.style.width="58px";const toggle=document.createElement("button");toggle.className="secondary";toggle.textContent=config.enabled===0?"Enable":"Disable";toggle.addEventListener("click",()=>adminAction({action:"configure-source",sourceId:id,enabled:config.enabled===0,priority:Number(priority.value),reliability:.8}).then(refresh));control.append(priority,toggle);row.append(control);
     nodes.sourceRows.append(row);
   }
 }
@@ -159,7 +162,7 @@ function render(data) {
 }
 
 function renderIntelligence(data={}) {
-  const cycles=data.cycles||[], quarantine=data.quarantine||[], incomplete=data.incompleteRuns||[];
+  const cycles=data.cycles||[], quarantine=data.quarantine||[], incomplete=data.incompleteRuns||[];sourceConfigById=new Map((data.sourceConfig||[]).map(item=>[item.source_id,item]));
   nodes.cycleChart?.replaceChildren(...cycles.slice().reverse().map(cycle=>{const bar=document.createElement("i");bar.className=cycle.status==="success"?"ok":"error";bar.style.height=`${Math.max(8,Math.min(100,Number(cycle.duration_ms||0)/100))}%`;bar.title=`${formatDate(cycle.started_at)} · ${cycle.status} · ${cycle.duration_ms||0} ms`;return bar;}));
   nodes.intelligenceMetrics?.replaceChildren(metric("Циклы 24ч",cycles.length,"История collector"),metric("Карантин",quarantine.filter(x=>x.status==="open").length,"Требуют решения",quarantine.some(x=>x.status==="open")?"warning":"ok"),metric("Без полного маршрута",incomplete.length,"Нужна геометрия"),metric("Аудит",(data.audit||[]).length,"Административные действия"));
   nodes.quarantineRows?.replaceChildren(...quarantine.slice(0,50).map(item=>{const row=document.createElement("tr");appendCell(row,formatDate(item.observed_at));appendCell(row,item.source_id);appendCell(row,item.train_number);const reason=appendCell(row,item.reasons_json);reason.title=item.raw_update_json||"";appendCell(row,item.status,`status-pill ${item.status}`);const action=document.createElement("td");if(item.status==="open"){const button=document.createElement("button");button.className="secondary";button.textContent="Review";button.addEventListener("click",()=>adminAction({action:"resolve-quarantine",id:item.quarantine_id,resolution:"reviewed-and-dismissed"}).then(refresh));action.append(button);}row.append(action);return row;}));
