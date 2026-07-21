@@ -423,12 +423,26 @@ export async function scheduledRefresh(env) {
     if (!edgeUpdates.length) throw new Error("edge delay dashboard returned no trains");
     merged = [...merged.filter((update) => update.sourceId !== "uz-delay-dashboard"), ...edgeUpdates];
     freshSources += 1;
+    await storeSourceHealth(env, { sourceId: "uz-delay-dashboard-direct", status: "online", checkedAt }, edgeUpdates.length);
     await storeSourceHealth(env, { sourceId: "uz-delay-dashboard-edge", status: "online", checkedAt }, edgeUpdates.length);
   } catch (error) {
-    errors.push(`dashboard: ${String(error?.message || error)}`);
-    await storeSourceHealth(env, { sourceId: "uz-delay-dashboard-edge", status: "unavailable", checkedAt, error: String(error?.message || error) }, 0);
+    const directError=String(error?.message || error);
+    errors.push(`dashboard-direct: ${directError}`);
+    await storeSourceHealth(env, { sourceId: "uz-delay-dashboard-direct", status: "unavailable", checkedAt, error: directError }, 0);
+    try {
+      const mirrorResponse=await fetchWithRetry("https://raw.githubusercontent.com/hermano-us/rail-ukraine-pulse/main/data/live.json");
+      const mirror=await mirrorResponse.json();
+      const mirrorUpdates=(mirror.updates||[]).filter((update)=>update.sourceId==="uz-delay-dashboard");
+      const mirrorAge=Math.max(0,(Date.parse(checkedAt)-Date.parse(mirror.generatedAt||""))/60000);
+      if(!mirrorUpdates.length||!Number.isFinite(mirrorAge)||mirrorAge>180)throw new Error(`official mirror is too old (${Math.round(mirrorAge)} min)`);
+      merged=[...merged.filter((update)=>update.sourceId!=="uz-delay-dashboard"),...mirrorUpdates];
+      const mirrorStatus=mirrorAge<=30?"online":"stale";
+      if(mirrorStatus==="online")freshSources+=1;
+      await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:mirrorStatus,checkedAt,error:`direct channel: ${directError}; GitHub mirror age ${Math.round(mirrorAge)} min`},mirrorUpdates.length);
+    } catch(mirrorError) {
+      await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:"unavailable",checkedAt,error:`${directError}; mirror: ${String(mirrorError?.message||mirrorError)}`},0);
+    }
   }
-
   try {
     const telegram = await collectTelegram();
     merged = [...merged.filter((update) => update.sourceId !== "uz-suburban-telegram"), ...(telegram.updates || [])];
