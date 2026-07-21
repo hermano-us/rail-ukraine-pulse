@@ -402,11 +402,13 @@ export async function scheduledRefresh(env) {
   const cycleId=crypto.randomUUID(), cycleStarted=Date.now();
   await env.DB.prepare("INSERT INTO collection_cycles(cycle_id,started_at,status) VALUES(?1,?2,?3)").bind(cycleId,checkedAt,"running").run();
   const previous = await readSnapshot(env);
+  const configured=(await env.DB.prepare("SELECT source_id,enabled FROM source_config").all()).results||[];const sourceEnabled=id=>configured.find(item=>item.source_id===id)?.enabled!==0;
   let merged = [...(previous?.updates || [])];
   const errors = [];
   let freshSources = 0;
 
   try {
+    if(!sourceEnabled("uz-delay-dashboard"))throw new Error("source disabled by operator");
     const response=await fetchWithRetry(DASHBOARD_URL);const edgeUpdates=parseEdgeDelayDashboard(await response.text(),checkedAt);if(!edgeUpdates.length)throw new Error("edge delay dashboard returned no trains");const previousDashboard=merged.filter(update=>update.sourceId==="uz-delay-dashboard").length;const directDrop=detectSourceVolumeDrop(previousDashboard,edgeUpdates.length);if(directDrop.anomaly)throw new Error(`dashboard volume anomaly ${directDrop.next}/${directDrop.previous}`);
     merged=[...merged.filter(update=>update.sourceId!=="uz-delay-dashboard"),...edgeUpdates];freshSources+=1;
     await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-direct",status:"online",checkedAt},edgeUpdates.length);await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:"online",checkedAt},edgeUpdates.length);
@@ -424,6 +426,7 @@ export async function scheduledRefresh(env) {
     }
   }
   try {
+    if(!sourceEnabled("uz-suburban-telegram"))throw new Error("source disabled by operator");
     const telegram = await collectTelegram();
     merged = [...merged.filter((update) => update.sourceId !== "uz-suburban-telegram"), ...(telegram.updates || [])];
     freshSources += 1;
