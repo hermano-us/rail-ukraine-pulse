@@ -272,7 +272,7 @@ function detailTemplate(object){
     ${progress==null?"":`<section class="journey-progress"><header><span>Расчётный прогресс</span><strong>${progress}%</strong></header><div class="journey-track"><i style="width:${progress}%"></i></div></section>`}
     ${corridor?`<section class="corridor-card">
       <header><span>ВЕРОЯТНЫЙ УЧАСТОК</span><strong>${corridor.fromKm}–${corridor.toKm} км</strong></header>
-      <div class="corridor-track"><i style="left:${Math.round(corridor.fromKm/corridor.totalKm*100)}%;width:${Math.max(2,Math.round(corridor.widthKm/corridor.totalKm*100))}%"></i></div>
+      ${position.probabilityCorridor?`<div class="probability-bands">${["p50","p80","p90","p95"].filter(key=>position.probabilityCorridor[key]).map(key=>`<span><b>${key.toUpperCase()}</b> ${position.probabilityCorridor[key][0]}–${position.probabilityCorridor[key][1]} км</span>`).join("")}</div>`:""}      <div class="corridor-track"><i style="left:${Math.round(corridor.fromKm/corridor.totalKm*100)}%;width:${Math.max(2,Math.round(corridor.widthKm/corridor.totalKm*100))}%"></i></div>
       <p>Модель допускает нахождение поезда на участке длиной ${corridor.widthKm} км. Это диапазон неопределённости, а не GPS-трек.</p>
       <div class="corridor-waypoints"><span>Позади модели: <b>${escapeHtml(previousWaypoint?.name||"нет ориентира")}</b></span><span>Впереди модели: <b>${escapeHtml(nextWaypoint?.name||"нет ориентира")}</b></span></div>
     </section>`:""}
