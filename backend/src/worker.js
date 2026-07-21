@@ -248,7 +248,7 @@ async function getHealth(request, env) {
     runs: Number(database?.runs || 0),
     snapshot: { generatedAt: snapshot?.generatedAt || null, ageMinutes: freshness.ageMinutes, updates: snapshot?.updates?.length || 0 },
     sources: sources.results || [],
-    positioning: { learnedSegments: segmentStats.length, model: "rail-posterior-v2" },
+    positioning: { learnedSegments: segmentStats.length, model: "rail-posterior-v3" },
   }, { headers: { "Cache-Control": "no-store" } }, request, env);
 }
 async function getAdminOverview(request, env) {

@@ -86,11 +86,15 @@ export function estimatePosterior(input) {
     distanceKm: Number(bin.distanceKm.toFixed(2)),
     probability: bin.weight / Math.max(totalWeight, Number.EPSILON),
   }));
+  const p025 = quantile(bins, 0.025);
   const p05 = quantile(bins, 0.05);
+  const p10 = quantile(bins, 0.10);
   const p25 = quantile(bins, 0.25);
   const p50 = quantile(bins, 0.5);
   const p75 = quantile(bins, 0.75);
+  const p90 = quantile(bins, 0.90);
   const p95 = quantile(bins, 0.95);
+  const p975 = quantile(bins, 0.975);
   const errorKm = Math.max(p50 - p05, p95 - p50);
   const reliability = clamp(Number(anchor.reliability) || 0.6, 0, 1);
   const freshness = clamp(1 - ageMinutes / 180, 0, 1);
@@ -100,7 +104,7 @@ export function estimatePosterior(input) {
 
   return {
     status: frozen ? "stale" : ageMinutes <= 3 && errorKm <= 5 ? "reported" : "estimated",
-    method: "rail-posterior-v2",
+    method: "rail-posterior-v3",
     distanceKm: Number(p50.toFixed(2)),
     confidence: Number((frozen ? Math.min(confidence, 0.32) : confidence).toFixed(2)),
     errorKm: Number(errorKm.toFixed(1)),
@@ -109,7 +113,9 @@ export function estimatePosterior(input) {
     sourceAgeMinutes: Number(ageMinutes.toFixed(1)),
     corridor: {
       p50: [Number(p25.toFixed(2)), Number(p75.toFixed(2))],
+      p80: [Number(p10.toFixed(2)), Number(p90.toFixed(2))],
       p90: [Number(p05.toFixed(2)), Number(p95.toFixed(2))],
+      p95: [Number(p025.toFixed(2)), Number(p975.toFixed(2))],
     },
     distribution: bins.filter((_, index) => index % Math.max(1, Math.floor(bins.length / 40)) === 0),
     calibration: { historicalSamples: Number(input.historicalSamples) || 0, historicalSpreadMinutes: Number(input.historicalSpreadMinutes) || 0 },

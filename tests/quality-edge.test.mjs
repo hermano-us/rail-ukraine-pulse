@@ -22,7 +22,7 @@ test("edge parser extracts an official dashboard update without a browser", () =
   assert.equal(updates[0].sourceEvidence, "official-public-dashboard-edge");
 });
 
-test("posterior v2 exposes historical calibration metadata", async () => {
+test("posterior v3 exposes historical calibration metadata", async () => {
   const { estimatePosterior } = await import("../shared/rail-posterior.js");
   const result = estimatePosterior({
     now: "2026-07-21T06:30:00Z", routeLengthKm: 300,
@@ -30,6 +30,6 @@ test("posterior v2 exposes historical calibration metadata", async () => {
     schedule: [{ routeDistanceKm: 180, expectedAt: "2026-07-21T07:00:00Z" }],
     historicalSamples: 12, historicalSpreadMinutes: 18,
   });
-  assert.equal(result.method, "rail-posterior-v2");
+  assert.equal(result.method, "rail-posterior-v3");
   assert.deepEqual(result.calibration, { historicalSamples: 12, historicalSpreadMinutes: 18 });
 });

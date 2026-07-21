@@ -236,6 +236,11 @@ function historyTemplate(object){
   return items.map((item)=>`<div class="timeline-item ${item.evidence==="calculated"?"calculated":""}"><strong>${escapeHtml(item.label)}</strong><span>${formatDateTime(item.timestamp)} · confidence ${Math.round((item.confidence||0)*100)}% · ±${item.errorKm||"?"} км</span></div>`).join("");
 }
 
+function stationPlanTemplate(object){
+  const items=object.stationPlan||[];if(!items.length)return "";
+  const labels={confirmed:"Факт", "model-passed":"Пройдена моделью", "model-next":"Вероятно следующая", planned:"Впереди"};
+  return `<section class="station-plan"><header><strong>Цифровой станционный план</strong><span>${items.length} ориентиров</span></header>${items.map(item=>`<div class="station-plan-row ${item.status}"><b>${item.sequence}. ${escapeHtml(item.station)}</b><span>${labels[item.status]} · ${formatDateTime(item.actualAt||item.plannedAt)}</span><small>${item.distanceKm} км</small></div>`).join("")}</section>`;
+}
 function detailTemplate(object){
   const position=object.position,status=POSITION_STATUSES[position.status],operation=object.operationalStatus;
   const confidence=Math.round((position.confidence??0)*100),progress=object.journey?.progress==null?null:Math.round(object.journey.progress*100);
@@ -263,6 +268,7 @@ function detailTemplate(object){
 
     <h3 class="detail-section-title">Маршрут и прогноз</h3>
     ${routeTimelineTemplate(object)}
+    ${stationPlanTemplate(object)}
     ${progress==null?"":`<section class="journey-progress"><header><span>Расчётный прогресс</span><strong>${progress}%</strong></header><div class="journey-track"><i style="width:${progress}%"></i></div></section>`}
     ${corridor?`<section class="corridor-card">
       <header><span>ВЕРОЯТНЫЙ УЧАСТОК</span><strong>${corridor.fromKm}–${corridor.toKm} км</strong></header>
@@ -289,7 +295,7 @@ function detailTemplate(object){
     <h3 class="detail-section-title">Цепочка доказательств</h3>
     ${evidenceTemplate(object.evidence)}
     <h3 class="detail-section-title">История в этом браузере</h3>
-    <div class="timeline">${historyTemplate(object)}</div>
+    <div class="timeline">${historyTemplate(object)}</div><label class="history-scrubber">Срез времени: <output id="history-offset">сейчас</output><input id="history-range" type="range" min="0" max="60" step="15" value="0"></label>
     <button class="detail-action" id="history-button">Показать накопленную историю на карте</button>
     <button class="detail-action follow-button ${state.followedId===object.id?"active":""}" id="follow-button">${state.followedId===object.id?"Отменить слежение":"Следить за рейсом"}</button>
     <button class="detail-action" id="favorite-button">${state.favorites.has(object.runId)?"Удалить из избранного":"Добавить в избранное"}</button>
@@ -301,7 +307,7 @@ function selectObject(object){
   state.selected=object;const url=new URL(location.href);url.searchParams.set("train",object.runId);history.replaceState(null,"",url);render();mapView.focusObject(object);elements.detailContent.innerHTML=detailTemplate(object);
   elements.detail.scrollTop=0;elements.detail.classList.add("open");elements.detail.setAttribute("aria-hidden","false");
   renderFleet(filteredObjects());
-  elements.detailContent.querySelector("#history-button")?.addEventListener("click",()=>showToast(mapView.toggleHistory(object)?"История показана":"Нужно минимум два сохранённых снимка"));
+  elements.detailContent.querySelector("#history-range")?.addEventListener("input",event=>{const minutes=Number(event.target.value);elements.detailContent.querySelector("#history-offset").textContent=minutes?`${minutes} мин назад`:"сейчас";if(minutes&&!mapView.showHistoryAt(object,minutes))showToast("Для этого среза история ещё не накоплена");if(!minutes)mapView.clearHistory();});  elements.detailContent.querySelector("#history-button")?.addEventListener("click",()=>showToast(mapView.toggleHistory(object)?"История показана":"Нужно минимум два сохранённых снимка"));
   elements.detailContent.querySelector("#favorite-button")?.addEventListener("click",(event)=>{
     state.favorites.has(object.runId)?state.favorites.delete(object.runId):state.favorites.add(object.runId);
     localStorage.setItem(FAVORITES_KEY,JSON.stringify([...state.favorites]));event.currentTarget.textContent=state.favorites.has(object.runId)?"Удалить из избранного":"Добавить в избранное";
@@ -405,7 +411,7 @@ async function refreshData(){
   if(refreshInFlight)return refreshInFlight;
   refreshInFlight=(async()=>{
     try{
-      const refreshed=await loadTransportData(new Date());persistHistory(refreshed);state.data=refreshed;mapView.setRoutes(refreshed.routes);renderSourceStatus();render();
+      const previousData=state.data;const refreshed=await loadTransportData(new Date());persistHistory(refreshed);state.data=refreshed;mapView.setRoutes(refreshed.routes);renderSourceStatus();render();for(const current of refreshed.objects){const before=previousData?.objects?.find(item=>item.runId===current.runId);if(current.liveUpdate?.reportedStation&&before?.liveUpdate?.reportedStation!==current.liveUpdate.reportedStation)showToast(`${current.name}: новое событие на станции ${current.liveUpdate.reportedStation}`);}
       if(state.followedId){const followed=refreshed.objects.find((object)=>object.id===state.followedId);if(followed)mapView.focusObject(followed);}
       if(state.selected){const selected=refreshed.objects.find((object)=>object.id===state.selected.id);if(selected)selectObject(selected);}
     }catch(error){console.warn("Background data refresh failed",error);}

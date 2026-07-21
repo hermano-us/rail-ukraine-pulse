@@ -194,7 +194,7 @@ export function estimatePosition(update,routeResult,now,sourceAgeMinutes,station
       calculation:{
         progress:Number((posterior.distanceKm/measure.totalKm).toFixed(3)),totalKm:Number(measure.totalKm.toFixed(1)),
         sourceAgeMinutes:posterior.sourceAgeMinutes,forecastArrivalAt:arrival?.toISOString()||null,
-        model:"station-anchored-posterior-v2",p50:posterior.corridor.p50,p90:posterior.corridor.p90,calibration:posterior.calibration,
+        model:"station-anchored-posterior-v3",p50:posterior.corridor.p50,p90:posterior.corridor.p90,calibration:posterior.calibration,
       },
     };
   }
@@ -235,6 +235,24 @@ function evidenceFor(update,position,sourceStatus){
   ];
 }
 
+export function buildStationPlan(waypoints,update,position,forecastArrivalAt){
+  const points=(waypoints||[]).filter(item=>Number.isFinite(item.distanceKm)).sort((a,b)=>a.distanceKm-b.distanceKm);
+  if(!points.length)return [];
+  const totalKm=Math.max(...points.map(item=>item.distanceKm),position.calculation?.totalKm||0,1);
+  const category=update.sourceId==="uz-suburban-telegram"?"suburban":"passenger";
+  const speed=category==="suburban"?44:totalKm>700?67:60;
+  const arrivalMs=Date.parse(forecastArrivalAt||"");
+  const endMs=Number.isFinite(arrivalMs)?arrivalMs:Date.parse(position.calculatedAt||new Date());
+  const startMs=endMs-totalKm/speed*3600000;
+  const currentKm=Number(position.calculation?.progress)*totalKm;
+  const reportedKey=stationKey(update.reportedStation||"");
+  return points.map((point,index)=>{
+    const key=stationKey(point.name||point.label||"");
+    const actual=reportedKey&&key===reportedKey?update.updatedAt:null;
+    const status=actual?"confirmed":Number.isFinite(currentKm)&&point.distanceKm<currentKm?"model-passed":Number.isFinite(currentKm)&&index===points.findIndex(item=>item.distanceKm>=currentKm)?"model-next":"planned";
+    return {sequence:index+1,station:point.name||point.label,distanceKm:Number(point.distanceKm.toFixed(1)),plannedAt:new Date(startMs+point.distanceKm/totalKm*(endMs-startMs)).toISOString(),actualAt:actual,status,category};
+  });
+}
 function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,sourceAgeMinutes,stations,stationLookup,segmentCalibration){
   const identity=buildRunIdentity(update,now), origin=stationCoordinates(update.origin,stationLookup);
   const reportedAnchor=stationCoordinates(update.reportedStation,stationLookup)||origin;
@@ -265,6 +283,7 @@ function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,so
   const events=buildOfficialEvents(update,identity.runId);
   const corridor=buildUncertaintyCorridor(position,routeResult?.coordinates);
   const waypointData=buildGeometricWaypoints(routeResult?.coordinates,stations,corridor);
+  const stationPlan=buildStationPlan(waypointData.waypoints,update,position,forecastArrivalAt);
   const routeTimeline=[
     {kind:"origin",label:update.origin||"Пункт отправления",evidence:"route",timestamp:null},
     waypointData.previous?{kind:"model-past",label:waypointData.previous.name,evidence:"geometry",caption:"ОРИЕНТИР ПОЗАДИ РАСЧЁТНОГО УЧАСТКА",timestamp:null}:null,
@@ -280,9 +299,9 @@ function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,so
     rollingStock:"Тип состава не опубликован в источнике",operationalStatus:update.operationalStatus,
     liveUpdate:update,telemetry:{speedKph:null},position,quality,
     evidence:evidenceFor(update,position,sourceStatus),events,corridor,routeTimeline,
-    waypoints:waypointData.waypoints,
+    waypoints:waypointData.waypoints,stationPlan,
     forecast:{departureAt:zonedClock(update.forecastDeparture,referenceTime)?.toISOString()||null,arrivalAt:forecastArrivalAt},
-    journey:{progress:position.calculation?.progress??null,lastEvent:events[0]||null,nextEvent:null,previousWaypoint:waypointData.previous,nextWaypoint:waypointData.next},history:[],
+    journey:{progress:position.calculation?.progress??null,lastEvent:events[0]||null,nextEvent:stationPlan.find(item=>item.status==="model-next")||null,previousWaypoint:waypointData.previous,nextWaypoint:waypointData.next},history:[],
   };
 }
 
@@ -341,7 +360,7 @@ export async function loadTransportData(now=new Date()){
     freshness:evaluateFreshness(sourceAgeMinutes),
     freshRuns:objects.filter((object)=>object.position.freshness?.key==="fresh").length,
     frozenRuns:objects.filter((object)=>object.position.freshness?.frozen&&object.position.coordinates).length,
-    learnedSegments:(liveData?.segmentStats||[]).length,algorithmVersion:"rail-posterior-v2+rail-corridor-v5",snapshotSchema:liveData?.schemaVersion||null,
+    learnedSegments:(liveData?.segmentStats||[]).length,algorithmVersion:"rail-posterior-v3+rail-corridor-v5",snapshotSchema:liveData?.schemaVersion||null,
   };
   const eventFeed=objects.flatMap((object)=>object.events.map((event)=>({...event,objectId:object.id,trainNumber:object.trainNumber,route:object.route,positionStatus:object.position.status})))
     .sort((a,b)=>Date.parse(b.occurredAt)-Date.parse(a.occurredAt));
