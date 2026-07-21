@@ -109,27 +109,16 @@ export async function ingestPayload(env, payload, observedAt = new Date().toISOS
     ));
   }
   for (const event of validEvents.filter((item) => item.type === "station_report" && item.station)) {
-    const previous = await env.DB.prepare(`
-      SELECT station, occurred_at FROM events
-      WHERE run_id=?1 AND event_type='station_report' AND occurred_at<?2
-      ORDER BY occurred_at DESC LIMIT 1
-    `).bind(event.runId, event.occurredAt).first();
-    const minutes = previous?.occurred_at ? (Date.parse(event.occurredAt) - Date.parse(previous.occurred_at)) / 60_000 : null;
-    if (previous?.station && previous.station !== event.station && minutes > 1 && minutes < 12 * 60) {
-      statements.push(env.DB.prepare(`
-        INSERT INTO segment_stats(from_station_id,to_station_id,train_family,sample_count,mean_minutes,variance_minutes,p10_minutes,p50_minutes,p90_minutes,updated_at)
-        VALUES(?1,?2,?3,1,?4,0,?4,?4,?4,?5)
-        ON CONFLICT(from_station_id,to_station_id,train_family) DO UPDATE SET
-          mean_minutes=(segment_stats.mean_minutes*segment_stats.sample_count+excluded.mean_minutes)/(segment_stats.sample_count+1),
-          sample_count=segment_stats.sample_count+1,
-          p10_minutes=MIN(COALESCE(segment_stats.p10_minutes,excluded.p10_minutes),excluded.p10_minutes),
-          p50_minutes=(segment_stats.mean_minutes*segment_stats.sample_count+excluded.mean_minutes)/(segment_stats.sample_count+1),
-          p90_minutes=MAX(COALESCE(segment_stats.p90_minutes,excluded.p90_minutes),excluded.p90_minutes),
-          updated_at=excluded.updated_at
-      `).bind(normalizeToken(previous.station), normalizeToken(event.station), event.trainNumber, Number(minutes.toFixed(2)), observedAt));
+    const previous = await env.DB.prepare(`SELECT station, occurred_at, raw_update_json FROM events WHERE run_id=?1 AND event_type='station_report' AND occurred_at<?2 ORDER BY occurred_at DESC LIMIT 1`).bind(event.runId,event.occurredAt).first();
+    const minutes=previous?.occurred_at?(Date.parse(event.occurredAt)-Date.parse(previous.occurred_at))/60000:null;
+    if(previous?.station&&previous.station!==event.station&&minutes>1&&minutes<720){
+      const fromId=normalizeToken(previous.station),toId=normalizeToken(event.station);const history=await env.DB.prepare("SELECT travel_minutes FROM segment_observations WHERE train_number=?1 AND from_station_id=?2 AND to_station_id=?3 ORDER BY observed_at DESC LIMIT 199").bind(event.trainNumber,fromId,toId).all();
+      const values=[...(history.results||[]).map(row=>Number(row.travel_minutes)).filter(Number.isFinite),minutes].sort((a,b)=>a-b);const percentile=p=>values[Math.min(values.length-1,Math.max(0,Math.round((values.length-1)*p)))];const mean=values.reduce((a,b)=>a+b,0)/values.length;const variance=values.reduce((sum,value)=>sum+(value-mean)**2,0)/values.length;
+      let previousRaw={};try{previousRaw=JSON.parse(previous.raw_update_json||"{}");}catch{}const currentRaw=event.rawUpdate||{};const entryDelay=Number(previousRaw.delayMinutes),exitDelay=Number(currentRaw.delayMinutes);const date=new Date(event.occurredAt),month=date.getUTCMonth()+1,season=[12,1,2].includes(month)?"winter":[3,4,5].includes(month)?"spring":[6,7,8].includes(month)?"summer":"autumn";const category=String(currentRaw.sourceId||"").includes("suburban")?"suburban":currentRaw.trainCategory||"passenger";
+      statements.push(env.DB.prepare("INSERT OR IGNORE INTO segment_observations(observation_id,run_id,train_number,train_category,from_station_id,to_station_id,departed_at,arrived_at,travel_minutes,weekday,season,entry_delay_minutes,exit_delay_minutes,recovered_minutes,dwell_minutes,observed_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,NULL,?15)").bind(crypto.randomUUID(),event.runId,event.trainNumber,category,fromId,toId,previous.occurred_at,event.occurredAt,Number(minutes.toFixed(2)),date.getUTCDay(),season,Number.isFinite(entryDelay)?entryDelay:null,Number.isFinite(exitDelay)?exitDelay:null,Number.isFinite(entryDelay)&&Number.isFinite(exitDelay)?Number((entryDelay-exitDelay).toFixed(2)):null,observedAt));
+      statements.push(env.DB.prepare(`INSERT INTO segment_stats(from_station_id,to_station_id,train_family,sample_count,mean_minutes,variance_minutes,p10_minutes,p50_minutes,p90_minutes,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10) ON CONFLICT(from_station_id,to_station_id,train_family) DO UPDATE SET sample_count=excluded.sample_count,mean_minutes=excluded.mean_minutes,variance_minutes=excluded.variance_minutes,p10_minutes=excluded.p10_minutes,p50_minutes=excluded.p50_minutes,p90_minutes=excluded.p90_minutes,updated_at=excluded.updated_at`).bind(fromId,toId,event.trainNumber,values.length,Number(mean.toFixed(2)),Number(variance.toFixed(2)),Number(percentile(.1).toFixed(2)),Number(percentile(.5).toFixed(2)),Number(percentile(.9).toFixed(2)),observedAt));
     }
-  }
-  for (const event of validEvents) {
+  }  for (const event of validEvents) {
     statements.push(env.DB.prepare(`
       INSERT OR IGNORE INTO events(
         event_id, run_id, event_type, event_value_json, station,
