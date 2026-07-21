@@ -12,7 +12,7 @@ export class MapView{
       maxZoom:18,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(this.map);
     this.regionLayer=L.geoJSON(null,{interactive:false}).addTo(this.map);
-    this.routeLayer=L.geoJSON(null,{interactive:false,style:{color:"#2f6475",weight:1.4,opacity:0.16}}).addTo(this.map);
+    this.routeLayer=L.geoJSON(null,{interactive:false,style:(feature)=>{const count=this.routeIntensity?.get(feature?.properties?.id)||1;return {color:count>4?"#f3b562":"#2f8a9d",weight:1.1+Math.min(4,Math.log2(count+1)),opacity:.12+Math.min(.5,count*.055)};}}).addTo(this.map);
     this.uncertaintyLayer=L.layerGroup().addTo(this.map);
     this.selectedLayer=L.layerGroup().addTo(this.map);
     this.markerLayer=L.layerGroup().addTo(this.map);
@@ -49,7 +49,7 @@ export class MapView{
   }
 
   render(objects,routeMap,focusedObject=null){
-    this.currentRouteMap=routeMap;this.markerLayer.clearLayers();this.uncertaintyLayer.clearLayers();this.selectedLayer.clearLayers();
+    this.currentRouteMap=routeMap;this.routeIntensity=new Map();for(const item of objects)this.routeIntensity.set(item.routeId,(this.routeIntensity.get(item.routeId)||0)+1);this.markerLayer.clearLayers();this.uncertaintyLayer.clearLayers();this.selectedLayer.clearLayers();
     this.routeLayer.clearLayers();
     if(!focusedObject&&this.routes)this.routeLayer.addData(this.routes);
     this.markers.clear();this.objects=new Map(objects.map((object)=>[object.id,object]));

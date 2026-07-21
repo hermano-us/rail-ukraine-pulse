@@ -339,6 +339,7 @@ function resetFilters(){
 }
 
 function bindControls(){
+  const savedTheme=localStorage.getItem("rail-pulse-theme")||"dark";document.documentElement.dataset.theme=savedTheme;
   document.querySelectorAll("[data-transport]").forEach((button)=>button.addEventListener("click",()=>{
     document.querySelectorAll("[data-transport]").forEach((item)=>item.classList.remove("active"));button.classList.add("active");state.transport=button.dataset.transport;render();
   }));
@@ -370,6 +371,7 @@ function bindControls(){
     elements.fleetPanel.classList.remove("open");
     if(window.innerWidth>1180){layoutState.rightCollapsed=true;applyWorkspaceLayout();}
   });
+  $("#theme-toggle")?.addEventListener("click",()=>{const theme=document.documentElement.dataset.theme==="light"?"dark":"light";document.documentElement.dataset.theme=theme;localStorage.setItem("rail-pulse-theme",theme);});
   $("#map-only-toggle").addEventListener("click",()=>{
     layoutState.mapOnly=!layoutState.mapOnly;
     if(layoutState.mapOnly)closeDetail();
