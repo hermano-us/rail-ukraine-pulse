@@ -31,3 +31,8 @@ test("workspace panels collapse persistently and resize the Leaflet map", async 
   assert.match(css, /\.app-shell\.left-collapsed/);
   assert.match(css, /\.app-shell\.right-collapsed/);
 });
+test("history scrubber preserves the selected route and rejects misleading old snapshots", async () => {
+  const map = await readFile(new URL("../js/map-view-ukraine.js", import.meta.url), "utf8");
+  assert.doesNotMatch(map, /clearHistory\(\)\{this\.historyLayer\.clearLayers\(\);this\.selectedLayer\.clearLayers\(\);\}/);
+  assert.match(map, /Math\.abs\(Date\.parse\(target\.timestamp\)-cutoff\)>16\*60000/);
+});

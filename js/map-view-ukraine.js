@@ -131,7 +131,7 @@ export class MapView{
 
   showHistoryAt(object,minutes=0){
     this.historyLayer.clearLayers();const items=(object.history||[]).filter(item=>item.coordinates).sort((a,b)=>Date.parse(a.timestamp)-Date.parse(b.timestamp));if(!items.length)return false;
-    const cutoff=Date.now()-Number(minutes)*60000;const eligible=minutes?items.filter(item=>Date.parse(item.timestamp)<=cutoff):items;const target=eligible.at(-1);if(!target)return false;
+    const cutoff=Date.now()-Number(minutes)*60000;const eligible=minutes?items.filter(item=>Date.parse(item.timestamp)<=cutoff):items;const target=eligible.at(-1);if(!target||Math.abs(Date.parse(target.timestamp)-cutoff)>16*60000)return false;
     const trail=items.filter(item=>Date.parse(item.timestamp)<=Date.parse(target.timestamp));const points=trail.map(item=>[item.coordinates[1],item.coordinates[0]]);if(points.length>1)L.polyline(points,{color:"#48d9e6",weight:3,opacity:.85,dashArray:"3 7"}).addTo(this.historyLayer);
     const point=[target.coordinates[1],target.coordinates[0]];L.circleMarker(point,{radius:7,color:"#fff",fillColor:"#ff9d52",fillOpacity:1}).bindTooltip(`${minutes} мин назад · модель`).addTo(this.historyLayer);this.map.flyTo(point,Math.max(this.map.getZoom(),8),{duration:.5});return true;
   }
@@ -147,5 +147,5 @@ export class MapView{
     this.map.fitBounds(points,{padding:[60,60],maxZoom:9});return true;
   }
 
-  clearHistory(){this.historyLayer.clearLayers();this.selectedLayer.clearLayers();}
+  clearHistory(){this.historyLayer.clearLayers();}
 }
