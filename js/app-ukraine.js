@@ -182,7 +182,8 @@ function renderDiagnostics(){
   const health=d.freshness.key==="fresh"?"Свежие":d.freshness.key==="expired"?"Устарели":"С задержкой";
   $("#diagnostic-health").textContent=health;
   $("#diagnostic-health").className=`health-${health==="Свежие"?"online":health==="С задержкой"?"stale":"offline"}`;
-  $("#diagnostic-note").textContent=`Алгоритм ${d.algorithmVersion} · данные УЗ ${Math.round(d.sourceAgeMinutes)} мин назад · свежие ${d.freshRuns}/${d.totalRuns} · заморожены ${d.frozenRuns}`;
+  const calibration=d.modelQuality?.evaluations?` · проверок ${d.modelQuality.evaluations} · MAE ${d.modelQuality.maeMinutes} мин · P80 ${d.modelQuality.p80Coverage}%`:" · калибровка накапливается";
+  $("#diagnostic-note").textContent=`Алгоритм ${d.algorithmVersion} · данные УЗ ${Math.round(d.sourceAgeMinutes)} мин назад · свежие ${d.freshRuns}/${d.totalRuns} · заморожены ${d.frozenRuns}${calibration}`;
 }
 
 function renderSourceRegistry(){

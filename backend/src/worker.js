@@ -4,10 +4,12 @@ import { DASHBOARD_URL, parseEdgeDelayDashboard } from "./adapters/delay-dashboa
 import { collectTelegram } from "../../scripts/source-adapters/telegram.mjs";
 
 const SNAPSHOT_KEY = "public:v1:snapshot";
-const WORKER_VERSION = "intelligence-v4";
+const WORKER_VERSION = "intelligence-v5";
 const FRESH_MINUTES = 20;
 const DEGRADED_MINUTES = 60;
 const STREAM_RETRY_MS = 10_000;
+const HISTORY_RETENTION_DAYS = 90;
+const HISTORY_SAMPLE_MINUTES = 15;
 
 function snapshotFreshness(snapshot, now = Date.now()) {
   const generatedAt = Date.parse(snapshot?.generatedAt || "");
@@ -58,7 +60,9 @@ function safeJson(value) {
 
 async function storeSourceHealth(env, sourceStatus, recordsCount) {
   if (!sourceStatus?.sourceId) return;
-  await env.DB.prepare(`
+  const checkedAt = sourceStatus.checkedAt || new Date().toISOString();
+  const count = Number(recordsCount) || 0;
+  await env.DB.batch([env.DB.prepare(`
     INSERT INTO source_health(source_id, status, checked_at, records_count, error)
     VALUES(?1, ?2, ?3, ?4, ?5)
     ON CONFLICT(source_id) DO UPDATE SET
@@ -67,10 +71,20 @@ async function storeSourceHealth(env, sourceStatus, recordsCount) {
   `).bind(
     sourceStatus.sourceId,
     sourceStatus.status || "unknown",
-    sourceStatus.checkedAt || new Date().toISOString(),
-    recordsCount,
+    checkedAt,
+    count,
     sourceStatus.error || null,
-  ).run();
+  ), env.DB.prepare(`
+    INSERT OR IGNORE INTO source_health_checks(check_id,source_id,status,checked_at,records_count,error)
+    VALUES(?1,?2,?3,?4,?5,?6)
+  `).bind(
+    `${sourceStatus.sourceId}:${checkedAt}`,
+    sourceStatus.sourceId,
+    sourceStatus.status || "unknown",
+    checkedAt,
+    count,
+    sourceStatus.error || null,
+  )]);
 }
 
 export async function ingestPayload(env, payload, observedAt = new Date().toISOString()) {
@@ -109,17 +123,25 @@ export async function ingestPayload(env, payload, observedAt = new Date().toISOS
     ));
     statements.push(env.DB.prepare(`
       INSERT OR IGNORE INTO run_snapshots(snapshot_id,run_id,captured_at,source_updated_at,update_json)
-      VALUES(?1,?2,?3,?4,?5)
-    `).bind(`${event.runId}:${event.observedAt}`,event.runId,event.observedAt,update.updatedAt||null,safeJson(update)));
+      SELECT ?1,?2,?3,?4,?5
+      WHERE NOT EXISTS (
+        SELECT 1 FROM run_snapshots
+        WHERE run_id=?2 AND unixepoch(captured_at)>=unixepoch(?3)-?6
+      )
+    `).bind(`${event.runId}:${event.observedAt}`,event.runId,event.observedAt,update.updatedAt||null,safeJson(update),HISTORY_SAMPLE_MINUTES*60));
   }
   for (const event of validEvents.filter((item) => item.type === "station_report" && item.station)) {
+    const alreadyStored=await env.DB.prepare("SELECT event_id FROM events WHERE event_id=?1").bind(event.eventId).first();
+    if(alreadyStored?.event_id)continue;
     const previous = await env.DB.prepare(`SELECT station, occurred_at, raw_update_json FROM events WHERE run_id=?1 AND event_type='station_report' AND occurred_at<?2 ORDER BY occurred_at DESC LIMIT 1`).bind(event.runId,event.occurredAt).first();
     const minutes=previous?.occurred_at?(Date.parse(event.occurredAt)-Date.parse(previous.occurred_at))/60000:null;
     if(previous?.station&&previous.station!==event.station&&minutes>1&&minutes<720){
       const fromId=normalizeToken(previous.station),toId=normalizeToken(event.station);const history=await env.DB.prepare("SELECT travel_minutes FROM segment_observations WHERE train_number=?1 AND from_station_id=?2 AND to_station_id=?3 ORDER BY observed_at DESC LIMIT 199").bind(event.trainNumber,fromId,toId).all();
+      const baseline=await env.DB.prepare("SELECT sample_count,p10_minutes,p50_minutes,p90_minutes FROM segment_stats WHERE from_station_id=?1 AND to_station_id=?2 AND train_family=?3").bind(fromId,toId,event.trainNumber).first();
       const values=[...(history.results||[]).map(row=>Number(row.travel_minutes)).filter(Number.isFinite),minutes].sort((a,b)=>a-b);const percentile=p=>values[Math.min(values.length-1,Math.max(0,Math.round((values.length-1)*p)))];const mean=values.reduce((a,b)=>a+b,0)/values.length;const variance=values.reduce((sum,value)=>sum+(value-mean)**2,0)/values.length;
       let previousRaw={};try{previousRaw=JSON.parse(previous.raw_update_json||"{}");}catch{}const currentRaw=event.rawUpdate||{};const entryDelay=Number(previousRaw.delayMinutes),exitDelay=Number(currentRaw.delayMinutes);const date=new Date(event.occurredAt),month=date.getUTCMonth()+1,season=[12,1,2].includes(month)?"winter":[3,4,5].includes(month)?"spring":[6,7,8].includes(month)?"summer":"autumn";const category=String(currentRaw.sourceId||"").includes("suburban")?"suburban":currentRaw.trainCategory||"passenger";
       statements.push(env.DB.prepare("INSERT OR IGNORE INTO segment_observations(observation_id,run_id,train_number,train_category,from_station_id,to_station_id,departed_at,arrived_at,travel_minutes,weekday,season,entry_delay_minutes,exit_delay_minutes,recovered_minutes,dwell_minutes,observed_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,NULL,?15)").bind(crypto.randomUUID(),event.runId,event.trainNumber,category,fromId,toId,previous.occurred_at,event.occurredAt,Number(minutes.toFixed(2)),date.getUTCDay(),season,Number.isFinite(entryDelay)?entryDelay:null,Number.isFinite(exitDelay)?exitDelay:null,Number.isFinite(entryDelay)&&Number.isFinite(exitDelay)?Number((entryDelay-exitDelay).toFixed(2)):null,observedAt));
+      if(Number(baseline?.sample_count)>=3&&Number.isFinite(Number(baseline?.p50_minutes))){const predicted=Number(baseline.p50_minutes),low=Number(baseline.p10_minutes),high=Number(baseline.p90_minutes);statements.push(env.DB.prepare("INSERT OR IGNORE INTO model_evaluations(evaluation_id,run_id,train_number,from_station_id,to_station_id,predicted_minutes,actual_minutes,absolute_error_minutes,within_p80,baseline_samples,evaluated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)").bind(`${event.runId}:${fromId}:${toId}:${event.occurredAt}`,event.runId,event.trainNumber,fromId,toId,predicted,Number(minutes.toFixed(2)),Number(Math.abs(minutes-predicted).toFixed(2)),minutes>=low&&minutes<=high?1:0,Number(baseline.sample_count),event.occurredAt));}
       statements.push(env.DB.prepare(`INSERT INTO segment_stats(from_station_id,to_station_id,train_family,sample_count,mean_minutes,variance_minutes,p10_minutes,p50_minutes,p90_minutes,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10) ON CONFLICT(from_station_id,to_station_id,train_family) DO UPDATE SET sample_count=excluded.sample_count,mean_minutes=excluded.mean_minutes,variance_minutes=excluded.variance_minutes,p10_minutes=excluded.p10_minutes,p50_minutes=excluded.p50_minutes,p90_minutes=excluded.p90_minutes,updated_at=excluded.updated_at`).bind(fromId,toId,event.trainNumber,values.length,Number(mean.toFixed(2)),Number(variance.toFixed(2)),Number(percentile(.1).toFixed(2)),Number(percentile(.5).toFixed(2)),Number(percentile(.9).toFixed(2)),observedAt));
     }
   }  for (const event of validEvents) {
@@ -136,6 +158,8 @@ export async function ingestPayload(env, payload, observedAt = new Date().toISOS
     ));
   }
   if (statements.length) await env.DB.batch(statements);
+  await env.DB.prepare("DELETE FROM run_snapshots WHERE captured_at < datetime('now', ?1)").bind(`-${HISTORY_RETENTION_DAYS} days`).run();
+  await env.DB.prepare("DELETE FROM source_health_checks WHERE checked_at < datetime('now', '-30 days')").run();
   await storeSourceHealth(env, payload?.sourceStatus, updates.length);
 
   const snapshot = {
@@ -192,9 +216,26 @@ async function readSegmentStats(env, limit = 300) {
   return result.results || [];
 }
 
+async function readModelQuality(env) {
+  const row = await env.DB.prepare(`
+    SELECT COUNT(*) AS evaluations,
+      AVG(absolute_error_minutes) AS mae_minutes,
+      AVG(within_p80) * 100 AS p80_coverage,
+      MAX(evaluated_at) AS latest
+    FROM model_evaluations
+    WHERE evaluated_at >= datetime('now', '-30 days')
+  `).first();
+  return {
+    evaluations: Number(row?.evaluations || 0),
+    maeMinutes: row?.mae_minutes == null ? null : Number(Number(row.mae_minutes).toFixed(1)),
+    p80Coverage: row?.p80_coverage == null ? null : Number(Number(row.p80_coverage).toFixed(1)),
+    latest: row?.latest || null,
+  };
+}
+
 async function getSnapshot(request, env) {
-  const [baseSnapshot, segmentStats] = await Promise.all([readSnapshot(env), readSegmentStats(env)]);
-  const snapshot = { ...baseSnapshot, segmentStats };
+  const [baseSnapshot, segmentStats, modelQuality] = await Promise.all([readSnapshot(env), readSegmentStats(env), readModelQuality(env)]);
+  const snapshot = { ...baseSnapshot, segmentStats, modelQuality };
   const body = `${JSON.stringify(snapshot)}\n`;
   const etag = `W/\"${body.length}-${snapshot.generatedAt}\"`;
   if (request.headers.get("If-None-Match") === etag) {
@@ -226,13 +267,14 @@ async function getEvents(request, env) {
   return json({ events, count: events.length }, { headers: { "Cache-Control": "no-store" } }, request, env);
 }
 
-async function getRunHistory(request,env){const url=new URL(request.url),runId=String(url.searchParams.get("runId")||"").trim();if(!runId)return json({error:"run_id_required"},{status:400},request,env);const limit=Math.min(288,Math.max(2,Number(url.searchParams.get("limit"))||192)),since=url.searchParams.get("since")||new Date(Date.now()-48*60*60*1000).toISOString();const result=await env.DB.prepare("SELECT snapshot_id,captured_at,source_updated_at,update_json FROM run_snapshots WHERE run_id=?1 AND captured_at>=?2 ORDER BY captured_at ASC LIMIT ?3").bind(runId,since,limit).all();const snapshots=(result.results||[]).map(row=>({id:row.snapshot_id,capturedAt:row.captured_at,sourceUpdatedAt:row.source_updated_at,update:JSON.parse(row.update_json)}));return json({runId,snapshots,count:snapshots.length,retentionHours:48,geometryPolicy:"client-rail-network-only"},{headers:{"Cache-Control":"private, max-age=30"}},request,env);}
+async function getRunHistory(request,env){const url=new URL(request.url),runId=String(url.searchParams.get("runId")||"").trim();if(!runId)return json({error:"run_id_required"},{status:400},request,env);const limit=Math.min(6720,Math.max(2,Number(url.searchParams.get("limit"))||672)),since=url.searchParams.get("since")||new Date(Date.now()-7*24*60*60*1000).toISOString();const result=await env.DB.prepare("SELECT snapshot_id,captured_at,source_updated_at,update_json FROM run_snapshots WHERE run_id=?1 AND captured_at>=?2 ORDER BY captured_at ASC LIMIT ?3").bind(runId,since,limit).all();const snapshots=(result.results||[]).map(row=>({id:row.snapshot_id,capturedAt:row.captured_at,sourceUpdatedAt:row.source_updated_at,update:JSON.parse(row.update_json)}));return json({runId,snapshots,count:snapshots.length,retentionDays:HISTORY_RETENTION_DAYS,sampleMinutes:HISTORY_SAMPLE_MINUTES,geometryPolicy:"client-rail-network-only"},{headers:{"Cache-Control":"private, max-age=30"}},request,env);}
 async function getHealth(request, env) {
-  const [database, sources, snapshot, segmentStats] = await Promise.all([
+  const [database, sources, snapshot, segmentStats, modelQuality] = await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS runs FROM runs").first(),
     env.DB.prepare("SELECT * FROM source_health ORDER BY checked_at DESC").all(),
     readSnapshot(env),
     readSegmentStats(env),
+    readModelQuality(env),
   ]);
   const freshness = snapshotFreshness(snapshot);
   return json({
@@ -242,11 +284,11 @@ async function getHealth(request, env) {
     runs: Number(database?.runs || 0),
     snapshot: { generatedAt: snapshot?.generatedAt || null, ageMinutes: freshness.ageMinutes, updates: snapshot?.updates?.length || 0 },
     sources: sources.results || [],
-    positioning: { learnedSegments: segmentStats.length, model: "rail-posterior-v3" },
+    positioning: { learnedSegments: segmentStats.length, model: "rail-posterior-v3", quality: modelQuality },
   }, { headers: { "Cache-Control": "no-store" } }, request, env);
 }
 async function getAdminOverview(request, env) {
-  const [runs, events, sources, recentEvents, snapshot, segmentStats] = await Promise.all([
+  const [runs, events, sources, recentEvents, snapshot, segmentStats, modelQuality] = await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS total, MAX(last_observed_at) AS latest FROM runs").first(),
     env.DB.prepare("SELECT COUNT(*) AS total, MAX(observed_at) AS latest FROM events").first(),
     env.DB.prepare("SELECT * FROM source_health ORDER BY checked_at DESC").all(),
@@ -257,6 +299,7 @@ async function getAdminOverview(request, env) {
     `).all(),
     readSnapshot(env),
     readSegmentStats(env),
+    readModelQuality(env),
   ]);
   const freshness = snapshotFreshness(snapshot);
   return json({
@@ -287,6 +330,7 @@ async function getAdminOverview(request, env) {
       quarantined: snapshot?.quality?.quarantined || 0,
       qualityWarnings: snapshot?.quality?.warningCounts || {},
       learnedSegments: segmentStats.length,
+      modelQuality,
     },
     sources: sources.results || [],
     recentEvents: (recentEvents.results || []).map((event) => ({
@@ -301,14 +345,20 @@ async function getAdminOverview(request, env) {
 }
 
 async function getAdminIntelligence(request, env) {
-  const [quarantine, cycles, audit, sources, incomplete] = await Promise.all([
+  const [quarantine, cycles, audit, sources, incomplete, healthChecks, modelQuality] = await Promise.all([
     env.DB.prepare("SELECT * FROM quarantine ORDER BY observed_at DESC LIMIT 100").all(),
     env.DB.prepare("SELECT * FROM collection_cycles ORDER BY started_at DESC LIMIT 288").all(),
     env.DB.prepare("SELECT * FROM admin_audit ORDER BY occurred_at DESC LIMIT 100").all(),
     env.DB.prepare("SELECT * FROM source_config ORDER BY priority DESC").all(),
     env.DB.prepare("SELECT run_id,train_number,route,origin,destination,last_observed_at FROM runs WHERE route IS NULL OR origin IS NULL OR destination IS NULL ORDER BY last_observed_at DESC LIMIT 100").all(),
+    env.DB.prepare(`
+      SELECT source_id,COUNT(*) AS checks,SUM(status='online') AS online_checks,
+        MIN(records_count) AS min_records,MAX(records_count) AS max_records,MAX(checked_at) AS latest
+      FROM source_health_checks WHERE checked_at>=datetime('now','-24 hours') GROUP BY source_id
+    `).all(),
+    readModelQuality(env),
   ]);
-  return json({ quarantine: quarantine.results||[], cycles: cycles.results||[], audit: audit.results||[], sourceConfig: sources.results||[], incompleteRuns: incomplete.results||[] }, {headers:{"Cache-Control":"no-store"}}, request, env);
+  return json({ quarantine: quarantine.results||[], cycles: cycles.results||[], audit: audit.results||[], sourceConfig: sources.results||[], incompleteRuns: incomplete.results||[], sourceHealth24h:healthChecks.results||[], modelQuality }, {headers:{"Cache-Control":"no-store"}}, request, env);
 }
 
 async function auditAdmin(env, action, target, details={}) {
@@ -364,6 +414,7 @@ export async function handleRequest(request, env) {
     if (request.method === "GET" && url.pathname === "/api/health") return getHealth(request, env);
     if (request.method === "GET" && url.pathname === "/api/v1/stream") return getSnapshotStream(request, env);
     if (request.method === "GET" && url.pathname === "/api/v1/segment-stats") return json({ segments: await readSegmentStats(env), aggregateOnly: true }, { headers: { "Cache-Control": "public, max-age=300" } }, request, env);
+    if (request.method === "GET" && url.pathname === "/api/v1/model-quality") return json({ ...(await readModelQuality(env)), aggregateOnly: true }, { headers: { "Cache-Control": "public, max-age=300" } }, request, env);
     if (["GET","POST"].includes(request.method) && url.pathname === "/api/admin/intelligence") {
       if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, { status: 401 }, request, env);
       return request.method === "GET" ? getAdminIntelligence(request, env) : handleAdminAction(request, env);

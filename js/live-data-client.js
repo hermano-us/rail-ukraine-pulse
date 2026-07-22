@@ -58,7 +58,7 @@ export async function loadRunHistory(runId, options = {}) {
   if (!config.apiBase || !runId) return { runId, snapshots: [], count: 0, transport: "unavailable" };
   const endpoint = new URL(config.historyPath, `${config.apiBase.replace(/\/$/, "")}/`);
   endpoint.searchParams.set("runId", runId);
-  endpoint.searchParams.set("limit", String(options.limit || 192));
+  endpoint.searchParams.set("limit", String(options.limit || 672));
   if (options.since) endpoint.searchParams.set("since", options.since);
   try {
     return { ...(await readJson(endpoint, { timeoutMs: config.requestTimeoutMs })), transport: "api" };

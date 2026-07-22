@@ -44,7 +44,7 @@ test("backend ingests runs and events and publishes a compatible snapshot", asyn
   assert.equal(result.runs, 1);
   assert.equal(result.accepted, 1);
   assert.equal(result.snapshot.updates.length, 1);
-  assert.equal(env.DB.batches.length, 1);
+  assert.equal(env.DB.batches.length, 2);
   assert.equal(env.DB.batches[0].length, 3);
 
   const response = await handleRequest(new Request("https://api.example/api/v1/snapshot", {
@@ -88,7 +88,7 @@ test("health reports snapshot freshness instead of unconditional ok", async () =
   const body = await response.json();
   assert.equal(response.status, 200);
   assert.equal(body.status, "ok");
-  assert.equal(body.version, "intelligence-v4");
+  assert.equal(body.version, "intelligence-v5");
   assert.equal(body.snapshot.updates, 1);
 });
 
@@ -126,4 +126,20 @@ test("scheduled edge collector refreshes the snapshot independently of GitHub cr
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("history API advertises adaptive long-term retention", async () => {
+  const env = environment();
+  const response = await handleRequest(new Request("https://api.example/api/v1/history?runId=uz:test"), env);
+  const body = await response.json();
+  assert.equal(body.retentionDays, 90);
+  assert.equal(body.sampleMinutes, 15);
+});
+
+test("model quality API exposes aggregate calibration only", async () => {
+  const env = environment();
+  const response = await handleRequest(new Request("https://api.example/api/v1/model-quality"), env);
+  const body = await response.json();
+  assert.equal(body.aggregateOnly, true);
+  assert.equal(body.evaluations, 0);
 });

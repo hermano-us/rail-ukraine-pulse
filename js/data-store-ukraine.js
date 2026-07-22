@@ -376,7 +376,7 @@ export async function loadTransportData(now=new Date()){
     freshness:evaluateFreshness(sourceAgeMinutes),
     freshRuns:objects.filter((object)=>object.position.freshness?.key==="fresh").length,
     frozenRuns:objects.filter((object)=>object.position.freshness?.frozen&&object.position.coordinates).length,
-    learnedSegments:(liveData?.segmentStats||[]).length,algorithmVersion:"rail-posterior-v3+rail-corridor-v5",snapshotSchema:liveData?.schemaVersion||null,
+    learnedSegments:(liveData?.segmentStats||[]).length,modelQuality:liveData?.modelQuality||{evaluations:0,maeMinutes:null,p80Coverage:null},algorithmVersion:"rail-posterior-v3+rail-corridor-v5",snapshotSchema:liveData?.schemaVersion||null,
   };
   const eventFeed=objects.flatMap((object)=>object.events.map((event)=>({...event,objectId:object.id,trainNumber:object.trainNumber,route:object.route,positionStatus:object.position.status})))
     .sort((a,b)=>Date.parse(b.occurredAt)-Date.parse(a.occurredAt));

@@ -9,14 +9,18 @@ test("D1 migration creates the event backend schema", {
   const sql = await readFile(new URL("../backend/migrations/0001_initial.sql", import.meta.url), "utf8");
   const historySql = await readFile(new URL("../backend/migrations/0003_run_history.sql", import.meta.url), "utf8");
   const database = new sqlite.DatabaseSync(":memory:");
+  const observabilitySql = await readFile(new URL("../backend/migrations/0004_model_observability.sql", import.meta.url), "utf8");
   database.exec(historySql);
   database.exec(sql);
+  database.exec(observabilitySql);
   const tables = database.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all().map((row) => row.name);
   assert.ok(tables.includes("runs"));
   assert.ok(tables.includes("events"));
   assert.ok(tables.includes("source_health"));
   assert.ok(tables.includes("run_snapshots"));
   assert.ok(tables.includes("segment_stats"));
+  assert.ok(tables.includes("model_evaluations"));
+  assert.ok(tables.includes("source_health_checks"));
   database.close();
 });
 
