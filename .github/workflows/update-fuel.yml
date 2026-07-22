@@ -21,7 +21,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: npm ci
       - run: npm test
       - name: Import real OpenStreetMap fuel stations
         run: npm run update-fuel
