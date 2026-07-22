@@ -1,4 +1,5 @@
 import { haversineKm, parseBbox } from "./domain.js";
+import { importPartnerStations } from "./partner.js";
 
 function cors(request, env) {
   const origin = request.headers.get("Origin");
@@ -125,6 +126,7 @@ export async function handleFuelRequest(request, env, auth) {
   if (request.method === "GET" && path === "/api/fuel/v1/nearby") return nearby(request, env, url);
   if (request.method === "GET" && path.startsWith("/api/fuel/v1/stations/")) return stationDetail(request, env, decodeURIComponent(path.slice(22)));
   if (request.method === "POST" && path === "/api/fuel/v1/import") return importStations(request, env, auth.authorized);
+  if (request.method === "POST" && path === "/api/fuel/v1/partner/import") return importPartnerStations(request, env, auth.authorized, json);
   if (request.method === "POST" && path === "/api/fuel/v1/accessibility/import") return importAccessibility(request, env, auth.authorized);
   if (request.method === "GET" && path === "/api/fuel/admin/overview") {
     if (!auth.authorizedAdmin()) return json({ error: "unauthorized" }, 401, request, env);

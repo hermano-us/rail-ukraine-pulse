@@ -21,11 +21,11 @@ async function refresh(){
 }
 function schedule(){clearTimeout(debounce);debounce=setTimeout(refresh,220)}
 function renderList(mode){const list=$("station-list");if(mode==="clusters"){list.innerHTML='<p class="empty">Приблизьте карту: количество показано кластерами без перегрузки карты.</p>';return;}const term=$("search").value.trim().toLowerCase();const stations=currentStations.filter(s=>!term||[s.name,s.brand,s.city,s.address].some(v=>String(v||"").toLowerCase().includes(term))).slice(0,150);list.innerHTML=stations.length?stations.map(s=>`<button class="station-row" data-id="${escape(s.id)}"><i class="status-pin ${escape(s.status)}"></i><span><strong>${escape(s.name)}</strong><small>${escape([s.city,s.address].filter(Boolean).join(" · ")||"Адрес не указан")}</small></span><em>${escape(statusLabels[s.status]||statusLabels.unknown)}</em></button>`).join(""):'<p class="empty">В этой области ничего не найдено.</p>';list.querySelectorAll("[data-id]").forEach(button=>button.onclick=()=>{const station=currentStations.find(s=>s.id===button.dataset.id);if(station){map.panTo([station.lat,station.lng]);openStation(station.id);}})}
-function safeExternalUrl(value){try{const url=new URL(value);return ["https:","http:"].includes(url.protocol)?url.href:null}catch{return null}}
+function safeExternalUrl(value){try{const url=new URL(value,location.origin);return ["https:","http:"].includes(url.protocol)?url.href:null}catch{return null}}
 function enrichDetails(s){
   const services=s.services||{},media=services.media||{},details=$("details");
-  const imageUrl=safeExternalUrl(media.imageUrl);
-  const hero=imageUrl?`<img class="station-hero" src="${escape(imageUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:`<div class="station-hero placeholder"><span>${escape((s.brand||s.name||"АЗС").slice(0,3).toUpperCase())}</span><small>Фото пока не найдено в открытых источниках</small></div>`;
+  const imageUrls=[...(Array.isArray(media.imageUrls)?media.imageUrls:[]),media.imageUrl].map(safeExternalUrl).filter((value,index,array)=>value&&array.indexOf(value)===index).slice(0,6);
+  const hero=imageUrls.length?`<div class="station-gallery"><img class="station-hero" src="${escape(imageUrls[0])}" alt="${escape(s.name||"АЗС")}" loading="lazy"><div class="station-thumbs">${imageUrls.slice(1).map((url,index)=>`<img src="${escape(url)}" alt="${escape(s.name||"АЗС")} · фото ${index+2}" loading="lazy">`).join("")}</div>${media.attribution?`<small class="photo-credit">${escape(media.attribution)}</small>`:""}</div>`:`<div class="station-hero placeholder"><span>${escape((s.brand||s.name||"АЗС").slice(0,3).toUpperCase())}</span><small>Фото пока не найдено в открытых источниках</small></div>`;
   const amenities=[["shop","Магазин"],["cafe","Кафе"],["restaurant","Ресторан"],["toilets","WC"],["wifi","Wi-Fi"],["atm","Банкомат"],["carWash","Мойка"],["compressedAir","Подкачка шин"]].filter(([key])=>services[key]).map(([,label])=>label);
   if(services.wheelchair==="yes")amenities.push("Безбарьерный доступ");
   if(services.wheelchair==="limited")amenities.push("Частичная доступность");
@@ -34,11 +34,13 @@ function enrichDetails(s){
   const facts=(amenities.length||catalogFuel.length)?`<section class="catalog-facts">${catalogFuel.length?`<small>Топливо по каталогу</small><div class="chips">${catalogFuel.map(item=>`<span>${escape(item)}</span>`).join("")}</div>`:""}${amenities.length?`<small>Удобства</small><div class="chips">${amenities.map(item=>`<span>${escape(item)}</span>`).join("")}</div>`:""}</section>`:"";
   details.querySelector("h2")?.insertAdjacentHTML("afterend",hero+description+facts);
   const actions=details.querySelector(".actions");
-  const website=safeExternalUrl(s.website),commons=safeExternalUrl(media.commonsUrl),mapillary=safeExternalUrl(media.mapillaryUrl);
+  const website=safeExternalUrl(s.website),commons=safeExternalUrl(media.commonsUrl),mapillary=safeExternalUrl(media.mapillaryUrl),mediaSource=safeExternalUrl(media.sourceUrl),email=services.contacts?.email;
   if(website)actions?.insertAdjacentHTML("beforeend",`<a href="${escape(website)}" target="_blank" rel="noopener">Сайт АЗС</a>`);
   if(s.phone)actions?.insertAdjacentHTML("beforeend",`<a href="tel:${escape(String(s.phone).replace(/[^+0-9]/g,""))}">Позвонить</a>`);
   if(commons)actions?.insertAdjacentHTML("beforeend",`<a href="${escape(commons)}" target="_blank" rel="noopener">Wikimedia</a>`);
   if(mapillary)actions?.insertAdjacentHTML("beforeend",`<a href="${escape(mapillary)}" target="_blank" rel="noopener">Панорама</a>`);
+  if(mediaSource)actions?.insertAdjacentHTML("beforeend",`<a href="${escape(mediaSource)}" target="_blank" rel="noopener">Carta.ua</a>`);
+  if(email)actions?.insertAdjacentHTML("beforeend",`<a href="mailto:${escape(email)}">Email</a>`);
 }
 
 

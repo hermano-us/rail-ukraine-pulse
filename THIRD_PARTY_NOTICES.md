@@ -24,3 +24,7 @@ Leaflet включён локально в `css/leaflet.css` и `js/vendor-leafl
 ## Data.gov.ua / ГИОЦ УЗ
 
 Метаданные архивного грузового слоя основаны на открытом наборе «Информация о пробеге грузовых вагонов в порожнем состоянии». Последнее опубликованное обновление — январь 2022 года. Лицензия Creative Commons Attribution 4.0: <https://data.gov.ua/dataset/ee159558-ff90-4425-b48d-3c1e264b231d>.
+
+## Carta.ua partner catalog
+
+Station metadata and photographs supplied by Carta.ua are republished with explicit partner permission. Every enriched station links back to its source page: <https://carta.ua/>. Carta.ua catalog data does not assert current operating status, fuel availability, or prices.

@@ -28,3 +28,8 @@ jobs:
           RAIL_API_URL: ${{ secrets.RAIL_API_URL }}
           RAIL_INGEST_TOKEN: ${{ secrets.RAIL_INGEST_TOKEN }}
           OVERPASS_URL: https://overpass-api.de/api/interpreter
+      - name: Enrich catalog with Carta.ua partner data
+        run: npm run update-fuel-carta
+        env:
+          RAIL_API_URL: ${{ secrets.RAIL_API_URL }}
+          RAIL_INGEST_TOKEN: ${{ secrets.RAIL_INGEST_TOKEN }}
