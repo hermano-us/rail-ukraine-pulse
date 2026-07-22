@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07131a"><title>АЗС Украины — Fuel Pulse</title>
+  <link rel="stylesheet" href="../css/leaflet.css"><link rel="stylesheet" href="css/fuel.css">
+</head>
+<body>
+  <main class="shell">
+    <aside class="sidebar" id="sidebar">
+      <header><div><small>UKRAINE MOBILITY PLATFORM</small><h1>Fuel Pulse</h1></div><button class="icon" id="close-panel" aria-label="Закрыть панель">×</button></header>
+      <div class="health"><span class="health-dot" id="health-dot"></span><div><strong id="health-title">Подключение…</strong><small id="health-detail">Проверяем каталог</small></div></div>
+      <section class="filters">
+        <label>Поиск<input id="search" type="search" placeholder="Бренд, город или адрес"></label>
+        <div class="filter-grid">
+          <label>Статус<select id="status"><option value="all">Все статусы</option><option value="operating">Работает</option><option value="partially_operating">Частично</option><option value="temporarily_closed">Временно закрыта</option><option value="fuel_unavailable">Нет топлива</option><option value="unknown">Нет оперативных данных</option></select></label>
+          <label>Топливо<select id="fuel"><option value="">Любое</option><option value="a95">А-95</option><option value="diesel">Дизель</option><option value="lpg">LPG</option><option value="electric_charging">Зарядка</option></select></label>
+        </div>
+      </section>
+      <section class="results-head"><div><strong id="visible-count">0</strong><small>в видимой области</small></div><button id="nearby">Рядом со мной</button></section>
+      <div class="station-list" id="station-list"><p class="empty">Приблизьте карту, чтобы увидеть АЗС.</p></div>
+      <footer>Каталог: © OpenStreetMap, ODbL. Оперативный статус показывается отдельно и может быть неизвестен.</footer>
+    </aside>
+    <section class="map-wrap">
+      <div id="map" aria-label="Интерактивная карта АЗС Украины"></div>
+      <nav class="topbar">
+        <button class="action mobile-menu" id="open-panel" aria-label="Открыть фильтры">☰</button>
+        <a class="action switch" href="../">🚆 <span>Поезда</span></a>
+        <div class="title"><span>⛽</span><div><strong>АЗС УКРАИНЫ</strong><small id="map-caption">реальный каталог · статус ≠ наличие точки</small></div></div>
+        <button class="action" id="locate" aria-label="Моё местоположение">⌖ <span>Рядом</span></button>
+        <button class="action" id="theme" aria-label="Переключить тему">◐ <span>Тема</span></button>
+      </nav>
+      <div class="legend"><span><i class="operating"></i>Работает</span><span><i class="partial"></i>Частично</span><span><i class="closed"></i>Закрыта</span><span><i class="unknown"></i>Нет статуса</span></div>
+      <div class="loading" id="loading" hidden>Обновляем область…</div>
+      <article class="details" id="details" hidden></article>
+    </section>
+  </main>
+  <script src="../js/vendor-leaflet.js"></script><script type="module" src="js/app.js"></script>
+</body>
+</html>

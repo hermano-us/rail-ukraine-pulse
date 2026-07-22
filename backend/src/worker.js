@@ -2,9 +2,10 @@ import { normalizeToken, updatesToEvents, validateEvent } from "./domain/events.
 import { detectSourceVolumeDrop, screenUpdates } from "./domain/quality.js";
 import { DASHBOARD_URL, parseEdgeDelayDashboard } from "./adapters/delay-dashboard.js";
 import { collectTelegram } from "../../scripts/source-adapters/telegram.mjs";
+import { handleFuelRequest } from "./fuel/api.js";
 
 const SNAPSHOT_KEY = "public:v1:snapshot";
-const WORKER_VERSION = "intelligence-v5";
+const WORKER_VERSION = "intelligence-v6-fuel";
 const FRESH_MINUTES = 20;
 const DEGRADED_MINUTES = 60;
 const STREAM_RETRY_MS = 10_000;
@@ -400,6 +401,13 @@ export async function handleRequest(request, env) {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request, env) });
   const url = new URL(request.url);
   try {
+    if (url.pathname.startsWith("/api/fuel/")) {
+      const response = await handleFuelRequest(request, env, {
+        authorized: () => authorized(request, env),
+        authorizedAdmin: () => authorizedAdmin(request, env),
+      });
+      if (response) return response;
+    }
     if (request.method === "GET" && ["/admin.html", "/rail-ops-center.html"].includes(url.pathname)) {
       return json({ error: "not_found" }, { status: 404, headers: { "X-Robots-Tag": "noindex, nofollow" } }, request, env);
     }

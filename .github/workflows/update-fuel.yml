@@ -1,0 +1,31 @@
+name: Update fuel catalog
+
+on:
+  schedule:
+    - cron: "25 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-fuel-catalog
+  cancel-in-progress: false
+
+jobs:
+  import-osm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm test
+      - name: Import real OpenStreetMap fuel stations
+        run: npm run update-fuel
+        env:
+          RAIL_API_URL: ${{ secrets.RAIL_API_URL }}
+          RAIL_INGEST_TOKEN: ${{ secrets.RAIL_INGEST_TOKEN }}
+          OVERPASS_URL: https://overpass-api.de/api/interpreter

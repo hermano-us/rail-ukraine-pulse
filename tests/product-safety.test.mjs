@@ -22,3 +22,11 @@ test("public status snapshot does not collapse directional services", async () =
   assert.equal(new Set(keys).size, keys.length);
 });
 
+
+test("fuel public API contains no stock quantities or supply movement endpoints", async () => {
+  const api = await readFile(new URL("../backend/src/fuel/api.js", import.meta.url), "utf8");
+  const domain = await readFile(new URL("../backend/src/fuel/domain.js", import.meta.url), "utf8");
+  assert.doesNotMatch(api, /stock[_-]?(amount|quantity)|tanker|delivery[_-]?route/i);
+  assert.match(domain, /damaged_reported/);
+  assert.match(api, /public_status/);
+});
