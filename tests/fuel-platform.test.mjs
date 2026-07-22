@@ -27,5 +27,7 @@ test("fuel map keeps dense catalogs clustered and uses the rail dark treatment",
   assert.match(api, /zoom < 11/); assert.match(api, /cellByZoom/);
   assert.match(app, /Math\.min\(11/); assert.match(app, /station-hero/);
   assert.match(css, /leaflet-tile-pane.*brightness\(\.57\)/);
+  assert.match(css, /\.details\{position:absolute;[^}]*top:72px;[^}]*bottom:18px;[^}]*max-height:none/);
+  assert.match(css, /@media\(max-width:850px\).*\.details\{top:64px;[^}]*bottom:8px/s);
   assert.match(importer, /wikimedia_commons/); assert.match(importer, /upload\.wikimedia\.org/);
 });

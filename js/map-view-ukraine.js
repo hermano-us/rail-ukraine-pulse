@@ -51,7 +51,10 @@ export class MapView{
   render(objects,routeMap,focusedObject=null){
     this.currentRouteMap=routeMap;this.routeIntensity=new Map();for(const item of objects)this.routeIntensity.set(item.routeId,(this.routeIntensity.get(item.routeId)||0)+1);this.markerLayer.clearLayers();this.uncertaintyLayer.clearLayers();this.selectedLayer.clearLayers();
     this.routeLayer.clearLayers();
-    if(!focusedObject&&this.routes)this.routeLayer.addData(this.routes);
+    if(!focusedObject&&this.routes){
+      const visibleRouteIds=new Set(objects.filter((object)=>Array.isArray(object.position.coordinates)).map((object)=>object.routeId));
+      this.routeLayer.addData({type:"FeatureCollection",features:(this.routes.features||[]).filter((feature)=>visibleRouteIds.has(feature.properties?.id))});
+    }
     this.markers.clear();this.objects=new Map(objects.map((object)=>[object.id,object]));
     const bounds=[];
     if(this.viewMode==="density"&&!focusedObject){

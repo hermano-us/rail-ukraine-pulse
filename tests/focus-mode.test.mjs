@@ -6,7 +6,8 @@ test("selected train enters isolated map focus mode with its route and stations"
   const app = await readFile(new URL("../js/app-ukraine.js", import.meta.url), "utf8");
   const map = await readFile(new URL("../js/map-view-ukraine.js", import.meta.url), "utf8");
   assert.match(app, /mapView\.render\(focused\?\[focused\]:visible/);
-  assert.match(map, /if\(!focusedObject&&this\.routes\)this\.routeLayer\.addData/);
+  assert.match(map, /visibleRouteIds=new Set\(objects\.filter/);
+  assert.match(map, /features:\(this\.routes\.features\|\|\[\]\)\.filter/);
   assert.match(map, /for\(const waypoint of object\.waypoints/);
   assert.match(map, /focus-station-/);
 });
