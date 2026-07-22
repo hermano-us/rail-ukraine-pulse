@@ -70,7 +70,7 @@ for (let offset = 0; offset < records.length; offset += 40) {
   const response = await fetchWithRetry(`${API}/api/fuel/v1/partner/import`, {
     method: "POST",
     headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ sourceId: "carta-ua", generatedAt: new Date().toISOString(), records: chunk }),
+    body: JSON.stringify({ sourceId: "carta-ua", generatedAt: new Date().toISOString(), totalRecords: records.length, records: chunk }),
   });
   const result = await response.json();
   accepted += Number(result.accepted || 0);

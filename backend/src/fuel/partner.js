@@ -36,7 +36,8 @@ export async function importPartnerStations(request, env, authorized, json) {
   if (body.sourceId !== "carta-ua" || !records.length || records.length > 50) return json({ error: "invalid_import", maxRecords: 50 }, 400, request, env);
   const now = new Date().toISOString();
   const importId = crypto.randomUUID();
-  await env.DB.prepare("INSERT INTO fuel_import_runs(import_id,source_id,started_at,status,received_count) VALUES(?1,?2,?3,'running',?4)").bind(importId, body.sourceId, now, records.length).run();
+  const declaredTotal = Math.max(records.length, Math.min(10000, Number(body.totalRecords) || records.length));
+  await env.DB.prepare("INSERT INTO fuel_import_runs(import_id,source_id,started_at,status,received_count) VALUES(?1,?2,?3,'running',?4)").bind(importId, body.sourceId, now, declaredTotal).run();
   const statements = [];
   let accepted = 0; let matched = 0; let inserted = 0;
   for (const record of records) {
@@ -66,7 +67,7 @@ export async function importPartnerStations(request, env, authorized, json) {
   await env.DB.batch([
     env.DB.prepare("UPDATE fuel_import_runs SET finished_at=?1,status='success',inserted_count=?2,updated_count=?3 WHERE import_id=?4").bind(now, inserted, matched, importId),
     env.DB.prepare("UPDATE fuel_sources SET last_checked_at=?1,updated_at=?1 WHERE source_id='carta-ua'").bind(now),
-    env.DB.prepare("INSERT INTO fuel_source_health_checks(check_id,source_id,status,checked_at,records_count) VALUES(?1,'carta-ua','online',?2,?3)").bind(crypto.randomUUID(), now, accepted),
+    env.DB.prepare("INSERT INTO fuel_source_health_checks(check_id,source_id,status,checked_at,records_count) VALUES(?1,'carta-ua','online',?2,?3)").bind(crypto.randomUUID(), now, declaredTotal),
   ]);
   return json({ ok: true, importId, received: records.length, accepted, matched, inserted }, 202, request, env);
 }
