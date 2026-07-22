@@ -57,3 +57,16 @@ test("source registry distinguishes connected sources from candidates", () => {
   assert.equal(sources.find((source) => source.id === "live").ageMinutes, 5);
   assert.deepEqual(sourceRegistrySummary(sources), { total: 3, connected: 2, official: 2, realtime: 0 });
 });
+
+
+test("station waypoints snap to rail geometry without hiding the source offset", () => {
+  const result = buildGeometricWaypoints(route, [
+    { id: "near", name: "Near", coordinates: [31, 50.04] },
+    { id: "far", name: "Far", coordinates: [31, 50.2] },
+  ]);
+  assert.equal(result.waypoints.length, 1);
+  assert.deepEqual(result.waypoints[0].coordinates, [31, 50]);
+  assert.deepEqual(result.waypoints[0].sourceCoordinates, [31, 50.04]);
+  assert.equal(result.waypoints[0].geometryMatch, "snapped");
+  assert.ok(result.waypoints[0].offsetKm > 4);
+});

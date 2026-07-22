@@ -72,7 +72,7 @@ export function buildRunIdentity(update, now = new Date()) {
   return { serviceDate, directionId, runId:`uz:${serviceDate}:${update.trainNumber}:${directionId}` };
 }
 
-function buildRailGraph(features) {
+export function buildRailGraph(features) {
   const nodes=new Map(), edges=new Map();
   const addNode=(point)=>{
     const key=pointKey(point);
@@ -100,7 +100,7 @@ function nearestNode(graph, point) {
   return best;
 }
 
-function railPath(graph, origin, destination) {
+export function railPath(graph, origin, destination) {
   const start=nearestNode(graph,origin), finish=nearestNode(graph,destination);
   if(!start||!finish||start.distance>140||finish.distance>140)return null;
   const distances=new Map([[start.key,0]]), previous=new Map(), pending=new Set(graph.nodes.keys());
@@ -118,7 +118,34 @@ function railPath(graph, origin, destination) {
   if(!distances.has(finish.key))return null;
   const keys=[];
   for(let key=finish.key;key;key=previous.get(key)){keys.push(key);if(key===start.key)break;}
-  return { coordinates:keys.reverse().map((key)=>graph.nodes.get(key)), anchorErrorKm:Number((start.distance+finish.distance).toFixed(1)) };
+  return {
+    coordinates:keys.reverse().map((key)=>graph.nodes.get(key)),
+    totalKm:Number(distances.get(finish.key).toFixed(1)),
+    anchorErrorKm:Number((start.distance+finish.distance).toFixed(1)),
+    startAnchorErrorKm:Number(start.distance.toFixed(1)),
+    endAnchorErrorKm:Number(finish.distance.toFixed(1)),
+  };
+}
+
+export function railPathViaAnchor(graph, origin, destination, anchor = null) {
+  const direct=railPath(graph,origin,destination);
+  if(!anchor)return direct;
+  const anchorNode=nearestNode(graph,anchor);
+  if(!anchorNode||anchorNode.distance>12)return direct;
+  const before=railPath(graph,origin,anchor),after=railPath(graph,anchor,destination);
+  if(!before||!after)return direct;
+  const viaKm=before.totalKm+after.totalKm;
+  const maximumKm=direct?Math.max(direct.totalKm*1.3,direct.totalKm+40):Infinity;
+  if(viaKm>maximumKm)return direct;
+  return {
+    coordinates:[...before.coordinates,...after.coordinates.slice(1)],
+    totalKm:Number(viaKm.toFixed(1)),
+    anchorErrorKm:Number((before.startAnchorErrorKm+anchorNode.distance+after.endAnchorErrorKm).toFixed(1)),
+    startAnchorErrorKm:before.startAnchorErrorKm,
+    endAnchorErrorKm:after.endAnchorErrorKm,
+    viaAnchor:true,
+    viaAnchorErrorKm:Number(anchorNode.distance.toFixed(1)),
+  };
 }
 
 function zonedClock(value, now) {
@@ -212,7 +239,7 @@ export function estimatePosition(update,routeResult,now,sourceAgeMinutes,station
     status:freshness.frozen?"stale":"estimated",coordinates:interpolateAlongRoute(measure,measure.totalKm*progress),
     updatedAt:update.updatedAt,sourceUpdatedAt:update.updatedAt,calculatedAt:now.toISOString(),
     confidence:Number(confidence.toFixed(2)),errorKm:Number(errorKm.toFixed(1)),
-    method:"rail-corridor-v5",lastConfirmedAt:update.updatedAt,freshness,
+    method:"rail-corridor-v6",lastConfirmedAt:update.updatedAt,freshness,
     sources:["UZ official public status","UZ forecast arrival","rail corridor graph"],
     confidenceReasons:freshnessReasons({freshness,hasRoute:true,hasForecast:true,anchorErrorKm:routeResult.anchorErrorKm}),
     calculation:{
@@ -351,10 +378,10 @@ export async function loadTransportData(now=new Date()){
   const graph=buildRailGraph(baseRoutes.features),dynamicFeatures=[];
   const objects=(liveData?.updates||[]).map((update,index)=>{
     const origin=stationCoordinates(update.origin,stationLookup),destination=stationCoordinates(update.destination,stationLookup),reported=stationCoordinates(update.reportedStation,stationLookup);
-    const routeResult=origin&&destination?railPath(graph,origin,destination):null;
+    const routeResult=origin&&destination?railPathViaAnchor(graph,origin,destination,reported):null;
     const routeId=`uz-live-route-${index}`;
     if(routeResult)dynamicFeatures.push({
-      type:"Feature",properties:{id:routeId,quality:0.72,source:"rail-corridor-graph"},
+      type:"Feature",properties:{id:routeId,quality:0.76,source:"rail-corridor-graph-v6",viaConfirmedStation:Boolean(routeResult.viaAnchor)},
       geometry:{type:"LineString",coordinates:routeResult.coordinates},
     });
     const regionAnchors=routeResult?.coordinates||(reported||origin||destination?[reported,origin,destination].filter(Boolean):[]);
@@ -376,7 +403,7 @@ export async function loadTransportData(now=new Date()){
     freshness:evaluateFreshness(sourceAgeMinutes),
     freshRuns:objects.filter((object)=>object.position.freshness?.key==="fresh").length,
     frozenRuns:objects.filter((object)=>object.position.freshness?.frozen&&object.position.coordinates).length,
-    learnedSegments:(liveData?.segmentStats||[]).length,modelQuality:liveData?.modelQuality||{evaluations:0,maeMinutes:null,p80Coverage:null},algorithmVersion:"rail-posterior-v3+rail-corridor-v5",snapshotSchema:liveData?.schemaVersion||null,
+    learnedSegments:(liveData?.segmentStats||[]).length,modelQuality:liveData?.modelQuality||{evaluations:0,maeMinutes:null,p80Coverage:null},algorithmVersion:"rail-posterior-v3+rail-corridor-v6",snapshotSchema:liveData?.schemaVersion||null,
   };
   const eventFeed=objects.flatMap((object)=>object.events.map((event)=>({...event,objectId:object.id,trainNumber:object.trainNumber,route:object.route,positionStatus:object.position.status})))
     .sort((a,b)=>Date.parse(b.occurredAt)-Date.parse(a.occurredAt));

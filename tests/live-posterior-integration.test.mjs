@@ -32,7 +32,7 @@ test("forecast-only live run retains the conservative corridor fallback", () => 
     forecastArrival: "13:00",
   }, routeResult, new Date("2026-07-20T10:20:00Z"), 20);
 
-  assert.equal(position.method, "rail-corridor-v5");
+  assert.equal(position.method, "rail-corridor-v6");
   assert.ok(position.errorKm >= 18);
 });
 

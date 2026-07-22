@@ -60,10 +60,17 @@ export function buildGeometricWaypoints(coordinates, stations = [], corridor = n
     const distanceKm = projectDistanceOnRoute(measure, station.coordinates);
     const routePoint = interpolateAlongRoute(measure, distanceKm);
     const offsetKm = haversineKm(routePoint, station.coordinates);
-    return { ...station, distanceKm: Number(distanceKm.toFixed(1)), offsetKm: Number(offsetKm.toFixed(1)) };
-  }).filter((station) => station.offsetKm <= (station.routeToleranceKm || 18))
+    return {
+      ...station,
+      sourceCoordinates: station.coordinates,
+      coordinates: routePoint,
+      distanceKm: Number(distanceKm.toFixed(1)),
+      offsetKm: Number(offsetKm.toFixed(1)),
+      geometryMatch: offsetKm <= 2 ? "exact" : "snapped",
+    };
+  }).filter((station) => station.offsetKm <= (station.routeToleranceKm ?? 8))
     .sort((a, b) => a.distanceKm - b.distanceKm)
-    .filter((station, index, items) => index === 0 || station.distanceKm - items[index - 1].distanceKm >= 18);
+    .filter((station, index, items) => index === 0 || station.distanceKm - items[index - 1].distanceKm >= 8);
 
   if (!corridor) return { waypoints: projected, previous: null, next: null };
   const waypoints = projected.map((station) => ({
