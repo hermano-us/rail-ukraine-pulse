@@ -6,6 +6,24 @@ const OVERPASS = process.env.OVERPASS_URL || "https://overpass-api.de/api/interp
 const DRY_RUN = process.argv.includes("--dry-run");
 const QUERY = `[out:json][timeout:180];area[\"ISO3166-1\"=\"UA\"][admin_level=2]->.ua;(nwr[\"amenity\"=\"fuel\"](area.ua););out center tags;`;
 const BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz";
+const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+async function fetchWithRetry(url, options, attempts = 5) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok || (response.status < 500 && response.status !== 429)) return response;
+      lastError = new Error(`HTTP ${response.status}`);
+      await response.body?.cancel();
+    } catch (error) {
+      lastError = error;
+    }
+    if (attempt < attempts) await sleep(Math.min(12_000, 750 * 2 ** (attempt - 1)));
+  }
+  throw lastError;
+}
+
 
 function geohash(lat, lng, length) {
   let minLat = -90, maxLat = 90, minLng = -180, maxLng = 180, even = true, bits = 0, value = 0, output = "";
@@ -51,7 +69,7 @@ function normalize(element) {
 
 async function main() {
   console.log(`Requesting real OSM fuel catalog from ${OVERPASS}`);
-  const response = await fetch(OVERPASS, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "RailUkrainePulse/1.0 (catalog import)" }, body: new URLSearchParams({ data: QUERY }) });
+  const response = await fetchWithRetry(OVERPASS, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "RailUkrainePulse/1.0 (catalog import)" }, body: new URLSearchParams({ data: QUERY }) });
   if (!response.ok) throw new Error(`Overpass HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`);
   const payload = await response.json(); const stations = (payload.elements || []).map(normalize).filter(Boolean);
   if (!stations.length) throw new Error("OSM returned no fuel stations; refusing to publish an empty catalog");
@@ -61,7 +79,7 @@ async function main() {
   let accepted = 0;
   for (let offset = 0; offset < stations.length; offset += 500) {
     const chunk = stations.slice(offset, offset + 500);
-    const ingest = await fetch(`${API}/api/fuel/v1/import`, { method: "POST", headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" }, body: JSON.stringify({ sourceId: "openstreetmap", generatedAt: new Date().toISOString(), stations: chunk }) });
+    const ingest = await fetchWithRetry(`${API}/api/fuel/v1/import`, { method: "POST", headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" }, body: JSON.stringify({ sourceId: "openstreetmap", generatedAt: new Date().toISOString(), stations: chunk }) });
     const result = await ingest.json(); if (!ingest.ok) throw new Error(`Fuel API HTTP ${ingest.status}: ${JSON.stringify(result)}`);
     accepted += Number(result.accepted || 0); console.log(`Imported ${Math.min(offset + chunk.length, stations.length)}/${stations.length}`);
   }

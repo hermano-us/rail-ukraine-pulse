@@ -16,4 +16,5 @@ test("fuel map is a separate real-data product with fast rail switch", async () 
 test("OSM importer refuses empty catalogs and has no demo fallback", async () => {
   const importer = await readFile(new URL("../scripts/import-osm-fuel.mjs", import.meta.url), "utf8");
   assert.match(importer, /amenity.*fuel/); assert.match(importer, /refusing to publish an empty catalog/); assert.doesNotMatch(importer, /fallbackStations|demoData/i);
+  assert.match(importer, /fetchWithRetry/);
 });
