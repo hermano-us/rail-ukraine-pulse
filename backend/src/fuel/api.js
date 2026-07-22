@@ -27,8 +27,9 @@ async function listStations(request, env, url) {
   if (brand) { clauses.push(`LOWER(COALESCE(s.brand,'') || ' ' || COALESCE(s.canonical_name,'') || ' ' || COALESCE(s.city,'') || ' ' || COALESCE(s.address,'')) LIKE ?${binds.length + 1}`); binds.push(`%${brand.toLowerCase()}%`); }
   if (fuel) { clauses.push(`COALESCE(c.fuel_json,'{}') LIKE ?${binds.length + 1}`); binds.push(`%\"${fuel}\"%`); }
   const where = clauses.join(" AND ");
-  if (zoom < 8) {
-    const cell = zoom <= 5 ? 1 : zoom === 6 ? 0.5 : 0.22;
+  if (zoom < 11) {
+    const cellByZoom = { 4: 4, 5: 3, 6: 2, 7: 1, 8: 0.5, 9: 0.25, 10: 0.125 };
+    const cell = cellByZoom[Math.round(zoom)] || 0.075;
     const result = await env.DB.prepare(`SELECT AVG(s.latitude) lat,AVG(s.longitude) lng,COUNT(*) count FROM fuel_stations s LEFT JOIN fuel_current_state c ON c.station_id=s.station_id WHERE ${where} GROUP BY CAST(s.latitude/${cell} AS INTEGER),CAST(s.longitude/${cell} AS INTEGER) LIMIT 1000`).bind(...binds).all();
     return json({ mode: "clusters", clusters: rows(result).map((item) => ({ lat: item.lat, lng: item.lng, count: item.count })), bbox: [minLng, minLat, maxLng, maxLat] }, 200, request, env, "public, max-age=60");
   }

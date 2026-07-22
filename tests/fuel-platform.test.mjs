@@ -18,3 +18,14 @@ test("OSM importer refuses empty catalogs and has no demo fallback", async () =>
   assert.match(importer, /amenity.*fuel/); assert.match(importer, /refusing to publish an empty catalog/); assert.doesNotMatch(importer, /fallbackStations|demoData/i);
   assert.match(importer, /fetchWithRetry/);
 });
+
+test("fuel map keeps dense catalogs clustered and uses the rail dark treatment", async () => {
+  const api = await readFile(new URL("../backend/src/fuel/api.js", import.meta.url), "utf8");
+  const app = await readFile(new URL("../fuel/js/app.js", import.meta.url), "utf8");
+  const css = await readFile(new URL("../fuel/css/fuel.css", import.meta.url), "utf8");
+  const importer = await readFile(new URL("../scripts/import-osm-fuel.mjs", import.meta.url), "utf8");
+  assert.match(api, /zoom < 11/); assert.match(api, /cellByZoom/);
+  assert.match(app, /Math\.min\(11/); assert.match(app, /station-hero/);
+  assert.match(css, /leaflet-tile-pane.*brightness\(\.57\)/);
+  assert.match(importer, /wikimedia_commons/); assert.match(importer, /upload\.wikimedia\.org/);
+});

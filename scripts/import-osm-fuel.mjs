@@ -49,6 +49,20 @@ function address(tags) {
   return parts.join(", ") || null;
 }
 
+function mediaFromTags(tags) {
+  const commons = String(tags.wikimedia_commons || "");
+  let imageUrl = null;
+  if (commons.startsWith("File:")) {
+    imageUrl = `https://commons.wikimedia.org/wiki/Special:Redirect/file/${encodeURIComponent(commons.slice(5))}`;
+  } else {
+    try {
+      const candidate = new URL(tags.image || "");
+      if (candidate.protocol === "https:" && ["upload.wikimedia.org", "commons.wikimedia.org"].includes(candidate.hostname)) imageUrl = candidate.href;
+    } catch {}
+  }
+  return { imageUrl, commonsUrl: commons ? `https://commons.wikimedia.org/wiki/${encodeURIComponent(commons.replaceAll(" ", "_"))}` : null, mapillaryUrl: tags.mapillary ? `https://www.mapillary.com/app/?pKey=${encodeURIComponent(tags.mapillary)}` : null };
+}
+
 function normalize(element) {
   const lat = Number(element.lat ?? element.center?.lat); const lng = Number(element.lon ?? element.center?.lon); const tags = element.tags || {};
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
@@ -62,7 +76,7 @@ function normalize(element) {
     region: tags["addr:region"] || null, city: tags["addr:city"] || tags["addr:place"] || null, address: address(tags),
     openingHours: tags.opening_hours || null, phone: tags.phone || tags["contact:phone"] || null, website: tags.website || tags["contact:website"] || null,
     paymentCards: Object.keys(tags).some((key) => key.startsWith("payment:cards") && tags[key] === "yes"),
-    services: { shop: tags.shop || null, carWash: tags.car_wash === "yes", toilets: tags.toilets === "yes", fuel: fuelTags },
+    services: { shop: tags.shop || null, carWash: tags.car_wash === "yes", toilets: tags.toilets === "yes", wifi: tags.internet_access === "wlan" || tags.internet_access === "yes", cafe: tags.cafe === "yes", restaurant: tags.restaurant === "yes", atm: tags.atm === "yes", compressedAir: tags.compressed_air === "yes", parking: tags.parking || null, wheelchair: tags.wheelchair || null, description: tags.description || null, fuel: fuelTags, media: mediaFromTags(tags) },
     catalogConfidence: Math.min(0.92, 0.58 + completeness * 0.055), raw: { osmType: element.type, osmId: element.id, tags },
   };
 }
