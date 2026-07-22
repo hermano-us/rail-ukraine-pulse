@@ -3,6 +3,9 @@ import { haversineKm } from "./domain.js";
 const rows = (result) => result?.results || [];
 const safeParse = (value, fallback = {}) => { try { return JSON.parse(value || ""); } catch { return fallback; } };
 const normalize = (value) => String(value || "").normalize("NFKD").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+const BRAND_ALIASES = new Map([["кло","klo"],["klo","klo"],["окко","okko"],["okko","okko"],["укрнафта","ukrnafta"],["ukrnafta","ukrnafta"],["брсм","brsm"],["brsm","brsm"],["авиас","avias"],["авіас","avias"],["avias","avias"],["амик","amic"],["амік","amic"],["amic","amic"]]);
+const GENERIC_BRANDS = new Set(["","азс","агзс","заправка","автозаправка","gas station","fuel","petrol station"]);
+const canonicalBrand = (value) => { const brand = normalize(value).replace(/^(?:азс|агзс)\s+/u, ""); return GENERIC_BRANDS.has(brand) ? "" : BRAND_ALIASES.get(brand) || brand; };
 const tokens = (value) => new Set(normalize(value).split(/\s+/).filter((item) => item.length > 2));
 const overlap = (left, right) => {
   const expected = tokens(left); const actual = tokens(right);
@@ -12,13 +15,14 @@ const overlap = (left, right) => {
 export function partnerMatchScore(record, candidate) {
   const distanceKm = haversineKm(Number(record.lat), Number(record.lng), Number(candidate.latitude), Number(candidate.longitude));
   const distanceScore = distanceKm <= 0.03 ? 0.64 : distanceKm <= 0.08 ? 0.55 : distanceKm <= 0.15 ? 0.42 : distanceKm <= 0.3 ? 0.25 : 0;
-  const expectedBrand = normalize(record.brand);
-  const actualBrand = normalize(candidate.brand || candidate.operator_name || candidate.canonical_name);
-  const brandScore = expectedBrand && actualBrand && (expectedBrand === actualBrand || expectedBrand.includes(actualBrand) || actualBrand.includes(expectedBrand)) ? 0.26 : 0;
+  const expectedBrand = canonicalBrand(record.brand);
+  const actualBrand = canonicalBrand(candidate.brand || candidate.operator_name || candidate.canonical_name);
+  const brandScore = expectedBrand && actualBrand && expectedBrand === actualBrand ? 0.26 : 0;
   const brandConflict = expectedBrand && actualBrand && !brandScore ? 0.38 : 0;
+  const genericProximityBonus = distanceKm <= 0.03 && (!expectedBrand || !actualBrand) ? 0.12 : 0;
   const nameScore = Math.min(0.12, overlap(record.name, [candidate.canonical_name, candidate.brand, candidate.operator_name].filter(Boolean).join(" ")) * 0.12);
   const addressScore = Math.min(0.14, overlap(record.address, candidate.address) * 0.14);
-  return { distanceKm, score: Math.max(0, Math.min(1, distanceScore + brandScore + nameScore + addressScore - brandConflict)) };
+  return { distanceKm, score: Math.max(0, Math.min(1, distanceScore + brandScore + genericProximityBonus + nameScore + addressScore - brandConflict)), expectedBrand, actualBrand };
 }
 
 function mergedServices(current, record) {
@@ -44,13 +48,17 @@ export async function importPartnerStations(request, env, authorized, json) {
     const lat = Number(record.lat); const lng = Number(record.lng); const externalId = String(record.externalId || "");
     if (!externalId || !record.stationId || lat < 44 || lat > 53 || lng < 21 || lng > 41) continue;
     const delta = 0.0045;
-    const candidates = rows(await env.DB.prepare("SELECT station_id,canonical_name,brand,operator_name,latitude,longitude,address,services_json FROM fuel_stations WHERE lifecycle_status='active' AND latitude BETWEEN ?1 AND ?2 AND longitude BETWEEN ?3 AND ?4 LIMIT 30").bind(lat - delta, lat + delta, lng - delta, lng + delta).all());
-    const ranked = candidates.map((candidate) => ({ candidate, ...partnerMatchScore(record, candidate) })).sort((a, b) => b.score - a.score);
+    const candidates = rows(await env.DB.prepare("SELECT station_id,canonical_name,brand,operator_name,latitude,longitude,address,services_json,EXISTS(SELECT 1 FROM fuel_station_source_records r WHERE r.station_id=fuel_stations.station_id AND r.source_id='openstreetmap') has_osm FROM fuel_stations WHERE lifecycle_status='active' AND latitude BETWEEN ?1 AND ?2 AND longitude BETWEEN ?3 AND ?4 LIMIT 30").bind(lat - delta, lat + delta, lng - delta, lng + delta).all());
+    const ranked = candidates.filter((candidate) => candidate.station_id !== String(record.stationId)).map((candidate) => ({ candidate, ...partnerMatchScore(record, candidate) })).sort((a, b) => b.score - a.score || Number(b.candidate.has_osm) - Number(a.candidate.has_osm));
     const best = ranked[0];
     const isMatch = Boolean(best && best.score >= 0.7 && best.distanceKm <= 0.18);
     const stationId = isMatch ? best.candidate.station_id : String(record.stationId);
     const services = mergedServices(isMatch ? best.candidate.services_json : null, record);
     if (isMatch) {
+      if (stationId !== String(record.stationId)) {
+        statements.push(env.DB.prepare("INSERT OR IGNORE INTO fuel_station_merge_history(merge_id,source_station_id,target_station_id,action,reason,actor_id,reversible_snapshot_json,occurred_at) SELECT ?1,?2,?3,'merge','automatic partner deduplication','carta-importer-v2',?4,?5 WHERE EXISTS(SELECT 1 FROM fuel_stations WHERE station_id=?2 AND lifecycle_status='active')").bind(`carta-ua:${externalId}:auto-merge`, String(record.stationId), stationId, JSON.stringify({ sourceId: "carta-ua", externalId }), now));
+        statements.push(env.DB.prepare("UPDATE fuel_stations SET lifecycle_status='merged',updated_at=?1 WHERE station_id=?2 AND lifecycle_status='active'").bind(now, String(record.stationId)));
+      }
       statements.push(env.DB.prepare("UPDATE fuel_stations SET canonical_name=COALESCE(canonical_name,?1),brand=COALESCE(brand,?2),city=COALESCE(city,?3),address=COALESCE(address,?4),phone=COALESCE(phone,?5),services_json=?6,catalog_confidence=MAX(catalog_confidence,0.88),updated_at=?7 WHERE station_id=?8").bind(record.name || null, record.brand || null, record.city || null, record.address || null, record.phone || null, JSON.stringify(services), now, stationId));
       matched += 1;
     } else {

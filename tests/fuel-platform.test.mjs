@@ -9,10 +9,17 @@ test("fuel map is a separate real-data product with fast rail switch", async () 
   const client = await readFile(new URL("../fuel/js/api-client.js", import.meta.url), "utf8");
   const build = await readFile(new URL("../scripts/build-web.mjs", import.meta.url), "utf8");
   assert.match(html, /href="\.\.\/"/); assert.match(rail, /href="fuel\/"/); assert.match(build, /"fuel"/);
-  assert.match(app, /api\/fuel\/v1\/stations/); assert.doesNotMatch(app, /demo|mockStation|sampleStation/i);
+  assert.match(app, /api\/fuel\/v1\/stations/); assert.match(app, /api\/fuel\/v1\/search/); assert.match(app, /searchCatalog/); assert.doesNotMatch(app, /demo|mockStation|sampleStation/i);
   assert.match(client, /fetch\("\.\.\/data\/runtime-config\.json"/);
 });
 
+test("fuel search is global and handles Russian and Ukrainian city names", async () => {
+  const api = await readFile(new URL("../backend/src/fuel/api.js", import.meta.url), "utf8");
+  assert.match(api, /CITY_SEARCH_ALIASES/);
+  assert.match(api, /Харьков/);
+  assert.match(api, /Харків/);
+  assert.match(api, /path === "\/api\/fuel\/v1\/search"/);
+});
 test("OSM importer refuses empty catalogs and has no demo fallback", async () => {
   const importer = await readFile(new URL("../scripts/import-osm-fuel.mjs", import.meta.url), "utf8");
   assert.match(importer, /amenity.*fuel/); assert.match(importer, /refusing to publish an empty catalog/); assert.doesNotMatch(importer, /fallbackStations|demoData/i);

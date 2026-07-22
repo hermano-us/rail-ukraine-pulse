@@ -1,5 +1,6 @@
 import { haversineKm, parseBbox } from "./domain.js";
 import { importPartnerStations } from "./partner.js";
+import { ingestIncidentSignals, listIncidentSignals, reviewIncidentSignal } from "./incidents.js";
 
 function cors(request, env) {
   const origin = request.headers.get("Origin");
@@ -12,6 +13,28 @@ function json(value, status, request, env, cache = "no-store") {
 const rows = (result) => result?.results || [];
 const safeParse = (value, fallback = {}) => { try { return JSON.parse(value || ""); } catch { return fallback; } };
 const publicStation = (row) => ({ id: row.station_id, name: row.canonical_name || row.brand || "АЗС", brand: row.brand, operator: row.operator_name, lat: row.latitude, lng: row.longitude, region: row.region_code, city: row.city, address: row.address, openingHours: row.opening_hours, phone: row.phone, website: row.website, paymentCards: Boolean(row.payment_cards), services: safeParse(row.services_json), catalogConfidence: row.catalog_confidence, status: row.public_status || "unknown", statusConfidence: row.status_confidence || 0, statusVerifiedAt: row.status_verified_at, statusExpiresAt: row.status_expires_at, conflictState: row.conflict_state || "none", fuels: safeParse(row.fuel_json), prices: safeParse(row.prices_json), resolvedAt: row.resolved_at, accessibility: row.accessibility_source_id ? { sourceId: row.accessibility_source_id, sourceUrl: row.accessibility_source_url, rating: row.accessibility_rating, assessment: row.accessibility_assessment, assessedAt: row.accessibility_assessed_at, confidence: row.accessibility_confidence, summary: safeParse(row.accessibility_summary_json), photoCount: Number(row.accessibility_photo_count || 0), attribution: row.accessibility_attribution } : null });
+const CITY_SEARCH_ALIASES = new Map([
+  ["харьков", ["Харьков", "Харків"]], ["харків", ["Харків", "Харьков"]],
+  ["киев", ["Киев", "Київ"]], ["київ", ["Київ", "Киев"]],
+  ["львов", ["Львов", "Львів"]], ["львів", ["Львів", "Львов"]],
+  ["одесса", ["Одесса", "Одеса"]], ["одеса", ["Одеса", "Одесса"]],
+  ["днепр", ["Днепр", "Дніпро"]], ["дніпро", ["Дніпро", "Днепр"]],
+]);
+function searchVariants(value) {
+  const term = String(value || "").normalize("NFKC").trim();
+  if (term.length < 2) return [];
+  const lower = term.toLocaleLowerCase("uk-UA");
+  const title = lower.charAt(0).toLocaleUpperCase("uk-UA") + lower.slice(1);
+  return [...new Set([term, lower, title, term.toLocaleUpperCase("uk-UA"), ...(CITY_SEARCH_ALIASES.get(lower) || [])])];
+}
+function appendTextSearch(clauses, binds, value) {
+  const variants = searchVariants(value);
+  if (!variants.length) return false;
+  const expression = "COALESCE(s.brand,'') || ' ' || COALESCE(s.canonical_name,'') || ' ' || COALESCE(s.operator_name,'') || ' ' || COALESCE(s.city,'') || ' ' || COALESCE(s.address,'')";
+  const parts = variants.map((variant) => { binds.push(`%${variant}%`); return `${expression} LIKE ?${binds.length}`; });
+  clauses.push(`(${parts.join(" OR ")})`);
+  return true;
+}
 
 async function health(request, env) {
   const [stations, latest] = await Promise.all([env.DB.prepare("SELECT COUNT(*) count FROM fuel_stations WHERE lifecycle_status='active'").first(), env.DB.prepare("SELECT source_id,status,finished_at,received_count,error FROM fuel_import_runs ORDER BY started_at DESC LIMIT 1").first()]);
@@ -25,7 +48,7 @@ async function listStations(request, env, url) {
   const clauses = ["s.lifecycle_status='active'", "s.longitude BETWEEN ?1 AND ?3", "s.latitude BETWEEN ?2 AND ?4"];
   const binds = [minLng, minLat, maxLng, maxLat];
   if (status && status !== "all") { clauses.push(`COALESCE(c.public_status,'unknown')=?${binds.length + 1}`); binds.push(status); }
-  if (brand) { clauses.push(`LOWER(COALESCE(s.brand,'') || ' ' || COALESCE(s.canonical_name,'') || ' ' || COALESCE(s.city,'') || ' ' || COALESCE(s.address,'')) LIKE ?${binds.length + 1}`); binds.push(`%${brand.toLowerCase()}%`); }
+  if (brand) appendTextSearch(clauses, binds, brand);
   if (fuel) { clauses.push(`COALESCE(c.fuel_json,'{}') LIKE ?${binds.length + 1}`); binds.push(`%\"${fuel}\"%`); }
   const where = clauses.join(" AND ");
   if (zoom < 11) {
@@ -46,6 +69,15 @@ async function stationDetail(request, env, stationId) {
   return json({ station: publicStation(station), sources: rows(sourceResult).map((item) => ({ id: item.source_id, name: item.source_name, url: item.external_url, lastSeenAt: item.last_seen_at, license: item.license_type, confidence: item.match_score })) }, 200, request, env, "public, max-age=45");
 }
 
+async function searchStations(request, env, url) {
+  const query = url.searchParams.get("q");
+  const clauses = ["s.lifecycle_status='active'"];
+  const binds = [];
+  if (!appendTextSearch(clauses, binds, query)) return json({ stations: [], query: String(query || "") }, 200, request, env, "public, max-age=30");
+  const limit = Math.max(1, Math.min(100, Number(url.searchParams.get("limit")) || 50));
+  const result = await env.DB.prepare(`SELECT s.*,c.public_status,c.status_confidence,c.status_verified_at,c.status_expires_at,c.conflict_state,c.fuel_json,c.prices_json,c.resolved_at FROM fuel_stations s LEFT JOIN fuel_current_state c ON c.station_id=s.station_id WHERE ${clauses.join(" AND ")} ORDER BY COALESCE(s.city,''),COALESCE(s.brand,s.canonical_name,'') LIMIT ${limit}`).bind(...binds).all();
+  return json({ stations: rows(result).map(publicStation), query: String(query || ""), total: rows(result).length }, 200, request, env, "public, max-age=30");
+}
 async function nearby(request, env, url) {
   const lat = Number(url.searchParams.get("lat")); const lng = Number(url.searchParams.get("lng"));
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return json({ error: "invalid_coordinates" }, 400, request, env);
@@ -123,11 +155,15 @@ export async function handleFuelRequest(request, env, auth) {
   const url = new URL(request.url); const path = url.pathname;
   if (request.method === "GET" && path === "/api/fuel/v1/health") return health(request, env);
   if (request.method === "GET" && path === "/api/fuel/v1/stations") return listStations(request, env, url);
+  if (request.method === "GET" && path === "/api/fuel/v1/search") return searchStations(request, env, url);
   if (request.method === "GET" && path === "/api/fuel/v1/nearby") return nearby(request, env, url);
   if (request.method === "GET" && path.startsWith("/api/fuel/v1/stations/")) return stationDetail(request, env, decodeURIComponent(path.slice(22)));
   if (request.method === "POST" && path === "/api/fuel/v1/import") return importStations(request, env, auth.authorized);
   if (request.method === "POST" && path === "/api/fuel/v1/partner/import") return importPartnerStations(request, env, auth.authorized, json);
   if (request.method === "POST" && path === "/api/fuel/v1/accessibility/import") return importAccessibility(request, env, auth.authorized);
+  if (request.method === "POST" && path === "/api/fuel/v1/incidents/import") return ingestIncidentSignals(request, env, auth.authorized, json);
+  if (request.method === "GET" && path === "/api/fuel/admin/incidents") return listIncidentSignals(request, env, auth.authorizedAdmin, json, url);
+  if (request.method === "POST" && path === "/api/fuel/admin/incidents/review") return reviewIncidentSignal(request, env, auth.authorizedAdmin, json);
   if (request.method === "GET" && path === "/api/fuel/admin/overview") {
     if (!auth.authorizedAdmin()) return json({ error: "unauthorized" }, 401, request, env);
     const result = await env.DB.prepare("SELECT status,COUNT(*) count FROM fuel_moderation_queue GROUP BY status").all();

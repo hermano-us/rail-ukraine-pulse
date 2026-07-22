@@ -21,11 +21,14 @@ const nodes = {
   intelligenceMetrics: document.querySelector("#intelligence-metrics"),
   quarantineRows: document.querySelector("#quarantine-rows"),
   cycleChart: document.querySelector("#cycle-chart"),
+  fuelIncidentRows: document.querySelector("#fuel-incident-rows"),
+  fuelIncidentCount: document.querySelector("#fuel-incident-count"),
 };
 
 let token = sessionStorage.getItem("rail-ops-token") || "";
 let endpoint = "/api/admin/overview";
 let intelligenceEndpoint = "/api/admin/intelligence";
+let incidentEndpoint = "/api/fuel/admin/incidents";
 let refreshTimer;
 let requestInFlight = false;
 let sourceConfigById=new Map();
@@ -167,6 +170,12 @@ function renderIntelligence(data={}) {
   nodes.intelligenceMetrics?.replaceChildren(metric("Циклы 24ч",cycles.length,"История collector"),metric("MAE модели",quality.maeMinutes==null?"—":`${quality.maeMinutes} мин`,`${quality.evaluations||0} проверок`,quality.maeMinutes>20?"warning":"ok"),metric("Покрытие P80",quality.p80Coverage==null?"—":`${quality.p80Coverage}%`,"Доля фактов внутри коридора",quality.p80Coverage!=null&&quality.p80Coverage<65?"warning":"ok"),metric("Источники 24ч",health.length,unstable?`${unstable} нестабильных`:"Стабильны",unstable?"warning":"ok"),metric("Карантин",quarantine.filter(x=>x.status==="open").length,"Требуют решения",quarantine.some(x=>x.status==="open")?"warning":"ok"),metric("Без полного маршрута",incomplete.length,"Нужна геометрия"));
   nodes.quarantineRows?.replaceChildren(...quarantine.slice(0,50).map(item=>{const row=document.createElement("tr");appendCell(row,formatDate(item.observed_at));appendCell(row,item.source_id);appendCell(row,item.train_number);const reason=appendCell(row,item.reasons_json);reason.title=item.raw_update_json||"";appendCell(row,item.status,`status-pill ${item.status}`);const action=document.createElement("td");if(item.status==="open"){const button=document.createElement("button");button.className="secondary";button.textContent="Review";button.addEventListener("click",async()=>{const station=prompt("Исправленная станция (оставьте пустой, чтобы только закрыть):","");if(station)await adminAction({action:"correct-station",trainNumber:item.train_number,station,reason:"quarantine review"});await adminAction({action:"resolve-quarantine",id:item.quarantine_id,resolution:station?"station-corrected":"reviewed-and-dismissed"});await refresh();});action.append(button);}row.append(action);return row;}));
 }
+function renderFuelIncidents(data={}) {
+  const signals=data.signals||[]; nodes.fuelIncidentCount.textContent=`${signals.length} требуют проверки`; nodes.fuelIncidentRows.replaceChildren();
+  if(!signals.length){const row=document.createElement("tr"),cell=appendCell(row,"Новых сигналов нет","empty-row");cell.colSpan=6;nodes.fuelIncidentRows.append(row);return;}
+  for(const signal of signals){const row=document.createElement("tr");appendCell(row,formatDate(signal.published_at||signal.detected_at));appendCell(row,signal.incident_type,`status-pill ${signal.incident_type}`);appendCell(row,signal.station_name||signal.location_text||"Требуется локализация");const title=appendCell(row,signal.title);title.title=signal.snippet||signal.source_url;appendCell(row,`${Math.round(Number(signal.confidence||0)*100)}%`);const actions=document.createElement("td");if(signal.matched_station_id){const approve=document.createElement("button");approve.className="secondary";approve.textContent="Подтвердить";approve.addEventListener("click",()=>reviewFuelIncident(signal,"approve"));actions.append(approve)}const reject=document.createElement("button");reject.className="secondary";reject.textContent="Отклонить";reject.addEventListener("click",()=>reviewFuelIncident(signal,"reject"));actions.append(reject);row.append(actions);nodes.fuelIncidentRows.append(row);}
+}
+async function reviewFuelIncident(signal,decision){const status=decision==="approve"?(signal.incident_type==="possible_reopening"?"operating":"damaged_reported"):undefined;const response=await fetch(`${incidentEndpoint}/review`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({signalId:signal.signal_id,decision,stationId:signal.matched_station_id,status})});if(!response.ok)throw new Error(`Fuel review HTTP ${response.status}`);await refresh();}
 async function adminAction(body){const response=await fetch(intelligenceEndpoint,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify(body)});if(!response.ok)throw new Error(`Action HTTP ${response.status}`);return response.json();}
 async function loadConfig() {
   try {
@@ -176,6 +185,7 @@ async function loadConfig() {
       const base = config.apiBase.endsWith("/") ? config.apiBase.slice(0, -1) : config.apiBase;
       endpoint = new URL("/api/admin/overview", `${base}/`).toString();
       intelligenceEndpoint = new URL("/api/admin/intelligence", `${base}/`).toString();
+      incidentEndpoint = new URL("/api/fuel/admin/incidents", `${base}/`).toString();
     }
   } catch {}
 }
@@ -194,6 +204,7 @@ async function refresh() {
     if (!response.ok) throw new Error(`Backend ответил HTTP ${response.status}`);
     render(await response.json());
     const intelligence=await fetch(intelligenceEndpoint,{cache:"no-store",headers:{Authorization:`Bearer ${token}`}});if(intelligence.ok)renderIntelligence(await intelligence.json());
+    const incidents=await fetch(incidentEndpoint,{cache:"no-store",headers:{Authorization:`Bearer ${token}`}});if(incidents.ok)renderFuelIncidents(await incidents.json());
     nodes.loginPanel.hidden = true;
     nodes.dashboard.hidden = false;
     nodes.error.textContent = "";
