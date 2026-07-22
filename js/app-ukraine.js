@@ -1,5 +1,5 @@
-import { loadTransportData } from "./data-store-ukraine.js?v=20260720-event-backend";
-import { loadRuntimeConfig, subscribeToLiveUpdates } from "./live-data-client.js";
+import { buildHistoricalPosition, loadTransportData } from "./data-store-ukraine.js?v=20260722-server-history";
+import { loadRunHistory, loadRuntimeConfig, subscribeToLiveUpdates } from "./live-data-client.js";
 import { MapView } from "./map-view-ukraine.js";
 import { POSITION_STATUSES } from "./positioning.js";
 import { OPERATION_COLORS, OPERATION_LABELS, TRANSPORT_LABELS, TYPE_LABELS, escapeHtml, formatDateTime, formatRelative } from "./formatters-ukraine.js";
@@ -11,9 +11,11 @@ const LAYOUT_KEY="rail-ukraine-pulse:workspace-layout:v1";
 const state={
   data:null,transport:"all",favorites:readFavorites(),statuses:new Set(Object.keys(POSITION_STATUSES)),
   operations:new Set(Object.keys(OPERATION_LABELS)),regions:new Set(),minConfidence:0,
-  query:"",quick:"all",sort:"delay",selected:null,followedId:null,
+  query:"",quick:"all",sort:"delay",registryScope:"all",alertsEnabled:localStorage.getItem("rail-alerts")==="on",selected:null,followedId:null,
 };
 const $=(selector)=>document.querySelector(selector);
+let playbackTimer=null;
+function stopPlayback(){if(playbackTimer)clearInterval(playbackTimer);playbackTimer=null;}
 const elements={
   sidebar:$("#sidebar"),detail:$("#detail-panel"),detailContent:$("#detail-content"),
   statusFilters:$("#status-filters"),operationFilters:$("#operation-filters"),regionFilters:$("#region-filters"),
@@ -147,6 +149,7 @@ function renderLiveFeed(){
 function qualityClass(value){return value>=.72?"high":value>=.5?"medium":"low";}
 
 function renderFleet(objects){
+  objects=state.registryScope==="mapped"?objects.filter(object=>object.position.coordinates):objects;
   const sorted=sortedObjects(objects);
   elements.fleetCount.textContent=`${sorted.length} рейсов`;
   $("#fleet-source-age").textContent=`снимок ${formatRelative(state.data.generatedAt)}`;
@@ -247,6 +250,7 @@ function detailTemplate(object){
   const forecast=object.forecast?.arrivalAt?formatDateTime(object.forecast.arrivalAt):"Не опубликован";
   const quality=Math.round(object.quality*100);
   const corridor=object.corridor,previousWaypoint=object.journey?.previousWaypoint,nextWaypoint=object.journey?.nextWaypoint;
+  const historyCount=(object.history||[]).filter(item=>item.coordinates).length;
   return `
     <p class="detail-focus-note">РЕЖИМ ФОКУСА · НА КАРТЕ ТОЛЬКО ЭТОТ РЕЙС, ЕГО МАРШРУТ И СТАНЦИИ</p>
     <p class="detail-kicker">${TRANSPORT_LABELS[object.transport]} · ${TYPE_LABELS[object.type]||object.type}</p>
@@ -294,8 +298,8 @@ function detailTemplate(object){
     ${eventLedgerTemplate(object.events)}
     <h3 class="detail-section-title">Цепочка доказательств</h3>
     ${evidenceTemplate(object.evidence)}
-    <h3 class="detail-section-title">История в этом браузере</h3>
-    <div class="timeline">${historyTemplate(object)}</div><label class="history-scrubber">Срез времени: <output id="history-offset">сейчас</output><input id="history-range" type="range" min="0" max="60" step="15" value="0"></label>
+    <h3 class="detail-section-title">История движения</h3>
+    <div class="timeline">${historyTemplate(object)}</div><div class="history-scrubber"><header><span>${object.historySource==="server"?"Серверная временная шкала":"Локальная временная шкала"}</span><output id="history-offset">сейчас</output></header><div class="playback-controls"><button type="button" id="history-play" aria-label="Воспроизвести историю" ${historyCount<2?"disabled":""}>▶</button><input id="history-range" type="range" min="0" max="${historyCount}" step="1" value="${historyCount}" aria-label="Исторический снимок"></div></div>
     <button class="detail-action" id="history-button">Показать накопленную историю на карте</button>
     <button class="detail-action follow-button ${state.followedId===object.id?"active":""}" id="follow-button">${state.followedId===object.id?"Отменить слежение":"Следить за рейсом"}</button>
     <button class="detail-action" id="favorite-button">${state.favorites.has(object.runId)?"Удалить из избранного":"Добавить в избранное"}</button>
@@ -304,10 +308,19 @@ function detailTemplate(object){
 }
 
 function selectObject(object){
+  stopPlayback();
   state.selected=object;const url=new URL(location.href);url.searchParams.set("train",object.runId);history.replaceState(null,"",url);render();mapView.focusObject(object);elements.detailContent.innerHTML=detailTemplate(object);
   elements.detail.scrollTop=0;elements.detail.classList.add("open");elements.detail.setAttribute("aria-hidden","false");
   renderFleet(filteredObjects());
-  elements.detailContent.querySelector("#history-range")?.addEventListener("input",event=>{const minutes=Number(event.target.value);elements.detailContent.querySelector("#history-offset").textContent=minutes?`${minutes} мин назад`:"сейчас";if(minutes&&!mapView.showHistoryAt(object,minutes))showToast("Для этого среза история ещё не накоплена");if(!minutes)mapView.clearHistory();});  elements.detailContent.querySelector("#history-button")?.addEventListener("click",()=>showToast(mapView.toggleHistory(object)?"История показана":"Нужно минимум два сохранённых снимка"));
+  const historyItems=(object.history||[]).filter(item=>item.coordinates).sort((a,b)=>Date.parse(a.timestamp)-Date.parse(b.timestamp));
+  const historyRange=elements.detailContent.querySelector("#history-range"),historyOutput=elements.detailContent.querySelector("#history-offset"),playButton=elements.detailContent.querySelector("#history-play");
+  const showHistoryIndex=()=>{const index=Number(historyRange.value);if(index>=historyItems.length){mapView.clearHistory();historyOutput.textContent="сейчас";return;}const target=mapView.showHistoryPoint(object,index);historyOutput.textContent=target?formatDateTime(target.timestamp):"нет снимка";};
+  historyRange?.addEventListener("input",showHistoryIndex);
+  playButton?.addEventListener("click",()=>{
+    if(playbackTimer){stopPlayback();playButton.textContent="▶";return;}if(Number(historyRange.value)>=historyItems.length)historyRange.value="0";
+    playButton.textContent="Ⅱ";showHistoryIndex();playbackTimer=setInterval(()=>{const next=Number(historyRange.value)+1;historyRange.value=String(next);showHistoryIndex();if(next>=historyItems.length){stopPlayback();playButton.textContent="▶";}},850);
+  });
+  elements.detailContent.querySelector("#history-button")?.addEventListener("click",()=>showToast(mapView.toggleHistory(object)?"История показана":"Нужно минимум два сохранённых снимка"));
   elements.detailContent.querySelector("#favorite-button")?.addEventListener("click",(event)=>{
     state.favorites.has(object.runId)?state.favorites.delete(object.runId):state.favorites.add(object.runId);
     localStorage.setItem(FAVORITES_KEY,JSON.stringify([...state.favorites]));event.currentTarget.textContent=state.favorites.has(object.runId)?"Удалить из избранного":"Добавить в избранное";
@@ -324,9 +337,21 @@ function selectObject(object){
     event.currentTarget.textContent=state.followedId===object.id?"Отменить слежение":"Следить за рейсом";
     showToast(state.followedId===object.id?`Слежение за ${object.name} включено`:"Слежение отключено");
   });
+  if(!object.serverHistoryRequested){
+    object.serverHistoryRequested=true;
+    loadRunHistory(object.runId).then((result)=>{
+      const serverPoints=(result.snapshots||[]).map(snapshot=>buildHistoricalPosition(snapshot.update,object.routeCoordinates,snapshot.capturedAt,object.waypoints)).filter(Boolean);
+      if(serverPoints.length){
+        const merged=new Map([...(object.history||[]),...serverPoints].map(item=>[item.timestamp,item]));
+        object.history=[...merged.values()].sort((a,b)=>Date.parse(a.timestamp)-Date.parse(b.timestamp));
+        object.historySource="server";
+        if(state.selected?.id===object.id)selectObject(object);
+      }
+    });
+  }
 }
 
-function closeDetail(){const url=new URL(location.href);url.searchParams.delete("train");history.replaceState(null,"",url);elements.detail.classList.remove("open");elements.detail.setAttribute("aria-hidden","true");mapView.clearHistory();state.selected=null;render();}
+function closeDetail(){stopPlayback();const url=new URL(location.href);url.searchParams.delete("train");history.replaceState(null,"",url);elements.detail.classList.remove("open");elements.detail.setAttribute("aria-hidden","true");mapView.clearHistory();state.selected=null;render();}
 function showToast(message){elements.toast.textContent=message;elements.toast.classList.add("show");clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>elements.toast.classList.remove("show"),2400);}
 
 function resetFilters(){
@@ -339,6 +364,11 @@ function resetFilters(){
 }
 
 function bindControls(){
+  document.querySelectorAll("[data-fleet-scope]").forEach(button=>button.addEventListener("click",()=>{
+    state.registryScope=button.dataset.fleetScope;
+    document.querySelectorAll("[data-fleet-scope]").forEach(item=>item.classList.toggle("active",item===button));
+    renderFleet(filteredObjects());
+  }));
   const savedTheme=localStorage.getItem("rail-pulse-theme")||"dark";document.documentElement.dataset.theme=savedTheme;
   document.querySelectorAll("[data-transport]").forEach((button)=>button.addEventListener("click",()=>{
     document.querySelectorAll("[data-transport]").forEach((item)=>item.classList.remove("active"));button.classList.add("active");state.transport=button.dataset.transport;render();
@@ -353,6 +383,7 @@ function bindControls(){
   $("#region-clear").addEventListener("click",()=>{state.regions.clear();elements.regionFilters.querySelectorAll("input").forEach((input)=>input.checked=false);render();});
   $("#reset-filters").addEventListener("click",resetFilters);
   $("#fit-button").addEventListener("click",()=>mapView.fitAll());
+  $("#alerts-toggle")?.addEventListener("click",async(event)=>{if(typeof Notification!=="undefined"&&Notification.permission==="default")await Notification.requestPermission();state.alertsEnabled=!state.alertsEnabled;localStorage.setItem("rail-alerts",state.alertsEnabled?"on":"off");event.currentTarget.classList.toggle("active",state.alertsEnabled);showToast(state.alertsEnabled?"Оповещения включены":"Оповещения выключены");});
   $("#position-view")?.addEventListener("change",(event)=>{mapView.setViewMode(event.target.value);render();if(state.selected)mapView.focusObject(state.selected);});
   $("#detail-close").addEventListener("click",closeDetail);
   const openMobileSidebar=()=>{layoutState.mapOnly=false;applyWorkspaceLayout();elements.sidebar.classList.add("open");};
@@ -408,12 +439,23 @@ async function bootstrap(){
   }catch(error){console.error(error);$("#last-update").textContent="Ошибка загрузки данных";showToast("Не удалось загрузить публичный набор УЗ");}
 }
 
+function publishRunChanges(before,current){
+  if(!before)return;
+  const changes=[];
+  if(current.liveUpdate?.reportedStation&&before.liveUpdate?.reportedStation!==current.liveUpdate.reportedStation)changes.push(`${current.name}: станция ${current.liveUpdate.reportedStation}`);
+  const previousDelay=Number(before.liveUpdate?.delayMinutes),nextDelay=Number(current.liveUpdate?.delayMinutes);
+  if(Number.isFinite(previousDelay)&&Number.isFinite(nextDelay)&&Math.abs(nextDelay-previousDelay)>=15)changes.push(`${current.name}: задержка ${current.liveUpdate.delayLabel}`);
+  if(before.route&&current.route&&before.route!==current.route)changes.push(`${current.name}: маршрут изменён`);
+  if(!changes.length)return;
+  const message=changes.join(" · ");showToast(message);
+  if(state.alertsEnabled&&typeof Notification!=="undefined"&&Notification.permission==="granted")new Notification("Rail Ukraine Pulse",{body:message,tag:`rail-${current.runId}`});
+}
 let refreshInFlight;
 async function refreshData(){
   if(refreshInFlight)return refreshInFlight;
   refreshInFlight=(async()=>{
     try{
-      const previousData=state.data;const refreshed=await loadTransportData(new Date());persistHistory(refreshed);state.data=refreshed;mapView.setRoutes(refreshed.routes);renderSourceStatus();render();for(const current of refreshed.objects){const before=previousData?.objects?.find(item=>item.runId===current.runId);if(current.liveUpdate?.reportedStation&&before?.liveUpdate?.reportedStation!==current.liveUpdate.reportedStation)showToast(`${current.name}: новое событие на станции ${current.liveUpdate.reportedStation}`);}
+      const previousData=state.data;const refreshed=await loadTransportData(new Date());persistHistory(refreshed);state.data=refreshed;mapView.setRoutes(refreshed.routes);renderSourceStatus();render();for(const current of refreshed.objects){const before=previousData?.objects?.find(item=>item.runId===current.runId);publishRunChanges(before,current);}
       if(state.followedId){const followed=refreshed.objects.find((object)=>object.id===state.followedId);if(followed)mapView.focusObject(followed);}
       if(state.selected){const selected=refreshed.objects.find((object)=>object.id===state.selected.id);if(selected)selectObject(selected);}
     }catch(error){console.warn("Background data refresh failed",error);}

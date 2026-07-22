@@ -45,7 +45,7 @@ test("backend ingests runs and events and publishes a compatible snapshot", asyn
   assert.equal(result.accepted, 1);
   assert.equal(result.snapshot.updates.length, 1);
   assert.equal(env.DB.batches.length, 1);
-  assert.equal(env.DB.batches[0].length, 2);
+  assert.equal(env.DB.batches[0].length, 3);
 
   const response = await handleRequest(new Request("https://api.example/api/v1/snapshot", {
     headers: { Origin: "https://hermano-us.github.io" },
@@ -88,7 +88,7 @@ test("health reports snapshot freshness instead of unconditional ok", async () =
   const body = await response.json();
   assert.equal(response.status, 200);
   assert.equal(body.status, "ok");
-  assert.equal(body.version, "intelligence-v3");
+  assert.equal(body.version, "intelligence-v4");
   assert.equal(body.snapshot.updates, 1);
 });
 

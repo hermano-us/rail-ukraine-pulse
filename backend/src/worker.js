@@ -4,7 +4,7 @@ import { DASHBOARD_URL, parseEdgeDelayDashboard } from "./adapters/delay-dashboa
 import { collectTelegram } from "../../scripts/source-adapters/telegram.mjs";
 
 const SNAPSHOT_KEY = "public:v1:snapshot";
-const WORKER_VERSION = "intelligence-v3";
+const WORKER_VERSION = "intelligence-v4";
 const FRESH_MINUTES = 20;
 const DEGRADED_MINUTES = 60;
 const STREAM_RETRY_MS = 10_000;
@@ -107,6 +107,10 @@ export async function ingestPayload(env, payload, observedAt = new Date().toISOS
       event.runId, event.trainNumber, event.serviceDate, update.route || null,
       update.origin || null, update.destination || null, safeJson(update), event.observedAt,
     ));
+    statements.push(env.DB.prepare(`
+      INSERT OR IGNORE INTO run_snapshots(snapshot_id,run_id,captured_at,source_updated_at,update_json)
+      VALUES(?1,?2,?3,?4,?5)
+    `).bind(`${event.runId}:${event.observedAt}`,event.runId,event.observedAt,update.updatedAt||null,safeJson(update)));
   }
   for (const event of validEvents.filter((item) => item.type === "station_report" && item.station)) {
     const previous = await env.DB.prepare(`SELECT station, occurred_at, raw_update_json FROM events WHERE run_id=?1 AND event_type='station_report' AND occurred_at<?2 ORDER BY occurred_at DESC LIMIT 1`).bind(event.runId,event.occurredAt).first();
@@ -222,6 +226,7 @@ async function getEvents(request, env) {
   return json({ events, count: events.length }, { headers: { "Cache-Control": "no-store" } }, request, env);
 }
 
+async function getRunHistory(request,env){const url=new URL(request.url),runId=String(url.searchParams.get("runId")||"").trim();if(!runId)return json({error:"run_id_required"},{status:400},request,env);const limit=Math.min(288,Math.max(2,Number(url.searchParams.get("limit"))||192)),since=url.searchParams.get("since")||new Date(Date.now()-48*60*60*1000).toISOString();const result=await env.DB.prepare("SELECT snapshot_id,captured_at,source_updated_at,update_json FROM run_snapshots WHERE run_id=?1 AND captured_at>=?2 ORDER BY captured_at ASC LIMIT ?3").bind(runId,since,limit).all();const snapshots=(result.results||[]).map(row=>({id:row.snapshot_id,capturedAt:row.captured_at,sourceUpdatedAt:row.source_updated_at,update:JSON.parse(row.update_json)}));return json({runId,snapshots,count:snapshots.length,retentionHours:48,geometryPolicy:"client-rail-network-only"},{headers:{"Cache-Control":"private, max-age=30"}},request,env);}
 async function getHealth(request, env) {
   const [database, sources, snapshot, segmentStats] = await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS runs FROM runs").first(),
@@ -368,6 +373,7 @@ export async function handleRequest(request, env) {
     }
     if (request.method === "GET" && url.pathname === "/api/v1/snapshot") return getSnapshot(request, env);
     if (request.method === "GET" && url.pathname === "/api/v1/events") return getEvents(request, env);
+    if (request.method === "GET" && url.pathname === "/api/v1/history") return getRunHistory(request, env);
     if (request.method === "POST" && url.pathname === "/api/v1/ingest") {
       if (!authorized(request, env)) return json({ error: "unauthorized" }, { status: 401 }, request, env);
       const result = await ingestPayload(env, await request.json());

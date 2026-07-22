@@ -1,6 +1,7 @@
 const DEFAULT_CONFIG = Object.freeze({
   apiBase: "",
   snapshotPath: "/api/v1/snapshot",
+  historyPath: "/api/v1/history",
   streamPath: "/api/v1/stream",
   fallbackUrl: "data/live.json",
   requestTimeoutMs: 4500,
@@ -50,6 +51,21 @@ export async function loadLiveSnapshot() {
     transport: "static-fallback",
     endpoint: config.fallbackUrl,
   };
+}
+
+export async function loadRunHistory(runId, options = {}) {
+  const config = await loadRuntimeConfig();
+  if (!config.apiBase || !runId) return { runId, snapshots: [], count: 0, transport: "unavailable" };
+  const endpoint = new URL(config.historyPath, `${config.apiBase.replace(/\/$/, "")}/`);
+  endpoint.searchParams.set("runId", runId);
+  endpoint.searchParams.set("limit", String(options.limit || 192));
+  if (options.since) endpoint.searchParams.set("since", options.since);
+  try {
+    return { ...(await readJson(endpoint, { timeoutMs: config.requestTimeoutMs })), transport: "api" };
+  } catch (error) {
+    console.warn("Server history unavailable; using browser history", error);
+    return { runId, snapshots: [], count: 0, transport: "browser-fallback" };
+  }
 }
 
 export async function subscribeToLiveUpdates(onSnapshot, onState = () => {}) {

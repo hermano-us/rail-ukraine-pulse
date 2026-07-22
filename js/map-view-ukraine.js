@@ -54,16 +54,31 @@ export class MapView{
     if(!focusedObject&&this.routes)this.routeLayer.addData(this.routes);
     this.markers.clear();this.objects=new Map(objects.map((object)=>[object.id,object]));
     const bounds=[];
+    if(this.viewMode==="density"&&!focusedObject){
+      const cells=new Map();
+      for(const object of objects){const [lon,lat]=object.position.coordinates||[];if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;const key=`${Math.round(lat/.65)}:${Math.round(lon/.8)}`,cell=cells.get(key)||{lat:0,lon:0,count:0};cell.lat+=lat;cell.lon+=lon;cell.count+=1;cells.set(key,cell);}
+      for(const cell of cells.values()){
+        const lat=cell.lat/cell.count,lon=cell.lon/cell.count,size=Math.min(72,30+Math.sqrt(cell.count)*9);
+        const icon=L.divIcon({
+          className:"density-marker-shell",
+          html:`<div class="density-marker" style="width:${size}px;height:${size}px">${cell.count}</div>`,
+          iconSize:[size,size],iconAnchor:[size/2,size/2],
+        });
+        L.marker([lat,lon],{icon,interactive:false}).addTo(this.markerLayer);
+        bounds.push([lat,lon]);
+      }
+      this.currentBounds=bounds;return;
+    }
     objects.forEach((object)=>{
       const [lon,lat]=object.position.coordinates||[];
       if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
       const status=object.position.status,operation=object.operationalStatus||"moving";
       const color=["stale","unknown"].includes(status)?POSITION_STATUSES[status].color:(OPERATION_COLORS[operation]||POSITION_STATUSES[status].color);
       const estimateLabel=status==="estimated"?"<em>Расчётное · не GPS</em>":status==="stale"?"<em>Расчёт остановлен</em>":`<em>${OPERATION_LABELS[operation]}</em>`;
-      const delay=object.liveUpdate?.delayLabel||"—";
+      const delay=object.liveUpdate?.delayLabel||"—",qualitySignal=Math.round((object.quality||0)*100),freshSignal=object.position.freshness?.key==="fresh"?100:object.position.freshness?.key==="delayed"?55:20;
       const icon=L.divIcon({
         className:"transport-marker",
-        html:`<div class="transport-icon ${status} operation-${operation}" style="--marker-color:${color}"><b>${GLYPHS[operation]}</b><span class="marker-label">${object.name}<small>${delay}</small>${estimateLabel}</span></div>`,
+        html:`<div class="transport-icon ${status} operation-${operation}" style="--marker-color:${color}"><b>${GLYPHS[operation]}</b><span class="marker-label">${object.name}<small>${delay}</small>${estimateLabel}<span class="marker-signal" title="Качество / свежесть"><i style="--signal:${qualitySignal}%"></i><i style="--signal:${freshSignal}%;--signal-color:#48d9e6"></i></span></span></div>`,
         iconSize:[30,30],iconAnchor:[15,15],
       });
       const marker=L.marker([lat,lon],{
@@ -123,11 +138,23 @@ export class MapView{
     else if(marker)this.map.flyTo(marker.getLatLng(),Math.max(this.map.getZoom(),8),{duration:.6});
   }
 
-  setViewMode(mode){this.viewMode=["all","corridor","point"].includes(mode)?mode:"all";}
+  setViewMode(mode){this.viewMode=["all","corridor","point","density"].includes(mode)?mode:"all";}
   invalidateSize(){this.map.invalidateSize({pan:false});}
 
   fitUkraine(){this.map.fitBounds([[44.2,22.0],[52.6,40.3]],{padding:[32,32],maxZoom:7});}
   fitAll(){if(this.currentBounds?.length)this.map.fitBounds(this.currentBounds,{padding:[45,45],maxZoom:8});}
+
+  showHistoryPoint(object,index){
+    this.historyLayer.clearLayers();
+    const items=(object.history||[]).filter(item=>item.coordinates).sort((a,b)=>Date.parse(a.timestamp)-Date.parse(b.timestamp));
+    const target=items[index];if(!target)return false;
+    const points=items.slice(0,index+1).map(item=>[item.coordinates[1],item.coordinates[0]]);
+    if(points.length>1)L.polyline(points,{color:"#48d9e6",weight:3,opacity:.85,dashArray:"3 7",interactive:false}).addTo(this.historyLayer);
+    const point=points.at(-1);
+    L.circleMarker(point,{radius:8,color:"#fff",weight:2,fillColor:"#ff9d52",fillOpacity:1})
+      .bindTooltip(`${new Date(target.timestamp).toLocaleString("ru-RU")} · ${target.status||"estimated"}`).addTo(this.historyLayer);
+    this.map.panTo(point,{animate:true,duration:.35});return target;
+  }
 
   showHistoryAt(object,minutes=0){
     this.historyLayer.clearLayers();const items=(object.history||[]).filter(item=>item.coordinates).sort((a,b)=>Date.parse(a.timestamp)-Date.parse(b.timestamp));if(!items.length)return false;

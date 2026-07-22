@@ -235,6 +235,22 @@ function evidenceFor(update,position,sourceStatus){
   ];
 }
 
+export function buildHistoricalPosition(update, routeCoordinates, capturedAt, waypoints = []) {
+  const timestamp = capturedAt || update?.updatedAt;
+  const at = new Date(timestamp);
+  if (!update || !routeCoordinates?.length || !Number.isFinite(at.getTime())) return null;
+  const sourceAge = ageOf(update.updatedAt || timestamp, at);
+  const reported=normalizePlace(update.reportedStation),stationAnchor=reported?waypoints.find(item=>normalizePlace(item.name||item.label)===reported)?.coordinates:null;
+  const position = estimatePosition(update, { coordinates: routeCoordinates }, at, sourceAge, stationAnchor);
+  if (!position?.coordinates) return null;
+  return {
+    timestamp: at.toISOString(), coordinates: position.coordinates,
+    status: position.status, confidence: position.confidence, errorKm: position.errorKm,
+    delayMinutes: update.delayMinutes ?? null, label: update.reportedStation
+      ? `Станционное событие: ${update.reportedStation}` : "Серверный расчётный снимок",
+    evidence: position.status === "reported" ? "reported" : "calculated",
+  };
+}
 export function buildStationPlan(waypoints,update,position,forecastArrivalAt){
   const points=(waypoints||[]).filter(item=>Number.isFinite(item.distanceKm)).sort((a,b)=>a.distanceKm-b.distanceKm);
   if(!points.length)return [];
@@ -294,7 +310,7 @@ function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,so
   return {
     id:identity.runId,runId:identity.runId,serviceDate:identity.serviceDate,directionId:identity.directionId,
     trainNumber:update.trainNumber,transport:"train",type:"passenger",name:`Поезд №${update.trainNumber}`,
-    route:update.route,origin:update.origin,destination:update.destination,routeId,regions,
+    route:update.route,origin:update.origin,destination:update.destination,routeId,regions,routeCoordinates:routeResult?.coordinates||[],
     description:`Публичный рейс Укрзалізниці ${update.route}. Официальный статус: ${update.publicStatus}; задержка ${update.delayLabel||"не указана"}.`,
     rollingStock:"Тип состава не опубликован в источнике",operationalStatus:update.operationalStatus,
     liveUpdate:update,telemetry:{speedKph:null},position,quality,

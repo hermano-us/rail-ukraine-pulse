@@ -36,3 +36,19 @@ test("history scrubber preserves the selected route and rejects misleading old s
   assert.doesNotMatch(map, /clearHistory\(\)\{this\.historyLayer\.clearLayers\(\);this\.selectedLayer\.clearLayers\(\);\}/);
   assert.match(map, /Math\.abs\(Date\.parse\(target\.timestamp\)-cutoff\)>16\*60000/);
 });
+test("server history playback stays on rail geometry", async () => {
+  const app = await readFile(new URL("../js/app-ukraine.js", import.meta.url), "utf8");
+  const map = await readFile(new URL("../js/map-view-ukraine.js", import.meta.url), "utf8");
+  const store = await readFile(new URL("../js/data-store-ukraine.js", import.meta.url), "utf8");
+  assert.match(app, /loadRunHistory\(object\.runId\)/);
+  assert.match(app, /id="history-play"/);
+  assert.match(map, /showHistoryPoint\(object,index\)/);
+  assert.match(store, /buildHistoricalPosition/);
+  assert.match(store, /estimatePosition\(update, \{ coordinates: routeCoordinates \}/);
+});
+
+test("full registry and density modes expose all runs without fabricated coordinates", async () => {
+  const app = await readFile(new URL("../js/app-ukraine.js", import.meta.url), "utf8");
+  const map = await readFile(new URL("../js/map-view-ukraine.js", import.meta.url), "utf8");
+  assert.match(app, /registryScope==="mapped"/);assert.match(map, /viewMode==="density"/);
+});

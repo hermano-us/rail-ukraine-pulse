@@ -116,7 +116,8 @@
             <button class="map-action fleet-toggle layout-toggle" id="fleet-toggle" aria-label="Свернуть реестр" aria-pressed="false">◨ <span>Реестр</span></button>
             <button class="map-action layout-toggle" id="theme-toggle" aria-label="Переключить тему">◐ <span>Тема</span></button>
             <button class="map-action layout-toggle" id="map-only-toggle" aria-label="Режим только карта" aria-pressed="false">⛶ <span>Только карта</span></button>
-            <select class="map-action" id="position-view" aria-label="Режим позиции"><option value="all">Точка + зона</option><option value="corridor">Вероятный участок</option><option value="point">Только точка</option></select>
+            <select class="map-action" id="position-view" aria-label="Режим позиции"><option value="all">Точка + зона</option><option value="corridor">Вероятный участок</option><option value="point">Только точка</option><option value="density">Кластеры / плотность</option></select>
+            <button class="map-action" id="alerts-toggle" aria-label="Оповещения">◉ <span>События</span></button>
             <button class="map-action" id="fit-button" aria-label="Показать все объекты" title="Показать все объекты">⌖ <span>Все объекты</span></button>
           </div>
         </div>
@@ -153,6 +154,7 @@
             </select>
           </label>
         </div>
+        <div class="fleet-scope" role="group" aria-label="Состав реестра"><button class="active" data-fleet-scope="all">Все рейсы</button><button data-fleet-scope="mapped">На карте</button></div>
         <div class="fleet-list" id="fleet-list"><p class="fleet-empty">Загрузка реестра…</p></div>
         <footer><span>Клик по рейсу центрирует карту</span><b id="fleet-source-age">—</b></footer>
       </aside>
