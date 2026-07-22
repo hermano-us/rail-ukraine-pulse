@@ -1,4 +1,4 @@
-﻿import test from "node:test";
+import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { classifyFuelIncidentText } from "../backend/src/fuel/incidents.js";
@@ -14,4 +14,11 @@ test("fuel incident integration is moderation-first", async () => {
   assert.match(source, /publicChanges: 0/);
   assert.match(source, /moderationRequired: true/);
   assert.match(source, /damaged_reported/);
+});
+
+test("fuel incident collector has a Ukrainian RSS fallback", async () => {
+  const source = await readFile(new URL("../scripts/collect-fuel-incidents.mjs", import.meta.url), "utf8");
+  assert.match(source, /news\.google\.com\/rss\/search/);
+  assert.match(source, /google-news-rss/);
+  assert.match(source, /fetchWithRetry/);
 });
