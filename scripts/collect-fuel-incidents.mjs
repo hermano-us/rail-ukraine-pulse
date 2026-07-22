@@ -13,7 +13,19 @@ function isoDate(value) {
   return match ? `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}Z` : Number.isFinite(Date.parse(raw)) ? new Date(raw).toISOString() : null;
 }
 const stableId = (url) => `gdelt:${createHash("sha256").update(url).digest("hex").slice(0, 40)}`;
-const response = await fetch(gdeltUrl, { headers: { Accept: "application/json", "User-Agent": "RailUkrainePulse/1.0 fuel-safety-monitor" } });
+async function fetchWithRetry(url, attempts = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fetch(url, { headers: { Accept: "application/json", "User-Agent": "RailUkrainePulse/1.0 fuel-safety-monitor" }, signal: AbortSignal.timeout(25_000) });
+      if (response.ok || response.status < 500) return response;
+      lastError = new Error(`GDELT HTTP ${response.status}`);
+    } catch (error) { lastError = error; }
+    if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, attempt * 2_000));
+  }
+  throw lastError;
+}
+const response = await fetchWithRetry(gdeltUrl);
 if (!response.ok) throw new Error(`GDELT HTTP ${response.status}`);
 const payload = await response.json(); const articles = Array.isArray(payload.articles) ? payload.articles : [];
 const signals = articles.flatMap((article) => {
