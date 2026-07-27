@@ -7,9 +7,11 @@ import { handleFreightRequest } from "./freight/api.js";
 import { handleSecurityRequest } from "./security/api.js";
 import { hasPermission, resolvePrincipal } from "./security/access.js";
 import { handleEvidenceRequest } from "./evidence/api.js";
+import { handleIntelligencePlatformRequest } from "./intelligence/api.js";
+import { runIntelligenceCycle } from "./intelligence/service.js";
 
 const SNAPSHOT_KEY = "public:v1:snapshot";
-const WORKER_VERSION = "intelligence-v7-secure-core";
+const WORKER_VERSION = "intelligence-v8-platform-suite";
 const FRESH_MINUTES = 20;
 const DEGRADED_MINUTES = 60;
 const STREAM_RETRY_MS = 10_000;
@@ -375,7 +377,7 @@ async function handleAdminAction(request, env, principal) {
   const body=await request.json();
   const requiredPermission={"retry-collector":"system.manage","resolve-quarantine":"evidence.review","correct-station":"rail.correct","configure-source":"sources.manage"}[body.action];
   if(requiredPermission&&!hasPermission(principal,requiredPermission))return json({error:"forbidden"},{status:403},request,env);
-  if(body.action==="retry-collector") { await auditAdmin(env,body.action,"pipeline",{},principal); return json(await scheduledRefresh(env),{status:202},request,env); }
+  if(body.action==="retry-collector") { await auditAdmin(env,body.action,"pipeline",{},principal); return json(await scheduledAutonomy(env),{status:202},request,env); }
   if(body.action==="resolve-quarantine") {
     await env.DB.prepare("UPDATE quarantine SET status='resolved',resolution=?1,resolved_at=?2,resolved_by=?3 WHERE quarantine_id=?4").bind(body.resolution||"dismissed",new Date().toISOString(),principal?.id||"legacy-admin",body.id).run();
     await auditAdmin(env,body.action,body.id,{resolution:body.resolution},principal); return json({ok:true}, {}, request, env);
@@ -413,6 +415,11 @@ export async function handleRequest(request, env) {
     }
     if (url.pathname.startsWith("/api/restricted/evidence")) {
       const response = await handleEvidenceRequest(request, env, await resolvePrincipal(request, env));
+      if (response) return response;
+    }
+    if (["/api/restricted/rail-intelligence","/api/restricted/operations-hub","/api/restricted/analytics-network"].includes(url.pathname)) {
+      const principal = await resolvePrincipal(request, env);
+      const response = await handleIntelligencePlatformRequest(request, env, principal, (value, status = 200) => json(value, { status, headers: { "Cache-Control": "no-store" } }, request, env));
       if (response) return response;
     }
     if (url.pathname === "/api/v1/freight/ingest" || url.pathname === "/api/admin/freight") {
@@ -557,10 +564,15 @@ export async function scheduledRefresh(env) {
   }, Array.isArray(previous?.updates) ? previous.updates.length : 0);
   return finishCycle(env,cycleId,cycleStarted,{ monitored: true, errors, freshness },"failed",errors.join("; ").slice(0,500));
 }
+export async function scheduledAutonomy(env) {
+  const collection = await scheduledRefresh(env);
+  const intelligence = await runIntelligenceCycle(env);
+  return { collection, intelligence };
+}
 export default {
   fetch: handleRequest,
   scheduled(_controller, env, context) {
-    context.waitUntil(scheduledRefresh(env));
+    context.waitUntil(scheduledAutonomy(env));
   },
 };
 

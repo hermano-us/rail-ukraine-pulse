@@ -1,9 +1,9 @@
 const ROLE_PERMISSIONS = Object.freeze({
   admin: ["*"],
-  senior_curator: ["admin.overview", "evidence.read", "evidence.review", "evidence.assign", "fuel.review", "rail.correct", "restricted.map", "shipments.read", "shipments.write"],
-  logistics_coordinator: ["evidence.read_conclusion", "restricted.map_conclusion", "shipments.read", "shipments.write"],
-  operator: ["evidence.create", "shipments.read", "shipments.update"],
-  observer: ["shipments.read"],
+  senior_curator: ["admin.overview", "evidence.read", "evidence.review", "evidence.assign", "fuel.review", "rail.correct", "rail.intelligence.read", "rail.observations.write", "restricted.map", "operations.hub.read", "operations.hub.write", "operations.notifications.manage", "analytics.network.read", "shipments.read", "shipments.write"],
+  logistics_coordinator: ["evidence.read_conclusion", "restricted.map_conclusion", "rail.intelligence.read", "operations.hub.read", "operations.hub.write", "operations.notifications.manage", "analytics.network.read", "shipments.read", "shipments.write"],
+  operator: ["evidence.create", "rail.intelligence.read", "rail.observations.write", "operations.hub.read", "operations.notifications.manage", "shipments.read", "shipments.update"],
+  observer: ["rail.intelligence.read", "operations.hub.read", "analytics.network.read", "shipments.read"],
 });
 
 const encoder = new TextEncoder();

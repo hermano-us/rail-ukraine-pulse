@@ -77,6 +77,18 @@ const nodes = {
   accessAuditRows: document.querySelector("#access-audit-rows"),
   accessKeyDialog,
   accessKeyValue: document.querySelector("#access-key-value"),
+  platformUpdatedAt: document.querySelector("#platform-updated-at"),
+  platformError: document.querySelector("#platform-error"),
+  railIntelligenceMetrics: document.querySelector("#rail-intelligence-metrics"),
+  railTwinRows: document.querySelector("#rail-twin-rows"),
+  railObservationRows: document.querySelector("#rail-observation-rows"),
+  operationsHubMetrics: document.querySelector("#operations-hub-metrics"),
+  operationsMovementRows: document.querySelector("#operations-movement-rows"),
+  operationsNotifications: document.querySelector("#operations-notifications"),
+  analyticsNetworkMetrics: document.querySelector("#analytics-network-metrics"),
+  nodeActivityRows: document.querySelector("#node-activity-rows"),
+  networkAnomalyRows: document.querySelector("#network-anomaly-rows"),
+  internationalCorridors: document.querySelector("#international-corridors"),
 };
 
 let token = sessionStorage.getItem("rail-ops-token") || "";
@@ -88,9 +100,13 @@ let freightEndpoint = "/api/admin/freight";
 let authEndpoint = "/api/auth/session";
 let evidenceEndpoint = "/api/restricted/evidence";
 let refreshTimer;
+let railIntelligenceEndpoint = "/api/restricted/rail-intelligence";
+let operationsHubEndpoint = "/api/restricted/operations-hub";
+let analyticsNetworkEndpoint = "/api/restricted/analytics-network";
 let requestInFlight = false;
 let sourceConfigById=new Map();
 let activeFuelIncident=null,selectedFuelStation=null,fuelSearchTimer=null,fuelSearchController=null;
+let operationsMap=null,operationsLayer=null;
 
 function formatDate(value) {
   if (!value) return "—";
@@ -278,6 +294,29 @@ async function rotateAccessKey(user){if(!confirm(`Выпустить новый 
 async function revokeAccessSessions(user){if(!confirm(`Завершить все сессии ${user.login}?`))return;try{await accessFetch(`${accessUsersEndpoint}/${encodeURIComponent(user.user_id)}/revoke-sessions`,{method:"POST"});await loadAccessManagement();}catch(error){nodes.accessError.textContent=error.message;}}
 
 async function adminAction(body){const response=await fetch(intelligenceEndpoint,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify(body)});if(!response.ok)throw new Error(`Action HTTP ${response.status}`);return response.json();}
+function emptyTable(tbody,message,colspan){tbody.replaceChildren();const row=document.createElement("tr"),cell=appendCell(row,message,"empty-row");cell.colSpan=colspan;tbody.append(row);}
+async function platformFetch(url,options={}){const response=await fetch(url,{cache:"no-store",...options,headers:{Authorization:`Bearer ${token}`,...(options.headers||{})}});if(response.status===403)return null;if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body.error||`Platform API HTTP ${response.status}`);}return response.json();}
+async function platformAction(body){const result=await platformFetch(operationsHubEndpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});await loadPlatformSuite();return result;}
+
+function renderRailIntelligence(data){if(!data)return;const counts=data.counts||{};nodes.railIntelligenceMetrics.replaceChildren(metric("Узлы графа",counts.nodes||0,"Наблюдаемые станции"),metric("Рёбра графа",counts.edges||0,"Изученные перегоны"),metric("Наблюдения",counts.observations||0,"Трассируемые факты"),metric("Активные прогнозы",counts.pendingPredictions||0,"Цифровые двойники"),metric("Закрытые прогнозы",counts.resolvedPredictions||0,"Доступны для калибровки"));
+  const twins=data.twins||[];if(!twins.length)emptyTable(nodes.railTwinRows,"Прогнозы появятся после накопления последовательных станционных фактов.",6);else{nodes.railTwinRows.replaceChildren();for(const item of twins.slice(0,80)){const row=document.createElement("tr");appendCell(row,item.train_number||item.run_id);appendCell(row,`${item.from_node_id} → ${item.to_node_id}`);appendCell(row,formatDate(item.eta_p50));appendCell(row,`${formatDate(item.eta_p80_start)} — ${formatDate(item.eta_p80_end)}`);appendCell(row,`${Math.round(Number(item.confidence||0)*100)}%`);appendCell(row,item.status,`status-pill ${item.status}`);nodes.railTwinRows.append(row);}}
+  const observations=data.observations||[];if(!observations.length)emptyTable(nodes.railObservationRows,"Подтверждённых наблюдений пока нет.",5);else{nodes.railObservationRows.replaceChildren();for(const item of observations.slice(0,100)){const row=document.createElement("tr");appendCell(row,formatDate(item.observed_at));appendCell(row,item.train_number||item.run_id);appendCell(row,item.station_name);appendCell(row,item.source_id);appendCell(row,`${Math.round(Number(item.reliability||0)*100)}%`);nodes.railObservationRows.append(row);}}
+}
+
+function ensureOperationsMap(){if(operationsMap||!window.L||!document.querySelector("#operations-map"))return;operationsMap=L.map("operations-map",{zoomControl:true,attributionControl:true}).setView([49.1,31.2],6);L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18,attribution:"© OpenStreetMap"}).addTo(operationsMap);operationsLayer=L.layerGroup().addTo(operationsMap);}
+function renderOperationsMap(movements=[]){ensureOperationsMap();if(!operationsLayer)return;operationsLayer.clearLayers();const bounds=[];for(const item of movements){const lat=Number(item.latitude),lon=Number(item.longitude);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;const marker=L.marker([lat,lon],{icon:L.divIcon({className:"",html:`<span class="ops-train-marker ${item.position_status==="confirmed"?"":"estimated"}">R</span>`,iconSize:[24,24],iconAnchor:[12,12]})});const content=document.createElement("div"),title=document.createElement("strong"),detail=document.createElement("p");title.textContent=`Поезд ${item.train_number||item.run_id}`;detail.textContent=`${item.origin||"—"} → ${item.destination||"—"} · ${item.position_status||"estimated"} · ${Math.round(Number(item.confidence||0)*100)}%`;content.append(title,detail);marker.bindPopup(content);marker.addTo(operationsLayer);bounds.push([lat,lon]);}if(bounds.length)operationsMap.fitBounds(bounds,{padding:[30,30],maxZoom:9});setTimeout(()=>operationsMap?.invalidateSize(),0);}
+function renderOperationsHub(data){if(!data)return;const movements=data.movements||[],notifications=data.notifications||[],workflows=data.workflows||[];nodes.operationsHubMetrics.replaceChildren(metric("Перевозки",movements.length,"Закрытый реестр"),metric("На карте",movements.filter(item=>Number.isFinite(Number(item.latitude))&&Number.isFinite(Number(item.longitude))).length,"Есть координата"),metric("Задержки 1ч+",movements.filter(item=>Number(item.delay_minutes)>=60).length,"Требуют внимания"),metric("Уведомления",notifications.length,"Не подтверждены",notifications.length?"warning":"ok"),metric("Workflow",workflows.length,"Открытые задачи"));renderOperationsMap(movements);
+  if(!movements.length)emptyTable(nodes.operationsMovementRows,"Активных перевозок пока нет.",7);else{nodes.operationsMovementRows.replaceChildren();for(const item of movements.slice(0,250)){const row=document.createElement("tr");appendCell(row,item.train_number||item.run_id);appendCell(row,`${item.origin||"—"} → ${item.destination||"—"}`);appendCell(row,item.status,`status-pill ${item.status}`);appendCell(row,item.delay_minutes==null?"—":`${Math.round(item.delay_minutes)} мин`);appendCell(row,formatDate(item.eta));appendCell(row,item.last_station||formatAge(item.last_observed_at));const cell=document.createElement("td"),select=document.createElement("select");select.className="workflow-select";for(const value of ["monitoring","attention","investigating","resolved"]){const option=document.createElement("option");option.value=value;option.textContent=value;option.selected=value===item.workflow_state;select.append(option);}select.addEventListener("change",()=>platformAction({action:"update-movement",id:item.movement_id,workflowState:select.value}).catch(error=>nodes.platformError.textContent=error.message));cell.append(select);row.append(cell);nodes.operationsMovementRows.append(row);}}
+  nodes.operationsNotifications.replaceChildren();if(!notifications.length){const empty=document.createElement("p");empty.className="muted";empty.textContent="Новых уведомлений нет.";nodes.operationsNotifications.append(empty);}else for(const item of notifications.slice(0,50)){const card=document.createElement("article"),title=document.createElement("b"),message=document.createElement("small"),button=document.createElement("button");card.className=`notification-item ${item.severity}`;title.textContent=item.title;message.textContent=item.message;button.className="secondary";button.textContent="Подтвердить";button.addEventListener("click",()=>platformAction({action:"ack-notification",id:item.notification_id}).catch(error=>nodes.platformError.textContent=error.message));card.append(title,message,button);nodes.operationsNotifications.append(card);}
+}
+
+function renderAnalyticsNetwork(data){if(!data)return;const activity=data.nodeActivity||[],anomalies=data.anomalies||[],corridors=data.corridors||[],calibration=data.calibration||{},cycles=data.cycles||[];nodes.analyticsNetworkMetrics.replaceChildren(metric("Активные узлы",activity.length,"Node Activity Score"),metric("Аномалии",anomalies.length,"Открытые сигналы",anomalies.length?"warning":"ok"),metric("MAE",calibration.maeMinutes==null?"—":`${calibration.maeMinutes} мин`,`${calibration.evaluations||0} проверок`),metric("P80",calibration.p80Coverage==null?"—":`${calibration.p80Coverage}%`,"Факты внутри коридора"),metric("Автономные циклы",cycles.filter(item=>item.status==="success").length,"Успешные запуски"));
+  if(!activity.length)emptyTable(nodes.nodeActivityRows,"Оценки появятся после первого автономного цикла.",5);else{nodes.nodeActivityRows.replaceChildren();for(const item of activity.slice(0,100)){const row=document.createElement("tr");appendCell(row,item.station_name||item.node_id);const score=appendCell(row,item.activity_score,"activity-score");score.title=`baseline ${item.baseline_per_hour}`;appendCell(row,item.observation_count);appendCell(row,`${Number(item.change_ratio||1).toFixed(1)}×`);appendCell(row,`${Math.round(Number(item.confidence||0)*100)}%`);nodes.nodeActivityRows.append(row);}}
+  if(!anomalies.length)emptyTable(nodes.networkAnomalyRows,"Сетевых аномалий не обнаружено.",5);else{nodes.networkAnomalyRows.replaceChildren();for(const item of anomalies.slice(0,100)){const row=document.createElement("tr");appendCell(row,formatDate(item.detected_at));appendCell(row,item.node_id||item.corridor_id||"—");appendCell(row,item.anomaly_type);appendCell(row,item.severity,`status-pill ${item.severity}`);appendCell(row,item.summary);nodes.networkAnomalyRows.append(row);}}
+  nodes.internationalCorridors.replaceChildren();for(const item of corridors){const card=document.createElement("article"),title=document.createElement("b"),detail=document.createElement("small");card.className="corridor-card";title.textContent=item.name;detail.textContent=`${(item.countries||[]).join(" ↔ ")} · activity ${Number(item.activity_score||0).toFixed(1)} · ${item.status}`;card.append(title,detail);nodes.internationalCorridors.append(card);}
+}
+
+async function loadPlatformSuite(){try{const [rail,operations,analytics]=await Promise.all([platformFetch(railIntelligenceEndpoint),platformFetch(operationsHubEndpoint),platformFetch(analyticsNetworkEndpoint)]);renderRailIntelligence(rail);renderOperationsHub(operations);renderAnalyticsNetwork(analytics);nodes.platformUpdatedAt.textContent=`Обновлено ${formatDate(new Date().toISOString())}`;nodes.platformError.textContent="";}catch(error){nodes.platformError.textContent=error.message;}}
 async function loadConfig() {
   try {
     const response = await fetch("data/runtime-config.json", { cache: "no-store" });
@@ -294,6 +333,9 @@ async function loadConfig() {
       accessUsersEndpoint = new URL("/api/admin/access/users", `${base}/`).toString();
       accessAuditEndpoint = new URL("/api/admin/access/audit", `${base}/`).toString();
       authMeEndpoint = new URL("/api/auth/me", `${base}/`).toString();
+      railIntelligenceEndpoint = new URL("/api/restricted/rail-intelligence", `${base}/`).toString();
+      operationsHubEndpoint = new URL("/api/restricted/operations-hub", `${base}/`).toString();
+      analyticsNetworkEndpoint = new URL("/api/restricted/analytics-network", `${base}/`).toString();
     }
   } catch {}
 }
@@ -317,6 +359,7 @@ async function refresh() {
     const evidence=await fetch(evidenceEndpoint,{cache:"no-store",headers:{Authorization:`Bearer ${token}`}});if(evidence.ok)renderEvidenceInbox(await evidence.json());
     await loadAccessManagement();
     nodes.loginPanel.hidden = true;
+    await loadPlatformSuite();
     nodes.dashboard.hidden = false;
     nodes.error.textContent = "";
   } catch (error) {
@@ -370,6 +413,7 @@ nodes.loginForm.addEventListener("submit", login);
 nodes.accessCreateForm.addEventListener("submit",createAccessUser);
 document.querySelector("#access-copy-key").addEventListener("click",async()=>{const status=document.querySelector("#access-key-copy-status");try{await navigator.clipboard.writeText(nodes.accessKeyValue.textContent);status.textContent="Ключ скопирован.";}catch{status.textContent="Не удалось скопировать автоматически — выделите ключ вручную.";}});
 
+for(const button of document.querySelectorAll("[data-platform-tab]")){button.addEventListener("click",()=>{const target=button.dataset.platformTab;for(const item of document.querySelectorAll("[data-platform-tab]"))item.classList.toggle("active",item===button);for(const panel of document.querySelectorAll("[data-platform-panel]")){const active=panel.dataset.platformPanel===target;panel.hidden=!active;panel.classList.toggle("active",active);}if(target==="operations")setTimeout(()=>operationsMap?.invalidateSize(),0);});}
 document.querySelector("#retry-collector")?.addEventListener("click",()=>adminAction({action:"retry-collector"}).then(refresh).catch(error=>{nodes.systemCaption.textContent=error.message;}));
 nodes.refreshButton.addEventListener("click", () => refresh().catch((error) => { nodes.systemCaption.textContent = error.message; }));
 document.querySelector("#logout-button").addEventListener("click", logout);
