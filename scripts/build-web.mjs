@@ -12,6 +12,10 @@ for (const entry of requiredEntries) {
   await cp(new URL(entry, root), new URL(entry, output), { recursive: true });
 }
 
+// The freight source registry is collector-only configuration. In particular,
+// membership-only chat handles must never be shipped with the public bundle.
+await rm(new URL("data/freight-telegram-sources.json", output), { force: true });
+
 for (const entry of optionalEntries) {
   try {
     await cp(new URL(entry, root), new URL(entry, output), { recursive: true });

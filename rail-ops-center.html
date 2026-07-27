@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="dark">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>Rail Ukraine Pulse · Operations Center</title>
-  <link rel="stylesheet" href="css/admin.css?v=ops-center-v2">
+  <link rel="stylesheet" href="css/admin.css?v=ops-center-v3">
 </head>
 <body>
   <div class="ops-backdrop" aria-hidden="true"></div>
@@ -103,6 +103,12 @@
         <div class="table-wrap"><table><thead><tr><th>Время</th><th>Тип</th><th>АЗС</th><th>Сообщение</th><th>Уверенность</th><th>Решение</th></tr></thead><tbody id="fuel-incident-rows"></tbody></table></div>
       </section>
       <section class="panel">
+        <header class="panel-header"><div><p class="eyebrow">FREIGHT SOURCE WATCH</p><h2>Грузовые железнодорожные сигналы</h2></div><span id="freight-evidence-count" class="tag">—</span></header>
+        <p class="muted">Приватный контур проверки: точные позиции и потенциально чувствительные сообщения не публикуются.</p>
+        <div class="table-wrap"><table><thead><tr><th>Источник</th><th>Состояние</th><th>Проверен</th><th>Сообщений</th><th>Принято</th><th>Отброшено</th><th>Ошибка</th></tr></thead><tbody id="freight-source-rows"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Время</th><th>Источник</th><th>Коридор</th><th>Тип</th><th>Уверенность</th><th>Свидетельство</th></tr></thead><tbody id="freight-evidence-rows"></tbody></table></div>
+      </section>
+      <section class="panel">
         <header class="panel-header"><div><p class="eyebrow">EVENT LEDGER</p><h2>Последние события</h2></div><span id="events-caption" class="muted"></span></header>
         <div class="table-wrap">
           <table>
@@ -113,6 +119,21 @@
       </section>
     </section>
   </main>
-  <script type="module" src="js/admin.js?v=ops-center-v2"></script>
+  <dialog id="fuel-review-dialog" class="review-dialog">
+    <form method="dialog" class="review-card">
+      <header><div><p class="eyebrow">FUEL SIGNAL REVIEW</p><h2>Проверка сообщения об АЗС</h2></div><button class="secondary icon-button" value="cancel" aria-label="Закрыть">×</button></header>
+      <a id="fuel-review-source" class="review-source" target="_blank" rel="noopener noreferrer"></a>
+      <p id="fuel-review-title" class="review-title"></p>
+      <label for="fuel-station-search">Найти АЗС по городу, адресу или названию</label>
+      <input id="fuel-station-search" type="search" autocomplete="off" placeholder="Например: Харьков, Полтавский шлях">
+      <div id="fuel-station-results" class="station-results"><p class="muted">Введите минимум два символа.</p></div>
+      <div id="fuel-selected-station" class="selected-station" hidden></div>
+      <label for="fuel-review-status">Подтверждённый статус</label>
+      <select id="fuel-review-status"><option value="damaged_reported">Есть сообщение о повреждении</option><option value="temporarily_closed">Временно закрыта</option><option value="partially_operating">Работает частично</option><option value="operating">Работает</option><option value="fuel_unavailable">Топливо недоступно</option><option value="closed">Закрыта</option></select>
+      <p id="fuel-review-error" class="error" role="alert"></p>
+      <footer><button class="secondary" value="cancel">Оставить на проверке</button><button id="fuel-review-reject" class="secondary danger" type="button">Отклонить</button><button id="fuel-review-approve" type="button" disabled>Привязать и подтвердить</button></footer>
+    </form>
+  </dialog>
+  <script type="module" src="js/admin.js?v=ops-center-v3"></script>
 </body>
 </html>

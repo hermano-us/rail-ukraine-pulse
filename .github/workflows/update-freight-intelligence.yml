@@ -1,0 +1,29 @@
+name: Monitor freight evidence
+
+on:
+  schedule:
+    - cron: "4,19,34,49 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-freight-intelligence
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm test
+      - name: Collect public freight evidence for private moderation
+        run: npm run update-freight-intelligence
+        env:
+          RAIL_API_URL: ${{ secrets.RAIL_API_URL }}
+          RAIL_INGEST_TOKEN: ${{ secrets.RAIL_INGEST_TOKEN }}

@@ -1,6 +1,7 @@
 import { haversineKm, parseBbox } from "./domain.js";
 import { importPartnerStations } from "./partner.js";
 import { ingestIncidentSignals, listIncidentSignals, reviewIncidentSignal } from "./incidents.js";
+import { deduplicateFuelCatalog } from "./dedupe.js";
 
 function cors(request, env) {
   const origin = request.headers.get("Origin");
@@ -162,6 +163,7 @@ export async function handleFuelRequest(request, env, auth) {
   if (request.method === "POST" && path === "/api/fuel/v1/partner/import") return importPartnerStations(request, env, auth.authorized, json);
   if (request.method === "POST" && path === "/api/fuel/v1/accessibility/import") return importAccessibility(request, env, auth.authorized);
   if (request.method === "POST" && path === "/api/fuel/v1/incidents/import") return ingestIncidentSignals(request, env, auth.authorized, json);
+  if (request.method === "POST" && path === "/api/fuel/v1/deduplicate") return deduplicateFuelCatalog(request, env, auth.authorized, json);
   if (request.method === "GET" && path === "/api/fuel/admin/incidents") return listIncidentSignals(request, env, auth.authorizedAdmin, json, url);
   if (request.method === "POST" && path === "/api/fuel/admin/incidents/review") return reviewIncidentSignal(request, env, auth.authorizedAdmin, json);
   if (request.method === "GET" && path === "/api/fuel/admin/overview") {

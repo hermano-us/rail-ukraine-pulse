@@ -23,15 +23,30 @@ const nodes = {
   cycleChart: document.querySelector("#cycle-chart"),
   fuelIncidentRows: document.querySelector("#fuel-incident-rows"),
   fuelIncidentCount: document.querySelector("#fuel-incident-count"),
+  fuelReviewDialog: document.querySelector("#fuel-review-dialog"),
+  fuelReviewSource: document.querySelector("#fuel-review-source"),
+  fuelReviewTitle: document.querySelector("#fuel-review-title"),
+  fuelStationSearch: document.querySelector("#fuel-station-search"),
+  fuelStationResults: document.querySelector("#fuel-station-results"),
+  fuelSelectedStation: document.querySelector("#fuel-selected-station"),
+  fuelReviewStatus: document.querySelector("#fuel-review-status"),
+  fuelReviewError: document.querySelector("#fuel-review-error"),
+  fuelReviewApprove: document.querySelector("#fuel-review-approve"),
+  freightSourceRows: document.querySelector("#freight-source-rows"),
+  freightEvidenceRows: document.querySelector("#freight-evidence-rows"),
+  freightEvidenceCount: document.querySelector("#freight-evidence-count"),
 };
 
 let token = sessionStorage.getItem("rail-ops-token") || "";
 let endpoint = "/api/admin/overview";
 let intelligenceEndpoint = "/api/admin/intelligence";
 let incidentEndpoint = "/api/fuel/admin/incidents";
+let fuelSearchEndpoint = "/api/fuel/v1/search";
+let freightEndpoint = "/api/admin/freight";
 let refreshTimer;
 let requestInFlight = false;
 let sourceConfigById=new Map();
+let activeFuelIncident=null,selectedFuelStation=null,fuelSearchTimer=null,fuelSearchController=null;
 
 function formatDate(value) {
   if (!value) return "—";
@@ -173,9 +188,18 @@ function renderIntelligence(data={}) {
 function renderFuelIncidents(data={}) {
   const signals=data.signals||[]; nodes.fuelIncidentCount.textContent=`${signals.length} требуют проверки`; nodes.fuelIncidentRows.replaceChildren();
   if(!signals.length){const row=document.createElement("tr"),cell=appendCell(row,"Новых сигналов нет","empty-row");cell.colSpan=6;nodes.fuelIncidentRows.append(row);return;}
-  for(const signal of signals){const row=document.createElement("tr");appendCell(row,formatDate(signal.published_at||signal.detected_at));appendCell(row,signal.incident_type,`status-pill ${signal.incident_type}`);appendCell(row,signal.station_name||signal.location_text||"Требуется локализация");const title=appendCell(row,signal.title);title.title=signal.snippet||signal.source_url;appendCell(row,`${Math.round(Number(signal.confidence||0)*100)}%`);const actions=document.createElement("td");if(signal.matched_station_id){const approve=document.createElement("button");approve.className="secondary";approve.textContent="Подтвердить";approve.addEventListener("click",()=>reviewFuelIncident(signal,"approve"));actions.append(approve)}const reject=document.createElement("button");reject.className="secondary";reject.textContent="Отклонить";reject.addEventListener("click",()=>reviewFuelIncident(signal,"reject"));actions.append(reject);row.append(actions);nodes.fuelIncidentRows.append(row);}
+  for(const signal of signals){const row=document.createElement("tr");appendCell(row,formatDate(signal.published_at||signal.detected_at));appendCell(row,signal.incident_type,`status-pill ${signal.incident_type}`);appendCell(row,signal.station_name||signal.location_text||"Требуется локализация");const title=appendCell(row,signal.title);title.title=signal.snippet||signal.source_url;appendCell(row,`${Math.round(Number(signal.confidence||0)*100)}%`);const actions=document.createElement("td"),review=document.createElement("button");review.className="secondary";review.textContent="Разобрать";review.addEventListener("click",()=>openFuelIncidentReview(signal));actions.append(review);row.append(actions);nodes.fuelIncidentRows.append(row);}
 }
-async function reviewFuelIncident(signal,decision){const status=decision==="approve"?(signal.incident_type==="possible_reopening"?"operating":"damaged_reported"):undefined;const response=await fetch(`${incidentEndpoint}/review`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({signalId:signal.signal_id,decision,stationId:signal.matched_station_id,status})});if(!response.ok)throw new Error(`Fuel review HTTP ${response.status}`);await refresh();}
+function selectFuelStation(station){selectedFuelStation=station;nodes.fuelSelectedStation.hidden=false;nodes.fuelSelectedStation.textContent=`${station.name||station.brand||"АЗС"} · ${[station.city,station.address].filter(Boolean).join(" · ")||"адрес не указан"}`;nodes.fuelReviewApprove.disabled=false;}
+function renderFuelStationResults(stations=[]){nodes.fuelStationResults.replaceChildren();if(!stations.length){const empty=document.createElement("p");empty.className="muted";empty.textContent="Совпадений не найдено.";nodes.fuelStationResults.append(empty);return;}for(const station of stations){const button=document.createElement("button");button.type="button";button.className="station-choice";const strong=document.createElement("strong"),small=document.createElement("small");strong.textContent=station.name||station.brand||"АЗС";small.textContent=[station.city,station.address].filter(Boolean).join(" · ")||"Адрес не указан";button.append(strong,small);button.addEventListener("click",()=>selectFuelStation(station));nodes.fuelStationResults.append(button);}}
+async function searchFuelStations(){const term=nodes.fuelStationSearch.value.trim();if(term.length<2){renderFuelStationResults([]);return;}fuelSearchController?.abort();fuelSearchController=new AbortController();try{const response=await fetch(`${fuelSearchEndpoint}?q=${encodeURIComponent(term)}&limit=50`,{signal:fuelSearchController.signal});if(!response.ok)throw new Error(`Search HTTP ${response.status}`);renderFuelStationResults((await response.json()).stations||[]);}catch(error){if(error.name!=="AbortError"){nodes.fuelReviewError.textContent=error.message;}}}
+function openFuelIncidentReview(signal){activeFuelIncident=signal;selectedFuelStation=null;nodes.fuelReviewError.textContent="";nodes.fuelReviewTitle.textContent=signal.title;nodes.fuelReviewSource.href=signal.source_url;nodes.fuelReviewSource.textContent=`Открыть источник · ${signal.source_name||signal.source_id}`;nodes.fuelReviewStatus.value=signal.incident_type==="possible_reopening"?"operating":"damaged_reported";nodes.fuelStationSearch.value=signal.station_address||signal.location_text&&signal.location_text!=="Україна"?signal.station_address||signal.location_text:"";nodes.fuelStationResults.replaceChildren();nodes.fuelSelectedStation.hidden=true;nodes.fuelReviewApprove.disabled=true;if(signal.matched_station_id)selectFuelStation({id:signal.matched_station_id,name:signal.station_name,brand:signal.station_brand,address:signal.station_address});nodes.fuelReviewDialog.showModal();if(nodes.fuelStationSearch.value.length>=2)searchFuelStations();}
+async function reviewFuelIncident(decision){if(!activeFuelIncident)return;if(decision==="approve"&&!selectedFuelStation){nodes.fuelReviewError.textContent="Сначала выберите конкретную АЗС.";return;}nodes.fuelReviewError.textContent="";const response=await fetch(`${incidentEndpoint}/review`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({signalId:activeFuelIncident.signal_id,decision,stationId:selectedFuelStation?.id,status:nodes.fuelReviewStatus.value})});if(!response.ok){const body=await response.json().catch(()=>({}));nodes.fuelReviewError.textContent=body.error||`Fuel review HTTP ${response.status}`;return;}nodes.fuelReviewDialog.close();activeFuelIncident=null;await refresh();}
+function renderFreightIntelligence(data={}) {
+  const sources=data.sources||[],recent=data.recent||[];nodes.freightEvidenceCount.textContent=`${recent.length} наблюдений`;nodes.freightSourceRows.replaceChildren();
+  if(!sources.length){const row=document.createElement("tr"),cell=appendCell(row,"Источники ещё не опрошены","empty-row");cell.colSpan=7;nodes.freightSourceRows.append(row);}else for(const source of sources){const row=document.createElement("tr");appendCell(row,source.source_id);appendCell(row,source.status,`status-pill ${source.status}`);appendCell(row,formatAge(source.checked_at));appendCell(row,source.preview_messages);appendCell(row,source.accepted_observations);appendCell(row,Number(source.restricted_dropped||0)+Number(source.rejected_noise||0));appendCell(row,source.error);nodes.freightSourceRows.append(row);}
+  nodes.freightEvidenceRows.replaceChildren();if(!recent.length){const row=document.createElement("tr"),cell=appendCell(row,"Подтверждённых грузовых сигналов пока нет","empty-row");cell.colSpan=6;nodes.freightEvidenceRows.append(row);}else for(const item of recent){const row=document.createElement("tr");appendCell(row,formatDate(item.occurred_at));appendCell(row,item.source_id);appendCell(row,item.corridor_code);appendCell(row,item.freight_type);appendCell(row,`${Math.round(Number(item.confidence||0)*100)}%`);const evidence=appendCell(row,item.evidence_excerpt);evidence.title=item.source_url;nodes.freightEvidenceRows.append(row);}
+}
 async function adminAction(body){const response=await fetch(intelligenceEndpoint,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify(body)});if(!response.ok)throw new Error(`Action HTTP ${response.status}`);return response.json();}
 async function loadConfig() {
   try {
@@ -186,6 +210,8 @@ async function loadConfig() {
       endpoint = new URL("/api/admin/overview", `${base}/`).toString();
       intelligenceEndpoint = new URL("/api/admin/intelligence", `${base}/`).toString();
       incidentEndpoint = new URL("/api/fuel/admin/incidents", `${base}/`).toString();
+      fuelSearchEndpoint = new URL("/api/fuel/v1/search", `${base}/`).toString();
+      freightEndpoint = new URL("/api/admin/freight", `${base}/`).toString();
     }
   } catch {}
 }
@@ -205,6 +231,7 @@ async function refresh() {
     render(await response.json());
     const intelligence=await fetch(intelligenceEndpoint,{cache:"no-store",headers:{Authorization:`Bearer ${token}`}});if(intelligence.ok)renderIntelligence(await intelligence.json());
     const incidents=await fetch(incidentEndpoint,{cache:"no-store",headers:{Authorization:`Bearer ${token}`}});if(incidents.ok)renderFuelIncidents(await incidents.json());
+    const freight=await fetch(freightEndpoint,{cache:"no-store",headers:{Authorization:`Bearer ${token}`}});if(freight.ok)renderFreightIntelligence(await freight.json());
     nodes.loginPanel.hidden = true;
     nodes.dashboard.hidden = false;
     nodes.error.textContent = "";
@@ -262,3 +289,7 @@ if (token) {
     token = "";
   });
 }
+
+nodes.fuelStationSearch.addEventListener("input",()=>{clearTimeout(fuelSearchTimer);fuelSearchTimer=setTimeout(searchFuelStations,220);});
+nodes.fuelReviewApprove.addEventListener("click",()=>reviewFuelIncident("approve"));
+document.querySelector("#fuel-review-reject").addEventListener("click",()=>reviewFuelIncident("reject"));
