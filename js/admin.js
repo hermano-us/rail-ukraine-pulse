@@ -8,6 +8,24 @@ accountLoginInput.placeholder = "Например: curator.kyiv";
 loginCard.querySelector(".card-kicker").after(accountLoginLabel, accountLoginInput);
 loginCard.querySelector('label[for="admin-token"]').textContent = "Ключ доступа или legacy admin token";
 
+const accessPanel=document.createElement("section");accessPanel.id="access-management";accessPanel.className="panel access-management";accessPanel.hidden=true;
+accessPanel.innerHTML=`<header class="panel-header"><div><p class="eyebrow">ACCESS CONTROL</p><h2>Пользователи и права</h2></div><div class="access-summary"><span id="access-user-count" class="tag">—</span><span id="access-session-count" class="tag">—</span></div></header>
+  <p class="muted">Персональные аккаунты, роли и активные сессии закрытого контура. Legacy admin token остаётся только аварийным способом входа.</p>
+  <form id="access-create-form" class="access-create-form">
+    <label><span>Логин</span><input id="access-login" required minlength="3" maxlength="64" pattern="[a-z0-9._-]+" placeholder="curator.kyiv"></label>
+    <label><span>Имя</span><input id="access-display-name" required maxlength="120" placeholder="Куратор Киев"></label>
+    <label><span>Роль</span><select id="access-role"></select></label>
+    <button type="submit">Создать пользователя</button>
+  </form>
+  <p id="access-error" class="error" role="alert"></p>
+  <div class="table-wrap"><table class="access-table"><thead><tr><th>Пользователь</th><th>Роль</th><th>Статус</th><th>Последний вход</th><th>Сессии</th><th>Действия</th></tr></thead><tbody id="access-user-rows"></tbody></table></div>
+  <details class="role-matrix"><summary>Матрица разрешений ролей</summary><div id="access-role-matrix"></div></details>
+  <details class="access-audit"><summary>Журнал управления доступом</summary><div class="table-wrap"><table><thead><tr><th>Время</th><th>Пользователь</th><th>Действие</th><th>Объект</th></tr></thead><tbody id="access-audit-rows"></tbody></table></div></details>`;
+document.querySelector(".ops-grid").after(accessPanel);
+const accessKeyDialog=document.createElement("dialog");accessKeyDialog.className="review-dialog access-key-dialog";
+accessKeyDialog.innerHTML=`<form method="dialog" class="review-card"><header><div><p class="eyebrow">ONE-TIME CREDENTIAL</p><h2>Новый ключ доступа</h2></div><button class="secondary icon-button" value="cancel" aria-label="Закрыть">×</button></header><p class="muted">Ключ показывается только один раз. Передайте его сотруднику по защищённому каналу.</p><code id="access-key-value"></code><p id="access-key-copy-status" class="muted"></p><footer><button id="access-copy-key" type="button">Копировать ключ</button><button class="secondary" value="cancel">Готово</button></footer></form>`;
+document.body.append(accessKeyDialog);
+
 const nodes = {
   accountLogin: accountLoginInput,
   token: document.querySelector("#admin-token"),
@@ -46,6 +64,19 @@ const nodes = {
   freightSourceRows: document.querySelector("#freight-source-rows"),
   freightEvidenceRows: document.querySelector("#freight-evidence-rows"),
   freightEvidenceCount: document.querySelector("#freight-evidence-count"),
+  accessPanel,
+  accessCreateForm: document.querySelector("#access-create-form"),
+  accessLogin: document.querySelector("#access-login"),
+  accessDisplayName: document.querySelector("#access-display-name"),
+  accessRole: document.querySelector("#access-role"),
+  accessError: document.querySelector("#access-error"),
+  accessUserCount: document.querySelector("#access-user-count"),
+  accessSessionCount: document.querySelector("#access-session-count"),
+  accessUserRows: document.querySelector("#access-user-rows"),
+  accessRoleMatrix: document.querySelector("#access-role-matrix"),
+  accessAuditRows: document.querySelector("#access-audit-rows"),
+  accessKeyDialog,
+  accessKeyValue: document.querySelector("#access-key-value"),
 };
 
 let token = sessionStorage.getItem("rail-ops-token") || "";
@@ -66,6 +97,9 @@ function formatDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("ru-RU", { timeZone: "Europe/Kyiv" });
 }
+let accessUsersEndpoint = "/api/admin/access/users";
+let accessAuditEndpoint = "/api/admin/access/audit";
+let authMeEndpoint = "/api/auth/me";
 
 function ageMinutes(value) {
   const timestamp = Date.parse(value);
@@ -222,6 +256,27 @@ function renderEvidenceInbox(data={}) {
 }
 async function reviewEvidence(evidenceId,status){const response=await fetch(`${evidenceEndpoint}/review`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({evidenceId,status})});if(!response.ok)throw new Error(`Evidence review HTTP ${response.status}`);await refresh();}
 
+const roleLabels={admin:"Администратор",senior_curator:"Старший куратор",logistics_coordinator:"Координатор логистики",operator:"Оператор",observer:"Наблюдатель"};
+const statusLabels={active:"Активен",suspended:"Заблокирован",archived:"Архив"};
+async function accessFetch(url,options={}){const response=await fetch(url,{cache:"no-store",...options,headers:{Authorization:`Bearer ${token}`,...(options.headers||{})}});if(!response.ok){const body=await response.json().catch(()=>({}));const error=new Error(body.error||`Access API HTTP ${response.status}`);error.status=response.status;throw error;}return response.json();}
+function showAccessKey(value){nodes.accessKeyValue.textContent=value;document.querySelector("#access-key-copy-status").textContent="";nodes.accessKeyDialog.showModal();}
+function makeSelect(values,current,labels,isSelf=false){const select=document.createElement("select");for(const value of values){const option=document.createElement("option");option.value=value;option.textContent=labels[value]||value;option.selected=value===current;if(isSelf&&value!==current)option.disabled=true;select.append(option);}return select;}
+function renderRoleMatrix(roles=[],permissions={}){nodes.accessRoleMatrix.replaceChildren();for(const role of roles){const card=document.createElement("article"),title=document.createElement("strong"),list=document.createElement("p");title.textContent=roleLabels[role]||role;list.textContent=(permissions[role]||[]).join(" · ")||"Только базовый просмотр";card.append(title,list);nodes.accessRoleMatrix.append(card);}}
+function renderAccessUsers(data={},audit=[],principal={}){
+  const users=data.users||[],roles=data.roles||Object.keys(roleLabels);nodes.accessPanel.hidden=false;nodes.accessUserCount.textContent=`${users.length} пользователей`;nodes.accessSessionCount.textContent=`${users.reduce((sum,user)=>sum+Number(user.active_sessions||0),0)} активных сессий`;nodes.accessRole.innerHTML="";
+  for(const role of roles){const option=document.createElement("option");option.value=role;option.textContent=roleLabels[role]||role;nodes.accessRole.append(option);}renderRoleMatrix(roles,data.rolePermissions||{});nodes.accessUserRows.replaceChildren();
+  if(!users.length){const row=document.createElement("tr"),cell=appendCell(row,"Персональные пользователи ещё не созданы","empty-row");cell.colSpan=6;nodes.accessUserRows.append(row);}else for(const user of users){const row=document.createElement("tr"),identity=document.createElement("td"),name=document.createElement("strong"),login=document.createElement("small");name.textContent=user.display_name;login.textContent=user.login;identity.append(name,login);row.append(identity);const isSelf=principal.id===user.user_id,role=makeSelect(roles,user.role,roleLabels,isSelf),status=makeSelect(["active","suspended","archived"],user.status,statusLabels,isSelf);const roleCell=document.createElement("td"),statusCell=document.createElement("td");roleCell.append(role);statusCell.append(status);row.append(roleCell,statusCell);appendCell(row,formatDate(user.last_login_at));appendCell(row,user.active_sessions||0);const actions=document.createElement("td");actions.className="access-actions";
+    const save=document.createElement("button");save.className="secondary";save.textContent="Сохранить";save.addEventListener("click",()=>updateAccessUser(user.user_id,{role:role.value,status:status.value,displayName:user.display_name}));
+    const rotate=document.createElement("button");rotate.className="secondary";rotate.textContent="Новый ключ";rotate.disabled=isSelf;rotate.title=isSelf?"Собственный ключ нельзя заменить из активной сессии":"Отзывает прежний ключ и все сессии";rotate.addEventListener("click",()=>rotateAccessKey(user));
+    const revoke=document.createElement("button");revoke.className="secondary danger";revoke.textContent="Завершить сессии";revoke.disabled=isSelf||!Number(user.active_sessions);revoke.addEventListener("click",()=>revokeAccessSessions(user));actions.append(save,rotate,revoke);row.append(actions);nodes.accessUserRows.append(row);}
+  nodes.accessAuditRows.replaceChildren();for(const item of audit){const row=document.createElement("tr");appendCell(row,formatDate(item.occurred_at));appendCell(row,item.actor_id);appendCell(row,item.action);appendCell(row,[item.entity_type,item.entity_id].filter(Boolean).join(" · "));nodes.accessAuditRows.append(row);}
+}
+async function loadAccessManagement(){try{const [users,audit,me]=await Promise.all([accessFetch(accessUsersEndpoint),accessFetch(accessAuditEndpoint),accessFetch(authMeEndpoint)]);renderAccessUsers(users,audit.audit||[],me.user||{});nodes.accessError.textContent="";}catch(error){if([401,403].includes(error.status)){nodes.accessPanel.hidden=true;return;}nodes.accessPanel.hidden=false;nodes.accessError.textContent=error.message;}}
+async function createAccessUser(event){event.preventDefault();nodes.accessError.textContent="";try{const result=await accessFetch(accessUsersEndpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({login:nodes.accessLogin.value.trim(),displayName:nodes.accessDisplayName.value.trim(),role:nodes.accessRole.value})});nodes.accessCreateForm.reset();showAccessKey(result.accessKey);await loadAccessManagement();}catch(error){nodes.accessError.textContent=error.message;}}
+async function updateAccessUser(userId,changes){try{await accessFetch(`${accessUsersEndpoint}/${encodeURIComponent(userId)}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(changes)});await loadAccessManagement();}catch(error){nodes.accessError.textContent=error.message;}}
+async function rotateAccessKey(user){if(!confirm(`Выпустить новый ключ для ${user.login}? Все его сессии завершатся.`))return;try{const result=await accessFetch(`${accessUsersEndpoint}/${encodeURIComponent(user.user_id)}/rotate-key`,{method:"POST"});showAccessKey(result.accessKey);await loadAccessManagement();}catch(error){nodes.accessError.textContent=error.message;}}
+async function revokeAccessSessions(user){if(!confirm(`Завершить все сессии ${user.login}?`))return;try{await accessFetch(`${accessUsersEndpoint}/${encodeURIComponent(user.user_id)}/revoke-sessions`,{method:"POST"});await loadAccessManagement();}catch(error){nodes.accessError.textContent=error.message;}}
+
 async function adminAction(body){const response=await fetch(intelligenceEndpoint,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify(body)});if(!response.ok)throw new Error(`Action HTTP ${response.status}`);return response.json();}
 async function loadConfig() {
   try {
@@ -236,6 +291,9 @@ async function loadConfig() {
       freightEndpoint = new URL("/api/admin/freight", `${base}/`).toString();
       authEndpoint = new URL("/api/auth/session", `${base}/`).toString();
       evidenceEndpoint = new URL("/api/restricted/evidence", `${base}/`).toString();
+      accessUsersEndpoint = new URL("/api/admin/access/users", `${base}/`).toString();
+      accessAuditEndpoint = new URL("/api/admin/access/audit", `${base}/`).toString();
+      authMeEndpoint = new URL("/api/auth/me", `${base}/`).toString();
     }
   } catch {}
 }
@@ -257,6 +315,7 @@ async function refresh() {
     const incidents=await fetch(incidentEndpoint,{cache:"no-store",headers:{Authorization:`Bearer ${token}`}});if(incidents.ok)renderFuelIncidents(await incidents.json());
     const freight=await fetch(freightEndpoint,{cache:"no-store",headers:{Authorization:`Bearer ${token}`}});if(freight.ok)renderFreightIntelligence(await freight.json());
     const evidence=await fetch(evidenceEndpoint,{cache:"no-store",headers:{Authorization:`Bearer ${token}`}});if(evidence.ok)renderEvidenceInbox(await evidence.json());
+    await loadAccessManagement();
     nodes.loginPanel.hidden = true;
     nodes.dashboard.hidden = false;
     nodes.error.textContent = "";
@@ -299,6 +358,7 @@ async function login(event) {
 function logout() {
   if(token)fetch(authEndpoint,{method:"DELETE",headers:{Authorization:`Bearer ${token}`}}).catch(()=>{});
   token = "";
+  nodes.accessPanel.hidden = true;
   clearInterval(refreshTimer);
   sessionStorage.removeItem("rail-ops-token");
   nodes.dashboard.hidden = true;
@@ -307,6 +367,9 @@ function logout() {
 }
 
 nodes.loginForm.addEventListener("submit", login);
+nodes.accessCreateForm.addEventListener("submit",createAccessUser);
+document.querySelector("#access-copy-key").addEventListener("click",async()=>{const status=document.querySelector("#access-key-copy-status");try{await navigator.clipboard.writeText(nodes.accessKeyValue.textContent);status.textContent="Ключ скопирован.";}catch{status.textContent="Не удалось скопировать автоматически — выделите ключ вручную.";}});
+
 document.querySelector("#retry-collector")?.addEventListener("click",()=>adminAction({action:"retry-collector"}).then(refresh).catch(error=>{nodes.systemCaption.textContent=error.message;}));
 nodes.refreshButton.addEventListener("click", () => refresh().catch((error) => { nodes.systemCaption.textContent = error.message; }));
 document.querySelector("#logout-button").addEventListener("click", logout);
