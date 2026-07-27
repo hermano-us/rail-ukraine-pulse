@@ -37,5 +37,6 @@ test("freight ingest repeats the sensitive-content guard before D1", async () =>
   const response = await handleFreightRequest(request, env, { authorized: () => true, authorizedAdmin: () => false });
   const result = await response.json();
   assert.equal(response.status, 202); assert.equal(result.received, 3); assert.equal(result.accepted, 1); assert.equal(result.publicObjects, 0);
-  assert.equal(batches.flat().length, 1);
+  assert.equal(batches.flat().length, 2);
+  assert.match(batches.flat()[1].sql, /restricted_evidence/);
 });
