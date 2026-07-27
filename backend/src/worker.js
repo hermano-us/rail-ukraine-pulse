@@ -4,9 +4,12 @@ import { DASHBOARD_URL, parseEdgeDelayDashboard } from "./adapters/delay-dashboa
 import { collectTelegram } from "../../scripts/source-adapters/telegram.mjs";
 import { handleFuelRequest } from "./fuel/api.js";
 import { handleFreightRequest } from "./freight/api.js";
+import { handleSecurityRequest } from "./security/api.js";
+import { hasPermission, resolvePrincipal } from "./security/access.js";
+import { handleEvidenceRequest } from "./evidence/api.js";
 
 const SNAPSHOT_KEY = "public:v1:snapshot";
-const WORKER_VERSION = "intelligence-v6-fuel";
+const WORKER_VERSION = "intelligence-v7-secure-core";
 const FRESH_MINUTES = 20;
 const DEGRADED_MINUTES = 60;
 const STREAM_RETRY_MS = 10_000;
@@ -363,25 +366,27 @@ async function getAdminIntelligence(request, env) {
   return json({ quarantine: quarantine.results||[], cycles: cycles.results||[], audit: audit.results||[], sourceConfig: sources.results||[], incompleteRuns: incomplete.results||[], sourceHealth24h:healthChecks.results||[], modelQuality }, {headers:{"Cache-Control":"no-store"}}, request, env);
 }
 
-async function auditAdmin(env, action, target, details={}) {
-  await env.DB.prepare("INSERT INTO admin_audit(audit_id,occurred_at,actor,role,action,target,details_json) VALUES(?1,?2,'token-admin','admin',?3,?4,?5)")
-    .bind(crypto.randomUUID(),new Date().toISOString(),action,target||null,safeJson(details)).run();
+async function auditAdmin(env, action, target, details={}, principal=null) {
+  await env.DB.prepare("INSERT INTO admin_audit(audit_id,occurred_at,actor,role,action,target,details_json) VALUES(?1,?2,?3,?4,?5,?6,?7)")
+    .bind(crypto.randomUUID(),new Date().toISOString(),principal?.id||"legacy-admin",principal?.role||"admin",action,target||null,safeJson(details)).run();
 }
 
-async function handleAdminAction(request, env) {
+async function handleAdminAction(request, env, principal) {
   const body=await request.json();
-  if(body.action==="retry-collector") { await auditAdmin(env,body.action,"pipeline"); return json(await scheduledRefresh(env),{status:202},request,env); }
+  const requiredPermission={"retry-collector":"system.manage","resolve-quarantine":"evidence.review","correct-station":"rail.correct","configure-source":"sources.manage"}[body.action];
+  if(requiredPermission&&!hasPermission(principal,requiredPermission))return json({error:"forbidden"},{status:403},request,env);
+  if(body.action==="retry-collector") { await auditAdmin(env,body.action,"pipeline",{},principal); return json(await scheduledRefresh(env),{status:202},request,env); }
   if(body.action==="resolve-quarantine") {
-    await env.DB.prepare("UPDATE quarantine SET status='resolved',resolution=?1,resolved_at=?2,resolved_by='token-admin' WHERE quarantine_id=?3").bind(body.resolution||"dismissed",new Date().toISOString(),body.id).run();
-    await auditAdmin(env,body.action,body.id,{resolution:body.resolution}); return json({ok:true}, {}, request, env);
+    await env.DB.prepare("UPDATE quarantine SET status='resolved',resolution=?1,resolved_at=?2,resolved_by=?3 WHERE quarantine_id=?4").bind(body.resolution||"dismissed",new Date().toISOString(),principal?.id||"legacy-admin",body.id).run();
+    await auditAdmin(env,body.action,body.id,{resolution:body.resolution},principal); return json({ok:true}, {}, request, env);
   }
   if(body.action==="correct-station") {
     const run=body.runId?await env.DB.prepare("SELECT * FROM runs WHERE run_id=?1").bind(body.runId).first():await env.DB.prepare("SELECT * FROM runs WHERE train_number=?1 ORDER BY last_observed_at DESC LIMIT 1").bind(String(body.trainNumber||"")).first();
     if(!run)return json({error:"run_not_found"},{status:404},request,env);const update=JSON.parse(run.current_update_json);update.reportedStation=String(body.station||"").trim();update.positionEvidence="reported-manual-review";update.sourceId="admin-correction";update.sourceEvidence="operator-reviewed";update.reliability=Math.min(Number(update.reliability)||.5,.65);update.updatedAt=new Date().toISOString();
-    await env.DB.prepare("UPDATE runs SET current_update_json=?1,last_observed_at=?2 WHERE run_id=?3").bind(safeJson(update),update.updatedAt,run.run_id).run();await auditAdmin(env,body.action,run.run_id,{station:update.reportedStation,reason:body.reason||null});if(env.SNAPSHOT)await env.SNAPSHOT.delete(SNAPSHOT_KEY);return json({ok:true,runId:run.run_id,station:update.reportedStation},{},request,env);
+    await env.DB.prepare("UPDATE runs SET current_update_json=?1,last_observed_at=?2 WHERE run_id=?3").bind(safeJson(update),update.updatedAt,run.run_id).run();await auditAdmin(env,body.action,run.run_id,{station:update.reportedStation,reason:body.reason||null},principal);if(env.SNAPSHOT)await env.SNAPSHOT.delete(SNAPSHOT_KEY);return json({ok:true,runId:run.run_id,station:update.reportedStation},{},request,env);
   }  if(body.action==="configure-source") {
-    await env.DB.prepare("INSERT INTO source_config(source_id,enabled,priority,reliability,updated_at,updated_by) VALUES(?1,?2,?3,?4,?5,'token-admin') ON CONFLICT(source_id) DO UPDATE SET enabled=excluded.enabled,priority=excluded.priority,reliability=excluded.reliability,updated_at=excluded.updated_at,updated_by=excluded.updated_by").bind(body.sourceId,body.enabled===false?0:1,Number(body.priority)||50,Math.max(0,Math.min(1,Number(body.reliability)||.5)),new Date().toISOString()).run();
-    await auditAdmin(env,body.action,body.sourceId,body); return json({ok:true}, {}, request, env);
+    await env.DB.prepare("INSERT INTO source_config(source_id,enabled,priority,reliability,updated_at,updated_by) VALUES(?1,?2,?3,?4,?5,?6) ON CONFLICT(source_id) DO UPDATE SET enabled=excluded.enabled,priority=excluded.priority,reliability=excluded.reliability,updated_at=excluded.updated_at,updated_by=excluded.updated_by").bind(body.sourceId,body.enabled===false?0:1,Number(body.priority)||50,Math.max(0,Math.min(1,Number(body.reliability)||.5)),new Date().toISOString(),principal?.id||"legacy-admin").run();
+    await auditAdmin(env,body.action,body.sourceId,body,principal); return json({ok:true}, {}, request, env);
   }
   return json({error:"unknown_action"},{status:400},request,env);
 }
@@ -402,16 +407,26 @@ export async function handleRequest(request, env) {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request, env) });
   const url = new URL(request.url);
   try {
+    if (url.pathname.startsWith("/api/auth/") || url.pathname.startsWith("/api/admin/access/") || url.pathname === "/api/admin/feature-flags") {
+      const response = await handleSecurityRequest(request, env);
+      if (response) return response;
+    }
+    if (url.pathname.startsWith("/api/restricted/evidence")) {
+      const response = await handleEvidenceRequest(request, env, await resolvePrincipal(request, env));
+      if (response) return response;
+    }
     if (url.pathname === "/api/v1/freight/ingest" || url.pathname === "/api/admin/freight") {
+      const principal = url.pathname === "/api/admin/freight" ? await resolvePrincipal(request, env) : null;
       const response = await handleFreightRequest(request, env, {
         authorized: () => authorized(request, env),
-        authorizedAdmin: () => authorizedAdmin(request, env),
+        authorizedAdmin: () => authorizedAdmin(request, env) || hasPermission(principal, "evidence.read"),
       });
       if (response) return response;
     }    if (url.pathname.startsWith("/api/fuel/")) {
+      const principal = url.pathname.startsWith("/api/fuel/admin/") ? await resolvePrincipal(request, env) : null;
       const response = await handleFuelRequest(request, env, {
         authorized: () => authorized(request, env),
-        authorizedAdmin: () => authorizedAdmin(request, env),
+        authorizedAdmin: () => authorizedAdmin(request, env) || hasPermission(principal, url.pathname.includes("/incidents") ? "fuel.review" : "admin.overview"),
       });
       if (response) return response;
     }
@@ -431,10 +446,12 @@ export async function handleRequest(request, env) {
     if (request.method === "GET" && url.pathname === "/api/v1/segment-stats") return json({ segments: await readSegmentStats(env), aggregateOnly: true }, { headers: { "Cache-Control": "public, max-age=300" } }, request, env);
     if (request.method === "GET" && url.pathname === "/api/v1/model-quality") return json({ ...(await readModelQuality(env)), aggregateOnly: true }, { headers: { "Cache-Control": "public, max-age=300" } }, request, env);
     if (["GET","POST"].includes(request.method) && url.pathname === "/api/admin/intelligence") {
-      if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, { status: 401 }, request, env);
-      return request.method === "GET" ? getAdminIntelligence(request, env) : handleAdminAction(request, env);
+      const principal = await resolvePrincipal(request, env);
+      if (!hasPermission(principal, "admin.overview")) return json({ error: "unauthorized" }, { status: 401 }, request, env);
+      return request.method === "GET" ? getAdminIntelligence(request, env) : handleAdminAction(request, env, principal);
     }    if (request.method === "GET" && url.pathname === "/api/admin/overview") {
-      if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, { status: 401 }, request, env);
+      const principal = await resolvePrincipal(request, env);
+      if (!hasPermission(principal, "admin.overview")) return json({ error: "unauthorized" }, { status: 401 }, request, env);
       return getAdminOverview(request, env);
     }
     if (request.method === "GET" && url.pathname === "/api/v1/snapshot") return getSnapshot(request, env);

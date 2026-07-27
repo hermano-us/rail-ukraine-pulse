@@ -1,4 +1,15 @@
+const loginCard = document.querySelector("#login-form");
+const accountLoginLabel = document.createElement("label");
+accountLoginLabel.htmlFor = "account-login";
+accountLoginLabel.textContent = "Логин сотрудника (для ролевого доступа)";
+const accountLoginInput = document.createElement("input");
+accountLoginInput.id = "account-login"; accountLoginInput.autocomplete = "username";
+accountLoginInput.placeholder = "Например: curator.kyiv";
+loginCard.querySelector(".card-kicker").after(accountLoginLabel, accountLoginInput);
+loginCard.querySelector('label[for="admin-token"]').textContent = "Ключ доступа или legacy admin token";
+
 const nodes = {
+  accountLogin: accountLoginInput,
   token: document.querySelector("#admin-token"),
   loginPanel: document.querySelector("#login-panel"),
   loginForm: document.querySelector("#login-form"),
@@ -43,6 +54,8 @@ let intelligenceEndpoint = "/api/admin/intelligence";
 let incidentEndpoint = "/api/fuel/admin/incidents";
 let fuelSearchEndpoint = "/api/fuel/v1/search";
 let freightEndpoint = "/api/admin/freight";
+let authEndpoint = "/api/auth/session";
+let evidenceEndpoint = "/api/restricted/evidence";
 let refreshTimer;
 let requestInFlight = false;
 let sourceConfigById=new Map();
@@ -200,6 +213,15 @@ function renderFreightIntelligence(data={}) {
   if(!sources.length){const row=document.createElement("tr"),cell=appendCell(row,"Источники ещё не опрошены","empty-row");cell.colSpan=7;nodes.freightSourceRows.append(row);}else for(const source of sources){const row=document.createElement("tr");appendCell(row,source.source_id);appendCell(row,source.status,`status-pill ${source.status}`);appendCell(row,formatAge(source.checked_at));appendCell(row,source.preview_messages);appendCell(row,source.accepted_observations);appendCell(row,Number(source.restricted_dropped||0)+Number(source.rejected_noise||0));appendCell(row,source.error);nodes.freightSourceRows.append(row);}
   nodes.freightEvidenceRows.replaceChildren();if(!recent.length){const row=document.createElement("tr"),cell=appendCell(row,"Подтверждённых грузовых сигналов пока нет","empty-row");cell.colSpan=6;nodes.freightEvidenceRows.append(row);}else for(const item of recent){const row=document.createElement("tr");appendCell(row,formatDate(item.occurred_at));appendCell(row,item.source_id);appendCell(row,item.corridor_code);appendCell(row,item.freight_type);appendCell(row,`${Math.round(Number(item.confidence||0)*100)}%`);const evidence=appendCell(row,item.evidence_excerpt);evidence.title=item.source_url;nodes.freightEvidenceRows.append(row);}
 }
+function renderEvidenceInbox(data={}) {
+  const evidence=data.evidence||[],header=nodes.freightEvidenceRows.closest("table")?.querySelector("thead tr");
+  if(header&&header.children.length===6){for(const title of ["Статус","Решение"]){const th=document.createElement("th");th.textContent=title;header.append(th);}}
+  nodes.freightEvidenceCount.textContent=`${evidence.length} в очереди`;nodes.freightEvidenceRows.replaceChildren();
+  if(!evidence.length){const row=document.createElement("tr"),cell=appendCell(row,"Очередь свидетельств пуста","empty-row");cell.colSpan=8;nodes.freightEvidenceRows.append(row);return;}
+  for(const item of evidence){const row=document.createElement("tr");appendCell(row,formatDate(item.occurred_at));appendCell(row,item.source_id);appendCell(row,item.corridor_code);let classification={};try{classification=JSON.parse(item.classification_json||"{}");}catch{}appendCell(row,classification.freightType||item.domain);appendCell(row,`${Math.round(Number(item.confidence||0)*100)}%`);const excerpt=appendCell(row,item.evidence_excerpt);excerpt.title=item.source_url||"";appendCell(row,item.review_status,`status-pill ${item.review_status}`);const actions=document.createElement("td");for(const [status,label] of [["corroborated","Подтвердить"],["needs_context","Уточнить"],["rejected","Отклонить"]]){const button=document.createElement("button");button.className="secondary";button.textContent=label;button.addEventListener("click",()=>reviewEvidence(item.evidence_id,status));actions.append(button);}row.append(actions);nodes.freightEvidenceRows.append(row);}
+}
+async function reviewEvidence(evidenceId,status){const response=await fetch(`${evidenceEndpoint}/review`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({evidenceId,status})});if(!response.ok)throw new Error(`Evidence review HTTP ${response.status}`);await refresh();}
+
 async function adminAction(body){const response=await fetch(intelligenceEndpoint,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify(body)});if(!response.ok)throw new Error(`Action HTTP ${response.status}`);return response.json();}
 async function loadConfig() {
   try {
@@ -212,6 +234,8 @@ async function loadConfig() {
       incidentEndpoint = new URL("/api/fuel/admin/incidents", `${base}/`).toString();
       fuelSearchEndpoint = new URL("/api/fuel/v1/search", `${base}/`).toString();
       freightEndpoint = new URL("/api/admin/freight", `${base}/`).toString();
+      authEndpoint = new URL("/api/auth/session", `${base}/`).toString();
+      evidenceEndpoint = new URL("/api/restricted/evidence", `${base}/`).toString();
     }
   } catch {}
 }
@@ -232,6 +256,7 @@ async function refresh() {
     const intelligence=await fetch(intelligenceEndpoint,{cache:"no-store",headers:{Authorization:`Bearer ${token}`}});if(intelligence.ok)renderIntelligence(await intelligence.json());
     const incidents=await fetch(incidentEndpoint,{cache:"no-store",headers:{Authorization:`Bearer ${token}`}});if(incidents.ok)renderFuelIncidents(await incidents.json());
     const freight=await fetch(freightEndpoint,{cache:"no-store",headers:{Authorization:`Bearer ${token}`}});if(freight.ok)renderFreightIntelligence(await freight.json());
+    const evidence=await fetch(evidenceEndpoint,{cache:"no-store",headers:{Authorization:`Bearer ${token}`}});if(evidence.ok)renderEvidenceInbox(await evidence.json());
     nodes.loginPanel.hidden = true;
     nodes.dashboard.hidden = false;
     nodes.error.textContent = "";
@@ -253,12 +278,18 @@ function startAutoRefresh() {
 
 async function login(event) {
   event?.preventDefault();
-  token = nodes.token.value.trim();
-  if (!token) return;
   try {
+    const accessKey=nodes.token.value.trim(),loginName=nodes.accountLogin.value.trim();
+    if(!accessKey)return;
+    if(loginName){
+      const response=await fetch(authEndpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({login:loginName,accessKey})});
+      if(!response.ok)throw new Error(response.status===401?"Неверный логин или ключ доступа":`Auth HTTP ${response.status}`);
+      token=(await response.json()).token;
+    }else token=accessKey;
     await refresh();
     sessionStorage.setItem("rail-ops-token", token);
     nodes.token.value = "";
+    nodes.accountLogin.value = "";
     startAutoRefresh();
   } catch (error) {
     nodes.error.textContent = error.message;
@@ -266,6 +297,7 @@ async function login(event) {
 }
 
 function logout() {
+  if(token)fetch(authEndpoint,{method:"DELETE",headers:{Authorization:`Bearer ${token}`}}).catch(()=>{});
   token = "";
   clearInterval(refreshTimer);
   sessionStorage.removeItem("rail-ops-token");
