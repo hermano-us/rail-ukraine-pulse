@@ -23,3 +23,13 @@ test("implausible reported station cannot distort the route", () => {
   assert.deepEqual(result.coordinates, direct.coordinates);
   assert.equal(result.viaAnchor, undefined);
 });
+
+test("route is hidden when endpoints are too far from the rail graph", () => {
+  const graph = buildRailGraph([feature([[30, 50], [31, 50]])]);
+  assert.equal(railPath(graph, [30.4, 49.7], [31, 50]), null);
+});
+
+test("route is hidden when a sparse graph produces an implausible detour", () => {
+  const graph = buildRailGraph([feature([[30, 50], [31, 51], [32, 50]])]);
+  assert.equal(railPath(graph, [30, 50], [32, 50]), null);
+});

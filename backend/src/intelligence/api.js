@@ -1,4 +1,5 @@
 import { hasPermission, writeSecureAudit } from "../security/access.js";
+import { buildRestrictedFreightLayer } from "./freight-layer.js";
 
 const rows = (result) => result?.results || [];
 const allowed = (principal, ...permissions) => permissions.some((permission) => hasPermission(principal, permission));
@@ -34,7 +35,16 @@ async function railIntelligence(request, env, principal, json) {
 
 async function operationsHub(request,env,principal,json){
   if(!allowed(principal,"operations.hub.read","shipments.read","admin.overview"))return json({error:"forbidden"},403);const url=new URL(request.url),limit=safeLimit(url,200,750);
-  if(request.method==="GET"){const [movements,notifications,workflows]=await Promise.all([env.DB.prepare("SELECT * FROM ops_movements ORDER BY last_observed_at DESC LIMIT ?1").bind(limit).all(),env.DB.prepare("SELECT * FROM ops_notifications WHERE acknowledged_at IS NULL ORDER BY occurred_at DESC LIMIT 200").all(),env.DB.prepare("SELECT * FROM ops_workflows WHERE state!='resolved' ORDER BY CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,updated_at DESC LIMIT 200").all()]);return json({generatedAt:new Date().toISOString(),movements:rows(movements),notifications:rows(notifications),workflows:rows(workflows),counts:{movements:rows(movements).length,notifications:rows(notifications).length,workflows:rows(workflows).length},refreshSeconds:15});}
+  if(request.method==="GET"){
+    const [movements,notifications,workflows,freightEvidence]=await Promise.all([
+      env.DB.prepare("SELECT * FROM ops_movements ORDER BY last_observed_at DESC LIMIT ?1").bind(limit).all(),
+      env.DB.prepare("SELECT * FROM ops_notifications WHERE acknowledged_at IS NULL ORDER BY occurred_at DESC LIMIT 200").all(),
+      env.DB.prepare("SELECT * FROM ops_workflows WHERE state!='resolved' ORDER BY CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,updated_at DESC LIMIT 200").all(),
+      env.DB.prepare("SELECT evidence_id,source_id,source_url,occurred_at,evidence_excerpt,classification_json,corridor_code,confidence,sensitivity_level,review_status FROM restricted_evidence WHERE domain='rail_freight' AND review_status NOT IN ('rejected','expired') AND sensitivity_level!='highly_restricted' AND julianday(occurred_at)>=julianday('now','-24 hours') ORDER BY occurred_at DESC LIMIT 300").all(),
+    ]);
+    const freightLayer=buildRestrictedFreightLayer(rows(freightEvidence));
+    return json({generatedAt:new Date().toISOString(),movements:rows(movements),notifications:rows(notifications),workflows:rows(workflows),freightCorridors:freightLayer.corridors,freightStationFacts:freightLayer.stationFacts,freightPolicy:freightLayer.policy,counts:{movements:rows(movements).length,notifications:rows(notifications).length,workflows:rows(workflows).length,freightCorridors:freightLayer.corridors.length,freightStationFacts:freightLayer.stationFacts.length},refreshSeconds:15});
+  }
   if(request.method==="POST"){const body=await request.json();
     if(body.action==="ack-notification"){if(!allowed(principal,"operations.notifications.manage","shipments.update"))return json({error:"forbidden"},403);await env.DB.prepare("UPDATE ops_notifications SET acknowledged_at=?1,acknowledged_by=?2 WHERE notification_id=?3 AND acknowledged_at IS NULL").bind(new Date().toISOString(),principal.id,body.id).run();await writeSecureAudit(env,principal,"notification.acknowledged","ops_notification",body.id);return json({ok:true});}
     if(body.action==="update-movement"){if(!allowed(principal,"operations.hub.write","shipments.update","shipments.write"))return json({error:"forbidden"},403);const state=String(body.workflowState||"monitoring");if(!["monitoring","attention","investigating","resolved"].includes(state))return json({error:"invalid_state"},400);await env.DB.prepare("UPDATE ops_movements SET workflow_state=?1,assigned_to=?2 WHERE movement_id=?3").bind(state,body.assignedTo||null,body.id).run();await writeSecureAudit(env,principal,"movement.workflow_updated","ops_movement",body.id,{state});return json({ok:true});}

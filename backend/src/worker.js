@@ -501,6 +501,7 @@ export async function scheduledRefresh(env) {
   const checkedAt = new Date().toISOString();
   const cycleId=crypto.randomUUID(), cycleStarted=Date.now();
   await env.DB.prepare("INSERT INTO collection_cycles(cycle_id,started_at,status) VALUES(?1,?2,?3)").bind(cycleId,checkedAt,"running").run();
+  await env.DB.prepare("UPDATE collection_cycles SET status='failed',finished_at=?1,error=COALESCE(error,'cycle watchdog timeout') WHERE status='running' AND julianday(started_at)<julianday('now','-20 minutes')").bind(checkedAt).run();
   const previous = await readSnapshot(env);
   const configured=(await env.DB.prepare("SELECT source_id,enabled FROM source_config").all()).results||[];const sourceEnabled=id=>configured.find(item=>item.source_id===id)?.enabled!==0;
   let merged = [...(previous?.updates || [])];

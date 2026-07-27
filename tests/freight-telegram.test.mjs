@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { classifyFreightText, parseFreightPreview } from "../scripts/source-adapters/freight-telegram.mjs";
+import { classifyFreightText, extractFreightEntities, parseFreightPreview } from "../scripts/source-adapters/freight-telegram.mjs";
 import { handleFreightRequest } from "../backend/src/freight/api.js";
 
 test("freight source registry separates public previews from membership-only chats", async () => {
@@ -20,9 +20,21 @@ test("freight classifier accepts cargo evidence and discards sensitive or irrele
 
 test("freight preview emits private evidence without public positions", () => {
   const html = `<div class="tgme_widget_message_wrap"><div data-post="demo/15"><div class="tgme_widget_message_text">Вантажний поїзд, цистерни</div><time datetime="2026-07-22T10:00:00Z"></time></div></div>`;
+
   const result = parseFreightPreview(html, { id: "demo", reliability: 0.4, corridor: "test" }, "2026-07-22T10:01:00Z");
   assert.equal(result.observations.length, 1); assert.equal(result.observations[0].freightType, "tank_cars"); assert.equal(result.observations[0].publicEligible, false);
   assert.equal("latitude" in result.observations[0], false); assert.equal("longitude" in result.observations[0], false);
+});
+
+test("freight entity extraction keeps a directional report probabilistic", () => {
+  const entities=extractFreightEntities("Вл80т-1445 на Київ");
+  assert.equal(entities.locomotive,"ВЛ80Т-1445");
+  assert.equal(entities.direction,"київ");
+  assert.equal(classifyFreightText("Вл80т-1445 на Київ").freightType,"unclassified_rail");
+  const station=extractFreightEntities("Вантажний поїзд на станції Коростень, слідує далі");
+  assert.equal(station.station,"Коростень");
+  assert.equal(station.direction,null);
+  assert.equal("latitude" in station,false);
 });
 
 test("freight ingest repeats the sensitive-content guard before D1", async () => {
