@@ -88,7 +88,7 @@ test("health reports snapshot freshness instead of unconditional ok", async () =
   const body = await response.json();
   assert.equal(response.status, 200);
   assert.equal(body.status, "ok");
-  assert.equal(body.version, "intelligence-v7-secure-core");
+  assert.equal(body.version, "intelligence-v8-platform-suite");
   assert.equal(body.snapshot.updates, 1);
 });
 

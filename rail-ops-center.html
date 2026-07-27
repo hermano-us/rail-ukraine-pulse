@@ -6,7 +6,8 @@
   <meta name="color-scheme" content="dark">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>Rail Ukraine Pulse · Operations Center</title>
-  <link rel="stylesheet" href="css/admin.css?v=ops-center-v4">
+  <link rel="stylesheet" href="css/leaflet.css">
+  <link rel="stylesheet" href="css/admin.css?v=ops-center-v5">
 </head>
 <body>
   <div class="ops-backdrop" aria-hidden="true"></div>
@@ -97,6 +98,36 @@
         <div id="intelligence-metrics" class="metrics"></div><div id="cycle-chart" class="cycle-chart" aria-label="Циклы collector за 24 часа"></div>
         <div class="table-wrap"><table><thead><tr><th>Время</th><th>Источник</th><th>Поезд</th><th>Причина</th><th>Статус</th></tr></thead><tbody id="quarantine-rows"></tbody></table></div>
       </section>
+      <section id="platform-suite" class="platform-suite panel">
+        <header class="panel-header"><div><p class="eyebrow">INTELLIGENCE PLATFORM</p><h2>Железнодорожный операционный контур</h2></div><span id="platform-updated-at" class="muted">—</span></header>
+        <nav class="platform-tabs" aria-label="Разделы Intelligence Platform">
+          <button type="button" class="active" data-platform-tab="rail">Rail Intelligence</button>
+          <button type="button" data-platform-tab="operations">Operations Hub</button>
+          <button type="button" data-platform-tab="analytics">Analytics Network</button>
+        </nav>
+        <div class="platform-panel active" data-platform-panel="rail">
+          <div id="rail-intelligence-metrics" class="metrics platform-metrics"></div>
+          <div class="platform-grid">
+            <article><h3>Цифровые двойники</h3><p class="muted">Прогнозы создаются до следующего подтверждённого события и затем используются для калибровки.</p><div class="table-wrap"><table><thead><tr><th>Поезд</th><th>Участок</th><th>ETA P50</th><th>P80</th><th>Уверенность</th><th>Статус</th></tr></thead><tbody id="rail-twin-rows"></tbody></table></div></article>
+            <article><h3>Последние наблюдения</h3><p class="muted">Только трассируемые станционные факты и операторские подтверждения.</p><div class="table-wrap"><table><thead><tr><th>Время</th><th>Поезд</th><th>Станция</th><th>Источник</th><th>Надёжность</th></tr></thead><tbody id="rail-observation-rows"></tbody></table></div></article>
+          </div>
+        </div>
+        <div class="platform-panel" data-platform-panel="operations" hidden>
+          <div id="operations-hub-metrics" class="metrics platform-metrics"></div>
+          <div class="hub-layout"><div id="operations-map" class="operations-map" role="img" aria-label="Закрытая карта перевозок"></div><aside><h3>Уведомления</h3><div id="operations-notifications" class="notification-list"></div></aside></div>
+          <div class="table-wrap"><table><thead><tr><th>Поезд</th><th>Маршрут</th><th>Статус</th><th>Задержка</th><th>ETA</th><th>Последний факт</th><th>Workflow</th></tr></thead><tbody id="operations-movement-rows"></tbody></table></div>
+        </div>
+        <div class="platform-panel" data-platform-panel="analytics" hidden>
+          <div id="analytics-network-metrics" class="metrics platform-metrics"></div>
+          <div class="platform-grid analytics-grid">
+            <article><h3>Node Activity Score</h3><div class="table-wrap"><table><thead><tr><th>Узел</th><th>Score</th><th>Фактов/ч</th><th>Изменение</th><th>Уверенность</th></tr></thead><tbody id="node-activity-rows"></tbody></table></div></article>
+            <article><h3>Аномалии сети</h3><div class="table-wrap"><table><thead><tr><th>Время</th><th>Узел</th><th>Тип</th><th>Уровень</th><th>Описание</th></tr></thead><tbody id="network-anomaly-rows"></tbody></table></div></article>
+          </div>
+          <h3>Международные коридоры</h3><div id="international-corridors" class="corridor-list"></div>
+        </div>
+        <p id="platform-error" class="error" role="alert"></p>
+      </section>
+
       <section class="panel">
         <header class="panel-header"><div><p class="eyebrow">FUEL SAFETY WATCH</p><h2>Сигналы о работе и инцидентах АЗС</h2></div><span id="fuel-incident-count" class="tag">—</span></header>
         <p class="muted">Автоматически найденные сообщения не меняют публичный статус до проверки оператором.</p>
@@ -134,6 +165,7 @@
       <footer><button class="secondary" value="cancel">Оставить на проверке</button><button id="fuel-review-reject" class="secondary danger" type="button">Отклонить</button><button id="fuel-review-approve" type="button" disabled>Привязать и подтвердить</button></footer>
     </form>
   </dialog>
-  <script type="module" src="js/admin.js?v=ops-center-v4"></script>
+  <script src="js/vendor-leaflet.js"></script>
+  <script type="module" src="js/admin.js?v=ops-center-v5"></script>
 </body>
 </html>
