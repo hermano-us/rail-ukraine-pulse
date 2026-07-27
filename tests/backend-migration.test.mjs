@@ -12,11 +12,13 @@ test("D1 migration creates the event backend schema", {
   const observabilitySql = await readFile(new URL("../backend/migrations/0004_model_observability.sql", import.meta.url), "utf8");
   const fuelSql = await readFile(new URL("../backend/migrations/0005_fuel_platform.sql", import.meta.url), "utf8");
   const incidentSql = await readFile(new URL("../backend/migrations/0008_fuel_incidents.sql", import.meta.url), "utf8");
+  const freightSql = await readFile(new URL("../backend/migrations/0009_freight_intelligence.sql", import.meta.url), "utf8");
   database.exec(historySql);
   database.exec(sql);
   database.exec(observabilitySql);
   database.exec(fuelSql);
   database.exec(incidentSql);
+  database.exec(freightSql);
   const tables = database.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all().map((row) => row.name);
   assert.ok(tables.includes("runs"));
   assert.ok(tables.includes("events"));
@@ -29,6 +31,8 @@ test("D1 migration creates the event backend schema", {
   assert.ok(tables.includes("fuel_current_state"));
   assert.ok(tables.includes("fuel_moderation_queue"));
   assert.ok(tables.includes("fuel_incident_signals"));
+  assert.ok(tables.includes("freight_observations"));
+  assert.ok(tables.includes("freight_source_health"));
   database.close();
 });
 

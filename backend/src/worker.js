@@ -3,6 +3,7 @@ import { detectSourceVolumeDrop, screenUpdates } from "./domain/quality.js";
 import { DASHBOARD_URL, parseEdgeDelayDashboard } from "./adapters/delay-dashboard.js";
 import { collectTelegram } from "../../scripts/source-adapters/telegram.mjs";
 import { handleFuelRequest } from "./fuel/api.js";
+import { handleFreightRequest } from "./freight/api.js";
 
 const SNAPSHOT_KEY = "public:v1:snapshot";
 const WORKER_VERSION = "intelligence-v6-fuel";
@@ -401,7 +402,13 @@ export async function handleRequest(request, env) {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request, env) });
   const url = new URL(request.url);
   try {
-    if (url.pathname.startsWith("/api/fuel/")) {
+    if (url.pathname === "/api/v1/freight/ingest" || url.pathname === "/api/admin/freight") {
+      const response = await handleFreightRequest(request, env, {
+        authorized: () => authorized(request, env),
+        authorizedAdmin: () => authorizedAdmin(request, env),
+      });
+      if (response) return response;
+    }    if (url.pathname.startsWith("/api/fuel/")) {
       const response = await handleFuelRequest(request, env, {
         authorized: () => authorized(request, env),
         authorizedAdmin: () => authorizedAdmin(request, env),

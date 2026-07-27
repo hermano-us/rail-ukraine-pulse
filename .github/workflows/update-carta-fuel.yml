@@ -27,3 +27,8 @@ jobs:
         env:
           RAIL_API_URL: ${{ secrets.RAIL_API_URL }}
           RAIL_INGEST_TOKEN: ${{ secrets.RAIL_INGEST_TOKEN }}
+      - name: Audit overlapping catalog records (dry run)
+        run: npm run deduplicate-fuel
+        env:
+          RAIL_API_URL: ${{ secrets.RAIL_API_URL }}
+          RAIL_INGEST_TOKEN: ${{ secrets.RAIL_INGEST_TOKEN }}

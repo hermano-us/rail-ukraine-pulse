@@ -10,7 +10,10 @@ test("operations center is custom, private-by-default and buildable", async () =
   const worker = await readFile(new URL("backend/src/worker.js", root), "utf8");
   assert.match(html, /OPERATIONS CENTER/);
   assert.match(html, /noindex,nofollow,noarchive/);
+  assert.match(html, /fuel-review-dialog/);
+  assert.match(html, /freight-source-rows/);
   assert.match(build, /rail-ops-center\.html/);
+  assert.match(build, /rm\(new URL\("data\/freight-telegram-sources\.json", output\)/);
   assert.doesNotMatch(build, /admin\.html/);
   assert.match(worker, /\["\/admin\.html", "\/rail-ops-center\.html"\]\.includes/);
   await assert.rejects(access(new URL("admin.html", root)));
