@@ -49,6 +49,11 @@ test("Operations Center exposes all three protected platform surfaces", async ()
   assert.match(html, /<\/section>\s*<section class="panel">\s*<header[^>]*><div><p class="eyebrow">FUEL SAFETY WATCH/);
   assert.match(admin, /loadPlatformSuite/);
   assert.match(admin, /renderOperationsMap/);
+  assert.match(admin, /FREIGHT_CORRIDOR_GEOMETRY/);
+  assert.match(admin, /freightStationFacts/);
+  assert.match(admin, /ops-freight-arrow/);
+  const api = await readFile(new URL("../backend/src/intelligence/api.js", import.meta.url), "utf8");
+  assert.match(api, /freightCorridors:freightLayer\.corridors/);
   assert.match(admin, /if \(config\.apiBase\)[\s\S]*railIntelligenceEndpoint = new URL/);
   assert.doesNotMatch(admin, /async function refresh\(\)[\s\S]{0,180}new URL\([^\n]+base/);
   assert.doesNotMatch(admin, /function formatDate\([^)]*\)\s*\{\s*let operationsMap/);

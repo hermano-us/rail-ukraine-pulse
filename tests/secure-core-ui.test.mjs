@@ -18,3 +18,10 @@ test("operations center renders and moderates the restricted evidence inbox", as
   assert.match(script, /needs_context/);
   assert.match(script, /rejected/);
 });
+
+test("evidence moderation is permission-aware and reports API failures", async () => {
+  const script = await readFile(new URL("../js/admin.js", import.meta.url), "utf8");
+  assert.match(script, /canReviewEvidence/);
+  assert.match(script, /Недостаточно прав для разбора грузовых сигналов/);
+  assert.match(script, /row\?\.remove\(\)/);
+});

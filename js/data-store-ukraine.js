@@ -102,7 +102,8 @@ function nearestNode(graph, point) {
 
 export function railPath(graph, origin, destination) {
   const start=nearestNode(graph,origin), finish=nearestNode(graph,destination);
-  if(!start||!finish||start.distance>140||finish.distance>140)return null;
+  const directKm=haversineKm(origin,destination);
+  if(!start||!finish||start.distance>25||finish.distance>25)return null;
   const distances=new Map([[start.key,0]]), previous=new Map(), pending=new Set(graph.nodes.keys());
   while(pending.size){
     let current=null;
@@ -118,9 +119,12 @@ export function railPath(graph, origin, destination) {
   if(!distances.has(finish.key))return null;
   const keys=[];
   for(let key=finish.key;key;key=previous.get(key)){keys.push(key);if(key===start.key)break;}
+  const totalKm=Number(distances.get(finish.key).toFixed(1));
+  const maximumCredibleKm=Math.max(directKm*1.8,directKm+40);
+  if(totalKm>maximumCredibleKm)return null;
   return {
     coordinates:keys.reverse().map((key)=>graph.nodes.get(key)),
-    totalKm:Number(distances.get(finish.key).toFixed(1)),
+    totalKm,
     anchorErrorKm:Number((start.distance+finish.distance).toFixed(1)),
     startAnchorErrorKm:Number(start.distance.toFixed(1)),
     endAnchorErrorKm:Number(finish.distance.toFixed(1)),

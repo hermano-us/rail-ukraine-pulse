@@ -12,13 +12,23 @@ function freightType(text) {
   return "general_freight";
 }
 
+export function extractFreightEntities(text) {
+  const value=String(text||"").normalize("NFKC");
+  const locomotive=value.match(/((?:2?[ТT][ЕEЭ]|ВЛ|ЧС|ДС|М62|ЧМ[ЭЕ])[\p{L}\d]*\s*[-–—]?\s*\d{2,5}(?:\/\d+)?)/iu)?.[1]||null;
+  const direction=value.match(/(?:на(?!\s+станц)|до|в\s+бік|у\s+напрямку|в\s+направлении)\s+([\p{L}][\p{L}'’.-]{2,})/iu)?.[1]||null;
+  const stationRaw=value.match(/(?:на\s+станц(?:ії|ии)\s+|станц(?:ія|ия)\s+|ст\.?\s+)([\p{L}\d][^,.;:\n]{1,80})/iu)?.[1]||null;
+  const station=stationRaw?.split(/\s+(?:на|до|у|в|пройш|прибув|прослед|відправ)/iu)[0].trim().slice(0,120)||null;
+  return {locomotive:locomotive?locomotive.toLocaleUpperCase("uk-UA").replace(/\s*[-–—]\s*/,"-").replace(/\s+/g,""):null,direction:direction?direction.toLocaleLowerCase("uk-UA"):null,station};
+}
+
 export function classifyFreightText(text) {
   const value = String(text || "");
+  const entities=extractFreightEntities(value);
   if (SENSITIVE_CONTEXT.test(value)) return { accepted: false, restricted: true, reason: "sensitive_content" };
   if (!RAIL_CONTEXT.test(value)) return { accepted: false, reason: "not_rail" };
   if (!FREIGHT_CONTEXT.test(value) && PASSENGER_CONTEXT.test(value)) return { accepted: false, reason: "passenger_only" };
-  if (!FREIGHT_CONTEXT.test(value)) return { accepted: true, restricted: false, freightType: "unclassified_rail", confidenceFactor: 0.45 };
-  return { accepted: true, restricted: false, freightType: freightType(value), confidenceFactor: 1 };
+  if (!FREIGHT_CONTEXT.test(value)) return { accepted: true, restricted: false, freightType: "unclassified_rail", confidenceFactor: 0.45, entities };
+  return { accepted: true, restricted: false, freightType: freightType(value), confidenceFactor: 1, entities };
 }
 
 export function parseFreightPreview(html, source, checkedAt = new Date().toISOString()) {
@@ -33,7 +43,7 @@ export function parseFreightPreview(html, source, checkedAt = new Date().toISOSt
       observationId: `${source.id}:${fingerprint(`${postId}:${text}`)}`, sourceId: source.id, sourceUrl: `https://t.me/${postId}`,
       occurredAt, checkedAt, corridor: source.corridor || "unresolved", freightType: classification.freightType,
       confidence: Math.max(0.05, Math.min(0.65, (Number(source.reliability) || 0.2) * classification.confidenceFactor)), contentFingerprint: fingerprint(text),
-      evidenceExcerpt: text.replace(/\s+/g, " ").slice(0, 360), publicEligible: false,
+      evidenceExcerpt: text.replace(/\s+/g, " ").slice(0, 360), entities:classification.entities, publicEligible: false,
     });
   }
   return { observations, restricted, rejected, previewMessages: starts.length };
