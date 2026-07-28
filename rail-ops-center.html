@@ -54,6 +54,16 @@
         </div>
       </section>
 
+      <nav class="section-jump" aria-label="Operations Center sections">
+        <button type="button" data-jump-target="system-hero">Overview</button>
+        <button type="button" data-jump-target="source-watch-panel">Sources</button>
+        <button type="button" data-jump-target="intelligence-control-panel">Intelligence</button>
+        <button type="button" data-jump-target="platform-suite">Rail / Operations</button>
+        <button type="button" data-jump-target="fuel-safety-panel">Fuel</button>
+        <button type="button" data-jump-target="freight-watch-panel">Freight</button>
+        <button type="button" data-jump-target="event-ledger-panel">Events</button>
+        <span></span><button type="button" data-panel-action="collapse">− All</button><button type="button" data-panel-action="expand">+ All</button>
+      </nav>
       <div id="metrics" class="metrics" aria-live="polite"></div>
       <div id="coverage-metrics" class="metrics coverage-metrics" aria-label="Покрытие рейсов"></div>
 
@@ -83,7 +93,7 @@
         </section>
       </div>
 
-      <section class="panel">
+      <section id="source-watch-panel" class="panel collapsible-panel">
         <header class="panel-header"><div><p class="eyebrow">SOURCE WATCH</p><h2>Источники данных</h2></div><span id="updated-at" class="muted"></span></header>
         <details class="collapsible-list" data-collapse-key="source-watch" open><summary>Реестр источников</summary><div class="table-wrap">
           <table>
@@ -93,12 +103,12 @@
         </div></details>
       </section>
 
-      <section class="panel">
+      <section id="intelligence-control-panel" class="panel collapsible-panel">
         <header class="panel-header"><div><p class="eyebrow">INTELLIGENCE CONTROL</p><h2>Качество и автоматические циклы</h2></div><button id="retry-collector" type="button">Запустить collector</button></header>
         <div id="intelligence-metrics" class="metrics"></div><div id="cycle-chart" class="cycle-chart" aria-label="Циклы collector за 24 часа"></div>
         <details class="collapsible-list" data-collapse-key="quality-quarantine" open><summary>Карантин качества</summary><div class="table-wrap"><table><thead><tr><th>Время</th><th>Источник</th><th>Поезд</th><th>Причина</th><th>Статус</th></tr></thead><tbody id="quarantine-rows"></tbody></table></div></details>
       </section>
-      <section id="platform-suite" class="platform-suite panel">
+      <section id="platform-suite" class="platform-suite panel collapsible-panel">
         <header class="panel-header"><div><p class="eyebrow">INTELLIGENCE PLATFORM</p><h2>Железнодорожный операционный контур</h2></div><span id="platform-updated-at" class="muted">—</span></header>
         <nav class="platform-tabs" aria-label="Разделы Intelligence Platform">
           <button type="button" class="active" data-platform-tab="rail">Rail Intelligence</button>
@@ -141,19 +151,19 @@
         <p id="platform-error" class="error" role="alert"></p>
       </section>
 
-      <section class="panel">
+      <section id="fuel-safety-panel" class="panel collapsible-panel">
         <header class="panel-header"><div><p class="eyebrow">FUEL SAFETY WATCH</p><h2>Сигналы о работе и инцидентах АЗС</h2></div><span id="fuel-incident-count" class="tag">—</span></header>
         <p class="muted">Автоматически найденные сообщения не меняют публичный статус до проверки оператором.</p>
         <details class="collapsible-list" data-collapse-key="fuel-incidents" open><summary>Очередь сигналов АЗС</summary><div class="table-wrap"><table><thead><tr><th>Время</th><th>Тип</th><th>АЗС</th><th>Сообщение</th><th>Уверенность</th><th>Решение</th></tr></thead><tbody id="fuel-incident-rows"></tbody></table></div></details>
       </section>
-      <section class="panel">
+      <section id="freight-watch-panel" class="panel collapsible-panel">
         <header class="panel-header"><div><p class="eyebrow">FREIGHT SOURCE WATCH</p><h2>Грузовые железнодорожные сигналы</h2></div><span id="freight-evidence-count" class="tag">—</span></header>
         <p class="muted">Приватный контур проверки: точные позиции и потенциально чувствительные сообщения не публикуются.</p>
         <p id="freight-review-status" class="muted review-status" role="status" aria-live="polite"></p>
         <details class="collapsible-list" data-collapse-key="freight-sources" open><summary>Состояние Telegram-источников</summary><div class="table-wrap"><table><thead><tr><th>Источник</th><th>Состояние</th><th>Проверен</th><th>Сообщений</th><th>Принято</th><th>Отброшено</th><th>Ошибка</th></tr></thead><tbody id="freight-source-rows"></tbody></table></div></details>
         <details class="collapsible-list" data-collapse-key="freight-evidence" open><summary>Очередь железнодорожных свидетельств</summary><div class="table-wrap"><table><thead><tr><th>Время</th><th>Источник</th><th>Коридор</th><th>Тип</th><th>Уверенность</th><th>Свидетельство</th></tr></thead><tbody id="freight-evidence-rows"></tbody></table></div></details>
       </section>
-      <section class="panel">
+      <section id="event-ledger-panel" class="panel collapsible-panel">
         <header class="panel-header"><div><p class="eyebrow">EVENT LEDGER</p><h2>Последние события</h2></div><span id="events-caption" class="muted"></span></header>
         <details class="collapsible-list" data-collapse-key="event-ledger" open><summary>Журнал событий</summary><div class="table-wrap">
           <table>
