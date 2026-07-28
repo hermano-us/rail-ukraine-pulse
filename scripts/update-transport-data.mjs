@@ -5,6 +5,8 @@ import { fetchText } from "./source-adapters/html.mjs";
 import { collectOfficialBoard } from "./source-adapters/official-board.mjs";
 import { checkReferences } from "./source-adapters/references.mjs";
 import { collectTelegram, rehydrateTelegramPosts, telegramUpdates } from "./source-adapters/telegram.mjs";
+import { buildExpectedRuns } from "./source-adapters/expected-registry.mjs";
+import { collectInternationalRailSources } from "./source-adapters/international-rail.mjs";
 
 const DELAY_URL = "https://uz-vezemo.uz.gov.ua/delayform/";
 const liveTarget = resolve("data/live.json");
@@ -30,6 +32,7 @@ function staleStatus(previous, error, label) {
 
 async function collectDelay(previousUpdates = []) {
   const checkedAt = new Date().toISOString();
+  const expectedRuns = buildExpectedRuns(evidenceUpdates.flat(), board.records || [], checkedAt);
   try {
     const updates = parseDelayTable(await fetchText(DELAY_URL));
     if (!updates.length) throw new Error("Delay table returned no parseable trains");
@@ -77,18 +80,22 @@ async function main() {
       records: previousRuntime.sources?.["uz-public-board"]?.records || [], failures: [], updates: [],
     }));
   const referencePromise = checkReferences();
+  const internationalPromise = collectInternationalRailSources();
 
-  const [delay, telegram, board, references] = await Promise.all([delayPromise, telegramPromise, boardPromise, referencePromise]);
+  const [delay, telegram, board, references, international] = await Promise.all([delayPromise, telegramPromise, boardPromise, referencePromise, internationalPromise]);
   const referenceRuntime = Object.fromEntries(references.map((item) => [item.id, item]));
   const sources = {
     "uz-delay-dashboard": delay,
     "uz-public-board": board,
     "uz-suburban-telegram": telegram,
+    ...international.sources,
     ...referenceRuntime,
   };
-  const updates = mergeUpdates([board.updates || [], telegram.updates || [], delay.updates || []]);
+  const evidenceUpdates = [board.updates || [], telegram.updates || [], delay.updates || [], international.updates || []];
+  const updates = mergeUpdates(evidenceUpdates);
   const onlineCount = Object.values(sources).filter((source) => ["online", "snapshot"].includes(source.status?.status || source.status)).length;
   const checkedAt = new Date().toISOString();
+  const expectedRuns = buildExpectedRuns(evidenceUpdates.flat(), board.records || [], checkedAt);
   const anyFreshOperational = [delay, telegram, board].some((source) => source.status.status === "online");
   const generatedAt = anyFreshOperational ? checkedAt : (previousLive.generatedAt || checkedAt);
   const sourceStatus = {
@@ -97,7 +104,7 @@ async function main() {
     capabilities: { officialStatus: true, forecast: true, stationPassage: true, gps: false, scope: "public-passenger-and-commuter-events" },
   };
   await atomicJson(runtimeTarget, { schemaVersion: 1, generatedAt: checkedAt, sources });
-  await atomicJson(liveTarget, { schemaVersion: 5, provider: "Ukrzaliznytsia public source fusion", generatedAt, sourceStatus, updates });
+  await atomicJson(liveTarget, { schemaVersion: 7, provider: "Ukrzaliznytsia public source fusion", generatedAt, sourceStatus, updates, expectedRuns, externalSources: international.sources });
   console.log(`${sourceStatus.label}; board ${board.status.status}, Telegram ${telegram.status.status}, delays ${delay.status.status}.`);
 }
 

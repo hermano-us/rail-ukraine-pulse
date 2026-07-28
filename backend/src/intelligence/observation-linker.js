@@ -44,13 +44,15 @@ export function chooseCanonicalRun(event, candidates = []) {
 async function batch(env,statements,size=60){for(let index=0;index<statements.length;index+=size)await env.DB.batch(statements.slice(index,index+size));}
 
 export async function linkRecentObservations(env, now = new Date().toISOString(), stationAliases = new Map()) {
-  const [eventResult,runResult]=await Promise.all([
+  const [eventResult,runResult,expectedResult]=await Promise.all([
     env.DB.prepare(`SELECT e.event_id,e.run_id original_run_id,e.station,e.occurred_at,e.raw_update_json,o.train_number,o.service_date,o.route,o.origin,o.destination
-      FROM events e LEFT JOIN runs o ON o.run_id=e.run_id LEFT JOIN observation_run_links l ON l.event_id=e.event_id
-      WHERE e.event_type='station_report' AND e.occurred_at>=datetime('now','-7 days') AND (l.event_id IS NULL OR (l.status='pending' AND l.updated_at<datetime('now','-1 hour'))) ORDER BY e.occurred_at DESC LIMIT 500`).all(),
+      FROM events e LEFT JOIN runs o ON o.run_id=e.run_id LEFT JOIN observation_run_links l ON l.event_id=e.event_id LEFT JOIN observation_fusion_members fm ON fm.event_id=e.event_id
+      WHERE e.event_type='station_report' AND e.occurred_at>=datetime('now','-7 days') AND (fm.event_id IS NULL OR fm.is_primary=1) AND (l.event_id IS NULL OR (l.status='pending' AND l.updated_at<datetime('now','-1 hour'))) ORDER BY e.occurred_at DESC LIMIT 500`).all(),
     env.DB.prepare("SELECT run_id,train_number,service_date,route,origin,destination,current_update_json,first_observed_at,last_observed_at FROM runs WHERE last_observed_at>=datetime('now','-8 days') ORDER BY last_observed_at DESC LIMIT 3000").all(),
+    env.DB.prepare("SELECT run_id,train_number,service_date,route,origin,destination,NULL current_update_json,first_seen_at first_observed_at,COALESCE(last_observation_at,updated_at) last_observed_at FROM expected_train_runs WHERE service_date>=date('now','-1 day') AND service_date<=date('now','+1 day') ORDER BY updated_at DESC LIMIT 5000").all(),
   ]);
-  const runs=rows(runResult).map(run=>{const raw=parseJson(run.current_update_json);return {...run,locomotive:raw.locomotive||raw.locomotiveNumber||null};}),statements=[];let linked=0,pending=0;
+  const runMap=new Map();for(const run of [...rows(runResult),...rows(expectedResult)])if(!runMap.has(run.run_id))runMap.set(run.run_id,run);
+  const runs=[...runMap.values()].map(run=>{const raw=parseJson(run.current_update_json);return {...run,locomotive:raw.locomotive||raw.locomotiveNumber||null};}),statements=[];let linked=0,pending=0;
   for(const event of rows(eventResult)){
     const raw=parseJson(event.raw_update_json),stationKey=normalize(event.station),enriched={...event,train_number:event.train_number||raw.trainNumber||raw.train_number,service_date:event.service_date||raw.serviceDate,route:event.route||raw.route,origin:event.origin||raw.origin,destination:event.destination||raw.destination,locomotive:raw.locomotive||raw.locomotiveNumber||null,station_id:stationAliases.get(stationKey)||null};
     const matching=runs.filter((run)=>trainKey(run.train_number)===trainKey(enriched.train_number)),decision=chooseCanonicalRun(enriched,matching);if(decision.status==="linked")linked+=1;else pending+=1;

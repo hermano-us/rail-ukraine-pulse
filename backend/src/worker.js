@@ -9,6 +9,8 @@ import { hasPermission, resolvePrincipal } from "./security/access.js";
 import { handleEvidenceRequest } from "./evidence/api.js";
 import { handleIntelligencePlatformRequest } from "./intelligence/api.js";
 import { runIntelligenceCycle } from "./intelligence/service.js";
+import { ingestExpectedRuns } from "./intelligence/expected-registry.js";
+import { handlePublicObservationRequest } from "./intelligence/observation-submissions.js";
 
 const SNAPSHOT_KEY = "public:v1:snapshot";
 const WORKER_VERSION = "intelligence-v8-platform-suite";
@@ -95,6 +97,7 @@ async function storeSourceHealth(env, sourceStatus, recordsCount) {
 }
 
 export async function ingestPayload(env, payload, observedAt = new Date().toISOString()) {
+  const expectedRegistry = await ingestExpectedRuns(env, payload?.expectedRuns || [], observedAt);
   const quality = screenUpdates(Array.isArray(payload?.updates) ? payload.updates : [], Date.parse(observedAt));
   const updates = quality.accepted;
   const generated = updatesToEvents(updates, { observedAt });
@@ -168,6 +171,10 @@ export async function ingestPayload(env, payload, observedAt = new Date().toISOS
   await env.DB.prepare("DELETE FROM run_snapshots WHERE captured_at < datetime('now', ?1)").bind(`-${HISTORY_RETENTION_DAYS} days`).run();
   await env.DB.prepare("DELETE FROM source_health_checks WHERE checked_at < datetime('now', '-30 days')").run();
   await storeSourceHealth(env, payload?.sourceStatus, updates.length);
+  for (const [sourceId, source] of Object.entries(payload?.externalSources || {})) {
+    await env.DB.prepare(`UPDATE external_rail_sources SET status=?1,last_checked_at=?2,last_success_at=CASE WHEN ?1='online' THEN ?2 ELSE last_success_at END,last_error=?3,records_count=?4,updated_at=?2 WHERE source_id=?5`)
+      .bind(source?.status?.status || source?.status || "unknown", source?.status?.checkedAt || observedAt, source?.status?.error || null, Number(source?.recordsCount || 0), sourceId).run();
+  }
 
   const snapshot = {
     schemaVersion: 6,
@@ -183,7 +190,7 @@ export async function ingestPayload(env, payload, observedAt = new Date().toISOS
     quality: { accepted: updates.length, quarantined: quality.quarantined.length, warningCounts: quality.warningCounts, checkedAt: quality.checkedAt },
   };
   if (env.SNAPSHOT) await env.SNAPSHOT.put(SNAPSHOT_KEY, JSON.stringify(snapshot), { expirationTtl: 900 });
-  return { accepted: validEvents.length, rejected: events.length - validEvents.length, quarantined: quality.quarantined.length, runs: updateByRun.size, snapshot };
+  return { accepted: validEvents.length, rejected: events.length - validEvents.length, quarantined: quality.quarantined.length, runs: updateByRun.size, expectedRuns: expectedRegistry.accepted, snapshot };
 }
 
 async function snapshotFromDb(env) {
@@ -453,6 +460,7 @@ export async function handleRequest(request, env) {
       headers.set("Cache-Control", "no-store");
       return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
     }
+    if (["GET","POST"].includes(request.method) && url.pathname === "/api/v1/rail-observations") return handlePublicObservationRequest(request,env,(value,status=200)=>json(value,{status,headers:{"Cache-Control":"no-store"}},request,env));
     if (request.method === "GET" && url.pathname === "/api/health") return getHealth(request, env);
     if (request.method === "GET" && url.pathname === "/api/v1/stream") return getSnapshotStream(request, env);
     if (request.method === "GET" && url.pathname === "/api/v1/segment-stats") return json({ segments: await readSegmentStats(env), aggregateOnly: true }, { headers: { "Cache-Control": "public, max-age=300" } }, request, env);

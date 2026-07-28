@@ -130,6 +130,11 @@
             <p class="muted">Несколько вероятных рейсов с объяснением оценки. Очевидные случаи применяются автоматически.</p>
             <div class="table-wrap"><table><thead><tr><th>Время</th><th>Наблюдение</th><th>Кандидаты</th><th>Почему</th><th>Решение</th></tr></thead><tbody id="entity-resolution-rows"></tbody></table></div>
           </details>
+          <details class="collapsible-list" data-collapse-key="witness-submissions">
+            <summary>Пассажирские подтверждения · модерация</summary>
+            <p class="muted">Станционные наблюдения не влияют на модель до подтверждения оператором.</p>
+            <div class="table-wrap"><table><thead><tr><th>Время</th><th>Поезд</th><th>Станция</th><th>Примечание</th><th>Решение</th></tr></thead><tbody id="witness-submission-rows"></tbody></table></div>
+          </details>
         </div>
         <div class="platform-panel" data-platform-panel="operations" hidden>
           <div id="operations-hub-metrics" class="metrics platform-metrics"></div>
@@ -203,6 +208,6 @@
     </form>
   </dialog>
   <script src="js/vendor-leaflet.js"></script>
-  <script type="module" src="js/admin.js?v=ops-center-v5"></script>
+  <script type="module" src="js/admin.js?v=observation-fusion-v2"></script>
 </body>
 </html>

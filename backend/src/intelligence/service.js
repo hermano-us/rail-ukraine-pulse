@@ -1,6 +1,8 @@
 import { loadStationAliasMap, syncRailGraphReference } from "./rail-graph-sync.js";
 import { resolveRailRouteGeometries } from "./rail-route-cache.js";
 import { linkRecentObservations } from "./observation-linker.js";
+import { fuseRecentObservations } from "./observation-fusion-v2.js";
+import { refreshExpectedRunCoverage } from "./expected-registry.js";
 import { applyCalibration, applyCalibrationV3, refreshCalibrationProfiles, refreshCalibrationProfilesV3 } from "./calibration.js";
 import { deriveTwinOperationalState, stateTransition, summarizeStationEvidence } from "./twin-state-machine.js";
 const rows = (result) => result?.results || [];
@@ -135,15 +137,17 @@ export function buildTwinHypotheses({ event, candidates = [], now = new Date().t
 export async function runIntelligenceCycle(env, now = new Date().toISOString()) {
   const cycleId = crypto.randomUUID();
   await env.DB.prepare("INSERT INTO intelligence_cycles(cycle_id,started_at,status) VALUES(?1,?2,'running')").bind(cycleId, now).run();
-  const counters = { nodes: 0, edges: 0, observations: 0, predictions: 0, resolved: 0, replayed: 0, anomalies: 0, routesCalculated: 0, linksCreated: 0, calibrationProfiles: 0, stateTransitions: 0, prospectiveEvaluations: 0 };
+  const counters = { nodes: 0, edges: 0, observations: 0, predictions: 0, resolved: 0, replayed: 0, anomalies: 0, routesCalculated: 0, linksCreated: 0, calibrationProfiles: 0, stateTransitions: 0, prospectiveEvaluations: 0, expectedRuns: 0, silentRuns: 0, fusedObservations: 0 };
   let graphSync = { status:'not-run' };
   try {
     try { graphSync = await syncRailGraphReference(env, now); } catch (error) { graphSync = { status:'degraded', error:String(error?.message||error).slice(0,300) }; }
     const stationAliases = await loadStationAliasMap(env);
+    const fusionResult=await fuseRecentObservations(env,now); counters.fusedObservations=fusionResult.groups;
     const linkResult=await linkRecentObservations(env,now,stationAliases); counters.linksCreated=linkResult.linked;
+    const coverage=await refreshExpectedRunCoverage(env,now); counters.expectedRuns=coverage.total; counters.silentRuns=coverage.silent;
     const eventRows = rows(await env.DB.prepare(`SELECT e.event_id,COALESCE(CASE WHEN l.status='linked' THEN l.canonical_run_id END,e.run_id) run_id,e.station,e.occurred_at,e.observed_at,e.source_id,e.authority,e.reliability,e.raw_update_json,r.train_number,r.route,r.origin,r.destination
-      FROM events e LEFT JOIN observation_run_links l ON l.event_id=e.event_id LEFT JOIN runs r ON r.run_id=COALESCE(CASE WHEN l.status='linked' THEN l.canonical_run_id END,e.run_id)
-      WHERE e.event_type='station_report' AND e.station IS NOT NULL AND e.occurred_at>=datetime('now','-7 days')
+      FROM events e LEFT JOIN observation_run_links l ON l.event_id=e.event_id LEFT JOIN runs r ON r.run_id=COALESCE(CASE WHEN l.status='linked' THEN l.canonical_run_id END,e.run_id) LEFT JOIN observation_fusion_members fm ON fm.event_id=e.event_id
+      WHERE e.event_type='station_report' AND e.station IS NOT NULL AND e.occurred_at>=datetime('now','-7 days') AND (fm.event_id IS NULL OR fm.is_primary=1)
       ORDER BY e.occurred_at DESC LIMIT 1500`).all());
     const nodeMap = new Map();
     const observationStatements = [];
@@ -233,7 +237,7 @@ export async function runIntelligenceCycle(env, now = new Date().toISOString()) 
     for(const corridor of corridorRows){const nodeScores=parseJson(corridor.border_nodes_json,[]).map(nodeId=>scoreByNode.get(nodeId)).filter(Number.isFinite);if(!nodeScores.length)continue;const corridorScore=Number((nodeScores.reduce((sum,value)=>sum+value,0)/nodeScores.length).toFixed(1));corridorStatements.push(env.DB.prepare("UPDATE international_corridors SET status='monitored',activity_score=?1,last_observed_at=?2 WHERE corridor_id=?3").bind(corridorScore,now,corridor.corridor_id));}
     await batch(env,corridorStatements);
     await env.DB.batch([env.DB.prepare("UPDATE twin_predictions SET status='expired' WHERE status='pending' AND eta_p80_end<datetime('now','-6 hours')"),env.DB.prepare("DELETE FROM node_activity_scores WHERE calculated_at<datetime('now','-30 days')"),env.DB.prepare("UPDATE twin_hypotheses SET status='expired' WHERE status='active' AND expires_at<datetime('now')")]);
-    await env.DB.prepare(`UPDATE intelligence_cycles SET finished_at=?1,status='success',nodes_updated=?2,edges_updated=?3,observations_added=?4,predictions_created=?5,predictions_resolved=?6,anomalies_detected=?7,routes_calculated=?8,links_created=?9,calibration_profiles=?10,state_transitions=?11,prospective_evaluations=?12 WHERE cycle_id=?13`).bind(new Date().toISOString(),counters.nodes,counters.edges,counters.observations,counters.predictions,counters.resolved,counters.anomalies,counters.routesCalculated,counters.linksCreated,counters.calibrationProfiles,counters.stateTransitions,counters.prospectiveEvaluations,cycleId).run();
+    await env.DB.prepare(`UPDATE intelligence_cycles SET finished_at=?1,status='success',nodes_updated=?2,edges_updated=?3,observations_added=?4,predictions_created=?5,predictions_resolved=?6,anomalies_detected=?7,routes_calculated=?8,links_created=?9,calibration_profiles=?10,state_transitions=?11,prospective_evaluations=?12,expected_runs=?13,silent_runs=?14,fused_observations=?15 WHERE cycle_id=?16`).bind(new Date().toISOString(),counters.nodes,counters.edges,counters.observations,counters.predictions,counters.resolved,counters.anomalies,counters.routesCalculated,counters.linksCreated,counters.calibrationProfiles,counters.stateTransitions,counters.prospectiveEvaluations,counters.expectedRuns,counters.silentRuns,counters.fusedObservations,cycleId).run();
     return {cycleId,status:"success",graphSync,...counters};
   } catch(error) {
     await env.DB.prepare("UPDATE intelligence_cycles SET finished_at=?1,status='failed',error=?2 WHERE cycle_id=?3").bind(new Date().toISOString(),String(error?.message||error).slice(0,500),cycleId).run(); throw error;

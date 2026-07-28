@@ -43,6 +43,10 @@ jobs:
         env:
           BOARD_HEADLESS: "false"
           SKIP_BROWSER_SOURCE: ${{ github.event_name == 'schedule' && github.event.schedule == '*/5 * * * *' && '1' || '0' }}
+          PKP_PLK_API_URL: ${{ secrets.PKP_PLK_API_URL }}
+          PKP_PLK_API_KEY: ${{ secrets.PKP_PLK_API_KEY }}
+          ZSR_RAIL_API_URL: ${{ secrets.ZSR_RAIL_API_URL }}
+          MAV_RAIL_API_URL: ${{ secrets.MAV_RAIL_API_URL }}
         run: |
           retry() {
             local attempt=1
