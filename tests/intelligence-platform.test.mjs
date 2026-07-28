@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { calculateNodeActivity, classifyActivityAnomaly, evaluatePrediction, reconstructTrajectory } from "../backend/src/intelligence/service.js";
+import { calculateNodeActivity, classifyActivityAnomaly, evaluatePrediction, normalizeOperationalCoordinates, reconstructTrajectory } from "../backend/src/intelligence/service.js";
 
 test("Node Activity Score is bounded and reacts to a material traffic spike", () => {
   const normal = calculateNodeActivity({ observations: 3, uniqueRuns: 2, baselinePerHour: 3, freshness: 1 });
@@ -51,6 +51,10 @@ test("Operations Center exposes all three protected platform surfaces", async ()
   assert.match(admin, /renderOperationsMap/);
   assert.match(admin, /FREIGHT_CORRIDOR_GEOMETRY/);
   assert.match(admin, /freightStationFacts/);
+  assert.match(admin, /validUkraineOperationsPoint/);
+  assert.match(admin, /coordinate-order-repaired|coordinateQuality/);
+  assert.match(html, /freight-track-rows/);
+  assert.match(html, /«Прочитано» закрывает только уведомление/);
   assert.match(admin, /ops-freight-arrow/);
   const api = await readFile(new URL("../backend/src/intelligence/api.js", import.meta.url), "utf8");
   assert.match(api, /freightCorridors:freightLayer\.corridors/);
@@ -63,4 +67,11 @@ test("Operations Center exposes all three protected platform surfaces", async ()
   assert.match(worker, /scheduledAutonomy/);
   assert.match(access, /rail\.intelligence\.read/);
   assert.match(access, /analytics\.network\.read/);
+});
+
+test("operational coordinate guard repairs swapped Ukraine coordinates and rejects foreign points", () => {
+  assert.deepEqual(normalizeOperationalCoordinates({ lat: 30.52, lon: 50.45 }), { latitude: 50.45, longitude: 30.52, coordinateQuality: "coordinate-order-repaired", rejected: false });
+  assert.deepEqual(normalizeOperationalCoordinates({ coordinates: [30.52, 50.45] }), { latitude: 50.45, longitude: 30.52, coordinateQuality: "geojson-pair", rejected: false });
+  const rejected=normalizeOperationalCoordinates({ latitude: 25.1, longitude: 55.2 });
+  assert.equal(rejected.latitude, null); assert.equal(rejected.longitude, null); assert.equal(rejected.coordinateQuality, "outside-ukraine-rejected"); assert.equal(rejected.rejected, true);
 });

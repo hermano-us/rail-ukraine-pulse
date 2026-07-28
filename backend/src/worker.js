@@ -228,6 +228,8 @@ async function readModelQuality(env) {
     SELECT COUNT(*) AS evaluations,
       AVG(absolute_error_minutes) AS mae_minutes,
       AVG(within_p80) * 100 AS p80_coverage,
+      SUM(CASE WHEN evaluation_id LIKE 'replay:%' THEN 1 ELSE 0 END) AS replay_evaluations,
+      SUM(CASE WHEN evaluation_id NOT LIKE 'replay:%' THEN 1 ELSE 0 END) AS prospective_evaluations,
       MAX(evaluated_at) AS latest
     FROM model_evaluations
     WHERE evaluated_at >= datetime('now', '-30 days')
@@ -236,6 +238,9 @@ async function readModelQuality(env) {
     evaluations: Number(row?.evaluations || 0),
     maeMinutes: row?.mae_minutes == null ? null : Number(Number(row.mae_minutes).toFixed(1)),
     p80Coverage: row?.p80_coverage == null ? null : Number(Number(row.p80_coverage).toFixed(1)),
+    replayEvaluations: Number(row?.replay_evaluations || 0),
+    prospectiveEvaluations: Number(row?.prospective_evaluations || 0),
+    readiness: Number(row?.prospective_evaluations || 0) >= 20 ? "operational" : Number(row?.evaluations || 0) >= 10 ? "warming" : "insufficient-evidence",
     latest: row?.latest || null,
   };
 }
@@ -507,16 +512,17 @@ export async function scheduledRefresh(env) {
   let merged = [...(previous?.updates || [])];
   const errors = [];
   let freshSources = 0;
+  let usableSources = 0;
 
   try {
     if(!sourceEnabled("uz-delay-dashboard"))throw new Error("source disabled by operator");
     const response=await fetchWithRetry(DASHBOARD_URL);const edgeUpdates=parseEdgeDelayDashboard(await response.text(),checkedAt);if(!edgeUpdates.length)throw new Error("edge delay dashboard returned no trains");const previousDashboard=merged.filter(update=>update.sourceId==="uz-delay-dashboard").length;const directDrop=detectSourceVolumeDrop(previousDashboard,edgeUpdates.length);if(directDrop.anomaly)throw new Error(`dashboard volume anomaly ${directDrop.next}/${directDrop.previous}`);
-    merged=[...merged.filter(update=>update.sourceId!=="uz-delay-dashboard"),...edgeUpdates];freshSources+=1;await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-direct",status:"online",checkedAt},edgeUpdates.length);await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:"online",checkedAt},edgeUpdates.length);
+    merged=[...merged.filter(update=>update.sourceId!=="uz-delay-dashboard"),...edgeUpdates];freshSources+=1;usableSources+=1;await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-direct",status:"online",checkedAt},edgeUpdates.length);await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:"online",checkedAt},edgeUpdates.length);
   } catch(error) {
     const directError=String(error?.message||error);errors.push(`dashboard-direct: ${directError}`);await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-direct",status:"unavailable",checkedAt,error:directError},0);
     try {
       if(!sourceEnabled("uz-delay-dashboard"))throw new Error("source disabled by operator");const mirrorResponse=await fetchWithRetry("https://raw.githubusercontent.com/hermano-us/rail-ukraine-pulse/main/data/live.json");const mirror=await mirrorResponse.json();const mirrorUpdates=(mirror.updates||[]).filter(update=>update.sourceId==="uz-delay-dashboard");const mirrorAge=Math.max(0,(Date.parse(checkedAt)-Date.parse(mirror.generatedAt||""))/60000);if(!mirrorUpdates.length||!Number.isFinite(mirrorAge)||mirrorAge>180)throw new Error(`official mirror is too old (${Math.round(mirrorAge)} min)`);
-      merged=[...merged.filter(update=>update.sourceId!=="uz-delay-dashboard"),...mirrorUpdates];const mirrorStatus=mirrorAge<=20?"online":"stale";if(mirrorStatus==="online")freshSources+=1;await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:mirrorStatus,checkedAt,error:`direct: ${directError}; official GitHub mirror age ${Math.round(mirrorAge)} min`},mirrorUpdates.length);await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-direct",status:"degraded",checkedAt,error:`direct transport unavailable from Cloudflare (${directError}); GitHub mirror active, age ${Math.round(mirrorAge)} min`},0);
+      merged=[...merged.filter(update=>update.sourceId!=="uz-delay-dashboard"),...mirrorUpdates];usableSources+=1;const mirrorStatus=mirrorAge<=20?"online":"stale";if(mirrorStatus==="online")freshSources+=1;await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:mirrorStatus,checkedAt,error:`direct: ${directError}; official GitHub mirror age ${Math.round(mirrorAge)} min`},mirrorUpdates.length);await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-direct",status:"degraded",checkedAt,error:`direct transport unavailable from Cloudflare (${directError}); GitHub mirror active, age ${Math.round(mirrorAge)} min`},0);
       if(mirrorAge>12&&env.GITHUB_DISPATCH_TOKEN){const last=Number(await env.SNAPSHOT?.get("github-dispatch:last")||0);if(Date.now()-last>10*60000){const dispatched=await fetch("https://api.github.com/repos/hermano-us/rail-ukraine-pulse/actions/workflows/update-data.yml/dispatches",{method:"POST",headers:{Authorization:`Bearer ${env.GITHUB_DISPATCH_TOKEN}`,Accept:"application/vnd.github+json","User-Agent":"RailUkrainePulse/1.0","X-GitHub-Api-Version":"2022-11-28"},body:JSON.stringify({ref:"main"})});if(!dispatched.ok)throw new Error(`GitHub dispatch HTTP ${dispatched.status}`);await env.SNAPSHOT?.put("github-dispatch:last",String(Date.now()),{expirationTtl:900});await storeSourceHealth(env,{sourceId:"github-enrichment-dispatch",status:"online",checkedAt},1);}}
     } catch(mirrorError) {await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:"unavailable",checkedAt,error:`${directError}; mirror: ${String(mirrorError?.message||mirrorError)}`},0);}
   }
@@ -525,13 +531,14 @@ export async function scheduledRefresh(env) {
     const telegram = await collectTelegram();
     merged = [...merged.filter((update) => update.sourceId !== "uz-suburban-telegram"), ...(telegram.updates || [])];
     freshSources += 1;
+    usableSources += 1;
     await storeSourceHealth(env, { sourceId: "uz-telegram-edge", status: "online", checkedAt }, telegram.updates?.length || 0);
   } catch (error) {
     errors.push(`telegram: ${String(error?.message || error)}`);
     await storeSourceHealth(env, { sourceId: "uz-telegram-edge", status: "unavailable", checkedAt, error: String(error?.message || error) }, 0);
   }
 
-  if (freshSources > 0) {
+  if (usableSources > 0) {
     const result = await ingestPayload(env, {
       generatedAt: checkedAt,
       sourceStatus: {
@@ -542,7 +549,7 @@ export async function scheduledRefresh(env) {
       updates: merged,
     }, checkedAt);
     await storeSourceHealth(env, { sourceId: "pipeline-monitor", status: "online", checkedAt }, merged.length);
-    return finishCycle(env,cycleId,cycleStarted,{ edge: true, freshSources, errors, ...result });
+    return finishCycle(env,cycleId,cycleStarted,{ edge: true, freshSources, usableSources, errors, ...result },freshSources>0?"success":"degraded",freshSources>0?null:errors.join("; ").slice(0,500));
   }
 
   if (env.UPSTREAM_SNAPSHOT_URL) {

@@ -114,7 +114,20 @@
         </div>
         <div class="platform-panel" data-platform-panel="operations" hidden>
           <div id="operations-hub-metrics" class="metrics platform-metrics"></div>
-          <div class="hub-layout"><div id="operations-map" class="operations-map" role="img" aria-label="Закрытая карта перевозок"></div><aside><h3>Уведомления</h3><div id="operations-notifications" class="notification-list"></div></aside></div>
+          <div class="hub-layout">
+            <div id="operations-map" class="operations-map" role="img" aria-label="Закрытая карта перевозок"></div>
+            <aside class="operations-sidebar">
+              <h3>Выбранная перевозка</h3>
+              <div id="operations-selection" class="operations-selection"><p class="muted">Выберите поезд или маркер на карте.</p></div>
+              <div class="operations-alert-header"><h3>Оперативные уведомления</h3><small class="muted">«Прочитано» закрывает только уведомление, а не подтверждает положение.</small></div>
+              <div id="operations-notifications" class="notification-list"></div>
+            </aside>
+          </div>
+          <details class="freight-track-registry" open>
+            <summary>Связанные грузовые наблюдения</summary>
+            <p class="muted">Автоматическая связь создаётся только по устойчивому идентификатору локомотива или явно указанному номеру поезда.</p>
+            <div class="table-wrap"><table><thead><tr><th>Идентификатор</th><th>Коридор</th><th>Направление</th><th>Станционные факты</th><th>Источники</th><th>Уверенность</th></tr></thead><tbody id="freight-track-rows"></tbody></table></div>
+          </details>
           <div class="table-wrap"><table><thead><tr><th>Поезд</th><th>Маршрут</th><th>Статус</th><th>Задержка</th><th>ETA</th><th>Последний факт</th><th>Workflow</th></tr></thead><tbody id="operations-movement-rows"></tbody></table></div>
         </div>
         <div class="platform-panel" data-platform-panel="analytics" hidden>
