@@ -32,7 +32,6 @@ function staleStatus(previous, error, label) {
 
 async function collectDelay(previousUpdates = []) {
   const checkedAt = new Date().toISOString();
-  const expectedRuns = buildExpectedRuns(evidenceUpdates.flat(), board.records || [], checkedAt);
   try {
     const updates = parseDelayTable(await fetchText(DELAY_URL));
     if (!updates.length) throw new Error("Delay table returned no parseable trains");
