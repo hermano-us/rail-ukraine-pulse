@@ -16,6 +16,7 @@ test("D1 migration creates the event backend schema", {
   const secureCoreSql = await readFile(new URL("../backend/migrations/0010_secure_core.sql", import.meta.url), "utf8");
   const intelligencePlatformSql = await readFile(new URL("../backend/migrations/0011_intelligence_platform.sql", import.meta.url), "utf8");
   const corridorNodesSql = await readFile(new URL("../backend/migrations/0012_international_corridor_nodes.sql", import.meta.url), "utf8");
+  const railGraphSql = await readFile(new URL("../backend/migrations/0014_rail_graph_registry.sql", import.meta.url), "utf8");
   database.exec(historySql);
   database.exec(sql);
   database.exec(observabilitySql);
@@ -25,6 +26,7 @@ test("D1 migration creates the event backend schema", {
   database.exec(secureCoreSql);
   database.exec(intelligencePlatformSql);
   database.exec(corridorNodesSql);
+  database.exec(railGraphSql);
   const tables = database.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all().map((row) => row.name);
   assert.ok(tables.includes("runs"));
   assert.ok(tables.includes("events"));
@@ -56,6 +58,10 @@ test("D1 migration creates the event backend schema", {
   assert.ok(tables.includes("network_anomalies"));
   assert.ok(tables.includes("international_corridors"));
   assert.ok(tables.includes("intelligence_cycles"));
+  assert.ok(tables.includes("rail_graph_versions"));
+  assert.ok(tables.includes("station_registry"));
+  assert.ok(tables.includes("station_aliases"));
+  assert.ok(tables.includes("rail_segment_geometries"));
   const corridors=database.prepare("SELECT corridor_id,border_nodes_json FROM international_corridors ORDER BY corridor_id").all();
   assert.equal(corridors.length,5);
   assert.ok(corridors.every((item)=>JSON.parse(item.border_nodes_json).length>0));

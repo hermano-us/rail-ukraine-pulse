@@ -15,6 +15,9 @@ for (const entry of requiredEntries) {
 // The freight source registry is collector-only configuration. In particular,
 // membership-only chat handles must never be shipped with the public bundle.
 await rm(new URL("data/freight-telegram-sources.json", output), { force: true });
+for (const buildInput of ["data/osm-rail-source.json", "data/station-registry.json", "data/rail-intelligence-graph.json"]) {
+  await rm(new URL(buildInput, output), { force:true });
+}
 
 for (const entry of optionalEntries) {
   try {
