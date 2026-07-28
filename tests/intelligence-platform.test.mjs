@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { calculateNodeActivity, classifyActivityAnomaly, evaluatePrediction, normalizeOperationalCoordinates, reconstructTrajectory } from "../backend/src/intelligence/service.js";
+import { buildTwinHypotheses, calculateNodeActivity, classifyActivityAnomaly, evaluatePrediction, interpolateRailGeometry, normalizeOperationalCoordinates, reconstructTrajectory } from "../backend/src/intelligence/service.js";
 
 test("Node Activity Score is bounded and reacts to a material traffic spike", () => {
   const normal = calculateNodeActivity({ observations: 3, uniqueRuns: 2, baselinePerHour: 3, freshness: 1 });
@@ -74,4 +74,48 @@ test("operational coordinate guard repairs swapped Ukraine coordinates and rejec
   assert.deepEqual(normalizeOperationalCoordinates({ coordinates: [30.52, 50.45] }), { latitude: 50.45, longitude: 30.52, coordinateQuality: "geojson-pair", rejected: false });
   const rejected=normalizeOperationalCoordinates({ latitude: 25.1, longitude: 55.2 });
   assert.equal(rejected.latitude, null); assert.equal(rejected.longitude, null); assert.equal(rejected.coordinateQuality, "outside-ukraine-rejected"); assert.equal(rejected.rejected, true);
+});
+
+test("probabilistic twin v2 keeps alternatives, freshness and strict rail geometry", () => {
+  const geometry={type:"LineString",coordinates:[[30,50],[31,50]]};
+  const midpoint=interpolateRailGeometry(geometry,.5);
+  assert.ok(Math.abs(midpoint.longitude-30.5)<.01);
+  assert.equal(interpolateRailGeometry({type:"LineString",coordinates:[[55,25],[56,26]]},.5),null);
+  const event={event_id:"event-1",run_id:"run-1",train_number:"91",station:"Київ",occurred_at:"2026-07-28T10:00:00Z",reliability:.9};
+  const candidates=[
+    {from_station_id:"київ",to_station_id:"львів",train_family:"91",sample_count:30,p10_minutes:290,p50_minutes:320,p90_minutes:370,reliability:.9,geometry_json:JSON.stringify(geometry),distance_km:540},
+    {from_station_id:"київ",to_station_id:"вінниця",train_family:"generic",sample_count:18,p10_minutes:120,p50_minutes:150,p90_minutes:190,reliability:.75},
+  ];
+  const result=buildTwinHypotheses({event,candidates,now:"2026-07-28T10:30:00Z",routeHint:"Київ Львів"});
+  assert.equal(result.state.method,"station-graph-probabilistic-twin-v2");
+  assert.equal(result.state.positionStatus,"estimated");
+  assert.equal(result.hypotheses.length,2);
+  assert.ok(Math.abs(result.hypotheses.reduce((sum,item)=>sum+item.probability,0)-1)<.001);
+  assert.ok(result.hypotheses[0].probability>result.hypotheses[1].probability);
+  assert.ok(Number.isFinite(result.hypotheses[0].latitude));
+  assert.equal(result.hypotheses[1].latitude,null,"no coordinate is invented without rail geometry");
+  const stale=buildTwinHypotheses({event,candidates,now:"2026-07-28T12:00:00Z"});
+  assert.equal(stale.state.positionStatus,"stale");
+  const unknown=buildTwinHypotheses({event,candidates,now:"2026-07-28T15:00:00Z"});
+  assert.equal(unknown.state.positionStatus,"unknown");
+  assert.equal(unknown.state.latitude,null);
+});
+
+test("Operations Center exposes persistent collapsible registries and v2 state", async () => {
+  const [html,admin,css,migration,api]=await Promise.all([
+    readFile(new URL("../rail-ops-center.html",import.meta.url),"utf8"),
+    readFile(new URL("../js/admin.js",import.meta.url),"utf8"),
+    readFile(new URL("../css/admin.css",import.meta.url),"utf8"),
+    readFile(new URL("../backend/migrations/0013_rail_intelligence_v2.sql",import.meta.url),"utf8"),
+    readFile(new URL("../backend/src/intelligence/api.js",import.meta.url),"utf8"),
+  ]);
+  assert.match(html,/data-collapse-key="rail-twins"/);
+  assert.match(html,/data-collapse-key="event-ledger"/);
+  assert.match(admin,/initializeCollapsibleLists/);
+  assert.match(admin,/localStorage\.setItem/);
+  assert.match(css,/\.collapsible-list>summary/);
+  assert.match(migration,/CREATE TABLE IF NOT EXISTS twin_states/);
+  assert.match(migration,/CREATE TABLE IF NOT EXISTS twin_hypotheses/);
+  assert.match(api,/activeHypotheses/);
+  assert.match(admin,/renderSelectedTwinLayer/);
 });
