@@ -77,12 +77,17 @@ if (hasRailWays) {
   const segmentChunks = chunks(graphAsset.segments, segmentChunkSize);
   for (const [index, stations] of stationChunks.entries()) await writeFile(resolve(referenceOutputPath, chunkName("stations", index)), `${JSON.stringify({ versionId, stations })}\n`, "utf8");
   for (const [index, segments] of segmentChunks.entries()) await writeFile(resolve(referenceOutputPath, chunkName("segments", index)), `${JSON.stringify({ versionId, segments })}\n`, "utf8");
+  const topologyFile = "topology.json";
+  await writeFile(resolve(referenceOutputPath, topologyFile), `${JSON.stringify({
+    schemaVersion:1, versionId,
+    edges:graphAsset.segments.map((segment)=>[segment.fromStationId,segment.toStationId,segment.distanceKm]),
+  })}\n`, "utf8");
   const manifest = {
     schemaVersion:1, versionId, generatedAt, source:osm.source, sourceGeneratedAt:osm.generatedAt,
     attribution:graphAsset.attribution, checksum:sourceDigest,
     stationCount:stationAsset.stations.length, segmentCount:graphAsset.segments.length,
     aliasConflictCount:stationAsset.conflicts.length, unmatchedStationCount:graph.unmatchedStations.length,
-    stationChunkSize, segmentChunkSize,
+    stationChunkSize, segmentChunkSize, topologyFile,
     stationChunks:stationChunks.map((_, index) => chunkName("stations", index)),
     segmentChunks:segmentChunks.map((_, index) => chunkName("segments", index)),
   };

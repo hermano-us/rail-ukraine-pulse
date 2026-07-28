@@ -46,7 +46,7 @@ test("Operations Center exposes all three protected platform surfaces", async ()
   assert.match(html, /Operations Hub/);
   assert.match(html, /Analytics Network/);
   assert.match(html, /operations-map/);
-  assert.match(html, /<\/section>\s*<section class="panel">\s*<header[^>]*><div><p class="eyebrow">FUEL SAFETY WATCH/);
+  assert.match(html, /<\/section>\s*<section id="fuel-safety-panel" class="panel collapsible-panel">\s*<header[^>]*><div><p class="eyebrow">FUEL SAFETY WATCH/);
   assert.match(admin, /loadPlatformSuite/);
   assert.match(admin, /renderOperationsMap/);
   assert.match(admin, /FREIGHT_CORRIDOR_GEOMETRY/);
@@ -112,6 +112,11 @@ test("Operations Center exposes persistent collapsible registries and v2 state",
   assert.match(html,/data-collapse-key="rail-twins"/);
   assert.match(html,/data-collapse-key="event-ledger"/);
   assert.match(admin,/initializeCollapsibleLists/);
+  assert.match(html,/class="section-jump"/);
+  assert.match(html,/id="platform-suite" class="platform-suite panel collapsible-panel"/);
+  assert.match(admin,/initializeLargePanels/);
+  assert.match(admin,/rail-ops-panel:/);
+  assert.match(css,/\.collapsible-panel\.panel-collapsed/);
   assert.match(admin,/localStorage\.setItem/);
   assert.match(css,/\.collapsible-list>summary/);
   assert.match(migration,/CREATE TABLE IF NOT EXISTS twin_states/);

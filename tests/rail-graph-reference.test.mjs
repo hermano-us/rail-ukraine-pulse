@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import { buildRailGraph, buildStationRegistry, normalizeStationAlias, stationAliasVariants } from "../scripts/lib/rail-graph-builder.mjs";
 import { loadStationAliasMap, syncRailGraphReference } from "../backend/src/intelligence/rail-graph-sync.js";
+import { resolveRailRouteGeometries } from "../backend/src/intelligence/rail-route-cache.js";
 
 class Statement {
   constructor(database,sql){this.database=database;this.sql=sql;this.values=[];}
@@ -44,13 +45,16 @@ test("rail graph follows physical track geometry and never invents a straight li
 
 test("chunked graph import activates a complete version and creates reverse geometry",async()=>{
   const database=new DatabaseSync(":memory:");
+  database.exec(await readFile(new URL("../backend/migrations/0011_intelligence_platform.sql",import.meta.url),"utf8"));
   database.exec(await readFile(new URL("../backend/migrations/0014_rail_graph_registry.sql",import.meta.url),"utf8"));
+  database.exec(await readFile(new URL("../backend/migrations/0015_rail_intelligence_routing.sql",import.meta.url),"utf8"));
   const versionId="test-v1";
   const assets=new Map([
     ["manifest.json",{versionId,source:"test",checksum:"abc",stationCount:2,segmentCount:1,aliasConflictCount:0,unmatchedStationCount:0,stationChunkSize:1,segmentChunkSize:1,stationChunks:["stations-000.json","stations-001.json"],segmentChunks:["segments-000.json"]}],
     ["stations-000.json",{versionId,stations:[{stationId:"alpha",officialName:"Alpha",coordinates:[30,50],aliases:[{key:"alpha",value:"Alpha",source:"test",confidence:1}]}]}],
     ["stations-001.json",{versionId,stations:[{stationId:"beta",officialName:"Beta",coordinates:[30.2,50],aliases:[{key:"beta",value:"Beta",source:"test",confidence:1}]}]}],
     ["segments-000.json",{versionId,segments:[{fromStationId:"alpha",toStationId:"beta",geometry:{type:"LineString",coordinates:[[30,50],[30.1,50.1],[30.2,50]]},distanceKm:25,geometryQuality:.98,bidirectional:true}]}],
+    ["topology.json",{versionId,edges:[["alpha","beta",25]]}],
   ]);
   const env={DB:new D1Adapter(database),ASSETS:{fetch:async(request)=>{const name=new URL(request.url).pathname.split("/").at(-1);return assets.has(name)?Response.json(assets.get(name)):new Response("missing",{status:404});}}};
   const partial=await syncRailGraphReference(env,"2026-07-28T10:00:00.000Z");
@@ -62,6 +66,8 @@ test("chunked graph import activates a complete version and creates reverse geom
   assert.equal(database.prepare("SELECT COUNT(*) total FROM rail_segment_geometries WHERE active=1").get().total,2);
   const reverse=JSON.parse(database.prepare("SELECT geometry_json FROM rail_segment_geometries WHERE from_station_id='beta'").get().geometry_json);
   assert.deepEqual(reverse.coordinates,[[30.2,50],[30.1,50.1],[30,50]]);
+  const firstRoute=await resolveRailRouteGeometries(env,[{from:"alpha",to:"beta"}],"2026-07-28T10:10:00.000Z"); assert.equal(firstRoute.calculated,1); assert.equal(JSON.parse(firstRoute.routes.get("alpha>beta").geometry_json).coordinates.length,3);
+  const cachedRoute=await resolveRailRouteGeometries(env,[{from:"alpha",to:"beta"}],"2026-07-28T10:15:00.000Z"); assert.equal(cachedRoute.calculated,0); assert.equal(database.prepare("SELECT COUNT(*) total FROM rail_route_cache").get().total,1);
   const aliases=await loadStationAliasMap(env);
   assert.equal(aliases.get("alpha"),"alpha");
   database.close();

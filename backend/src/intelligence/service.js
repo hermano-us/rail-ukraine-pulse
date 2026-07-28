@@ -1,4 +1,7 @@
 import { loadStationAliasMap, syncRailGraphReference } from "./rail-graph-sync.js";
+import { resolveRailRouteGeometries } from "./rail-route-cache.js";
+import { linkRecentObservations } from "./observation-linker.js";
+import { applyCalibration, refreshCalibrationProfiles } from "./calibration.js";
 const rows = (result) => result?.results || [];
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, Number(value) || 0));
 const parseJson = (value, fallback = {}) => { try { return JSON.parse(value || "") ?? fallback; } catch { return fallback; } };
@@ -122,7 +125,7 @@ export function buildTwinHypotheses({ event, candidates = [], now = new Date().t
     const spreadRatio = Math.max(.05, (p90 - p10) / Math.max(item.p50, 1)), distanceKm = Number(item.edge.distance_km) || point?.distanceKm || 0;
     const uncertaintyKm = clamp(Math.max(3, distanceKm ? distanceKm * spreadRatio * .5 : 8) + ageMinutes * .35 + (1 - probability) * 35, 3, 300);
     const confidence = clamp((event.reliability ?? .6) * item.reliability * probability * freshness);
-    return { hypothesisId:`${event.run_id}:${event.event_id}:${fromNodeId}>${item.toNodeId}`,runId:event.run_id,trainNumber,basedOnObservationId:event.event_id,fromNodeId,toNodeId:item.toNodeId,probability:Number(probability.toFixed(4)),progress:Number(progress.toFixed(4)),etaP50:addMinutes(event.occurred_at,item.p50),etaP80Start:addMinutes(event.occurred_at,p10),etaP80End:addMinutes(event.occurred_at,p90),confidence:Number(confidence.toFixed(4)),uncertaintyKm:Number(uncertaintyKm.toFixed(1)),geometry,latitude:point?.latitude??null,longitude:point?.longitude??null,expiresAt:addMinutes(event.occurred_at,Math.max(p90+360,item.p50*2)),samples:item.samples,reasons:{familyMatch:String(item.edge.train_family)===String(trainNumber),routeMatch:routeTokens.some((token)=>stationId(item.toNodeId).includes(token)),edgeReliability:item.reliability,freshness:Number(freshness.toFixed(4)),geometryAvailable:Boolean(geometry)}};
+    return { hypothesisId:`${event.run_id}:${event.event_id}:${fromNodeId}>${item.toNodeId}`,runId:event.run_id,trainNumber,basedOnObservationId:event.event_id,fromNodeId,toNodeId:item.toNodeId,probability:Number(probability.toFixed(4)),progress:Number(progress.toFixed(4)),etaP50:addMinutes(event.occurred_at,item.p50),etaP80Start:addMinutes(event.occurred_at,p10),etaP80End:addMinutes(event.occurred_at,p90),confidence:Number(confidence.toFixed(4)),uncertaintyKm:Number(uncertaintyKm.toFixed(1)),geometry,latitude:point?.latitude??null,longitude:point?.longitude??null,expiresAt:addMinutes(event.occurred_at,Math.max(p90+360,item.p50*2)),samples:item.samples,reasons:{familyMatch:String(item.edge.train_family)===String(trainNumber),routeMatch:routeTokens.some((token)=>stationId(item.toNodeId).includes(token)),edgeReliability:item.reliability,freshness:Number(freshness.toFixed(4)),geometryAvailable:Boolean(geometry),geometryMethod:item.edge.geometry_method||null,calibration:item.edge.calibration_profile||null}};
   });
   const primary=hypotheses[0],probabilityGap=primary.probability-(hypotheses[1]?.probability||0),ambiguous=primary.probability<.58||(hypotheses.length>1&&probabilityGap<.18);
   return {hypotheses,ambiguous,state:{runId:event.run_id,trainNumber,anchorObservationId:event.event_id,anchorNodeId:fromNodeId,nextNodeId:primary.toNodeId,positionStatus,calculatedAt:now,anchorObservedAt:event.occurred_at,etaP50:primary.etaP50,etaP80Start:primary.etaP80Start,etaP80End:primary.etaP80End,confidence:primary.confidence,uncertaintyKm:primary.uncertaintyKm,method:"station-graph-probabilistic-twin-v2",primaryHypothesisId:primary.hypothesisId,alternativesCount:Math.max(0,hypotheses.length-1),latitude:primary.latitude,longitude:primary.longitude,ambiguous,ageMinutes:Number(ageMinutes.toFixed(1)),geometryAvailable:Boolean(primary.geometry)}};
@@ -131,13 +134,14 @@ export function buildTwinHypotheses({ event, candidates = [], now = new Date().t
 export async function runIntelligenceCycle(env, now = new Date().toISOString()) {
   const cycleId = crypto.randomUUID();
   await env.DB.prepare("INSERT INTO intelligence_cycles(cycle_id,started_at,status) VALUES(?1,?2,'running')").bind(cycleId, now).run();
-  const counters = { nodes: 0, edges: 0, observations: 0, predictions: 0, resolved: 0, replayed: 0, anomalies: 0 };
+  const counters = { nodes: 0, edges: 0, observations: 0, predictions: 0, resolved: 0, replayed: 0, anomalies: 0, routesCalculated: 0, linksCreated: 0, calibrationProfiles: 0 };
   let graphSync = { status:'not-run' };
   try {
     try { graphSync = await syncRailGraphReference(env, now); } catch (error) { graphSync = { status:'degraded', error:String(error?.message||error).slice(0,300) }; }
     const stationAliases = await loadStationAliasMap(env);
-    const eventRows = rows(await env.DB.prepare(`SELECT e.event_id,e.run_id,e.station,e.occurred_at,e.observed_at,e.source_id,e.authority,e.reliability,e.raw_update_json,r.train_number,r.route,r.origin,r.destination
-      FROM events e LEFT JOIN runs r ON r.run_id=e.run_id
+    const linkResult=await linkRecentObservations(env,now); counters.linksCreated=linkResult.linked;
+    const eventRows = rows(await env.DB.prepare(`SELECT e.event_id,COALESCE(CASE WHEN l.status='linked' THEN l.canonical_run_id END,e.run_id) run_id,e.station,e.occurred_at,e.observed_at,e.source_id,e.authority,e.reliability,e.raw_update_json,r.train_number,r.route,r.origin,r.destination
+      FROM events e LEFT JOIN observation_run_links l ON l.event_id=e.event_id LEFT JOIN runs r ON r.run_id=COALESCE(CASE WHEN l.status='linked' THEN l.canonical_run_id END,e.run_id)
       WHERE e.event_type='station_report' AND e.station IS NOT NULL AND e.occurred_at>=datetime('now','-7 days')
       ORDER BY e.occurred_at DESC LIMIT 1500`).all());
     const nodeMap = new Map();
@@ -170,7 +174,8 @@ export async function runIntelligenceCycle(env, now = new Date().toISOString()) 
     ]);
     const persistedEdgeById=new Map(rows(persistedEdges).map(edge=>[edge.edge_id,edge]));
     const referenceEdgeByPair=new Map(referenceEdges.map(edge=>[`${edge.from_station_id}>${edge.to_station_id}`,edge]));
-    const candidateEdges=segmentRows.map(edge=>{const persisted=persistedEdgeById.get(`${edge.from_station_id}>${edge.to_station_id}:${edge.train_family}`),reference=referenceEdgeByPair.get(`${edge.from_station_id}>${edge.to_station_id}`);return {...edge,geometry_json:reference?.geometry_json||persisted?.geometry_json||null,distance_km:reference?.distance_km||persisted?.distance_km||null,reliability:Math.max(Number(edge.reliability)||0,Number(reference?.geometry_quality)||0,Number(persisted?.reliability)||0)};});
+    const routeResolution=await resolveRailRouteGeometries(env,segmentRows.map((edge)=>({from:edge.from_station_id,to:edge.to_station_id})),now); counters.routesCalculated=routeResolution.calculated;
+    const candidateEdges=segmentRows.map(edge=>{const key=`${edge.from_station_id}>${edge.to_station_id}`,persisted=persistedEdgeById.get(`${key}:${edge.train_family}`),reference=referenceEdgeByPair.get(key),route=routeResolution.routes.get(key),geometry=reference?.geometry_json||route?.geometry_json||persisted?.geometry_json||null;return {...edge,geometry_json:geometry,distance_km:reference?.distance_km||route?.distance_km||persisted?.distance_km||null,reliability:Math.max(Number(edge.reliability)||0,Number(reference?.geometry_quality)||0,Number(route?.geometry_quality)||0,Number(persisted?.reliability)||0),geometry_method:reference?"direct-physical-segment":route?.status==="ready"?"cached-physical-route":persisted?.geometry_json?"legacy-geometry":null};});
 
     // Historical replay warms up calibration without turning a replay into a live fact.
     // The evaluation id keeps replay samples distinguishable from prospective twin resolutions.
@@ -193,12 +198,15 @@ export async function runIntelligenceCycle(env, now = new Date().toISOString()) 
     }
     await batch(env, resolutionStatements);
 
+    const calibration=await refreshCalibrationProfiles(env,now,stationAliases); counters.calibrationProfiles=calibration.updated;
+    const predictionEdges=candidateEdges.map((edge)=>applyCalibration(edge,calibration.profiles));
+
     const latestByRun = new Map();
     for (const event of eventRows) if (!latestByRun.has(event.run_id)) latestByRun.set(event.run_id,event);
     const predictionStatements = [];
     const predictionByRun = new Map();
     for (const event of latestByRun.values()) {
-      const candidates=candidateEdges.filter(edge=>edge.from_station_id===resolveStationId(event.station,stationAliases)&&(edge.train_family===event.train_number||Number(edge.sample_count)>=5));
+      const candidates=predictionEdges.filter(edge=>edge.from_station_id===resolveStationId(event.station,stationAliases)&&(edge.train_family===event.train_number||Number(edge.sample_count)>=5));
       const twin=buildTwinHypotheses({event,candidates,now,routeHint:[event.route,event.origin,event.destination].filter(Boolean).join(" ")});
       if(!twin.state)continue;const primary=twin.hypotheses[0];predictionByRun.set(event.run_id,{eta:twin.state.etaP50,confidence:twin.state.confidence,toNodeId:twin.state.nextNodeId,state:twin.state,hypotheses:twin.hypotheses});
       predictionStatements.push(env.DB.prepare("UPDATE twin_hypotheses SET status='superseded' WHERE run_id=?1 AND status='active' AND based_on_observation_id!=?2").bind(event.run_id,event.event_id));
@@ -232,7 +240,7 @@ export async function runIntelligenceCycle(env, now = new Date().toISOString()) 
     for(const corridor of corridorRows){const nodeScores=parseJson(corridor.border_nodes_json,[]).map(nodeId=>scoreByNode.get(nodeId)).filter(Number.isFinite);if(!nodeScores.length)continue;const corridorScore=Number((nodeScores.reduce((sum,value)=>sum+value,0)/nodeScores.length).toFixed(1));corridorStatements.push(env.DB.prepare("UPDATE international_corridors SET status='monitored',activity_score=?1,last_observed_at=?2 WHERE corridor_id=?3").bind(corridorScore,now,corridor.corridor_id));}
     await batch(env,corridorStatements);
     await env.DB.batch([env.DB.prepare("UPDATE twin_predictions SET status='expired' WHERE status='pending' AND eta_p80_end<datetime('now','-6 hours')"),env.DB.prepare("DELETE FROM node_activity_scores WHERE calculated_at<datetime('now','-30 days')"),env.DB.prepare("UPDATE twin_hypotheses SET status='expired' WHERE status='active' AND expires_at<datetime('now')")]);
-    await env.DB.prepare(`UPDATE intelligence_cycles SET finished_at=?1,status='success',nodes_updated=?2,edges_updated=?3,observations_added=?4,predictions_created=?5,predictions_resolved=?6,anomalies_detected=?7 WHERE cycle_id=?8`).bind(new Date().toISOString(),counters.nodes,counters.edges,counters.observations,counters.predictions,counters.resolved,counters.anomalies,cycleId).run();
+    await env.DB.prepare(`UPDATE intelligence_cycles SET finished_at=?1,status='success',nodes_updated=?2,edges_updated=?3,observations_added=?4,predictions_created=?5,predictions_resolved=?6,anomalies_detected=?7,routes_calculated=?8,links_created=?9,calibration_profiles=?10 WHERE cycle_id=?11`).bind(new Date().toISOString(),counters.nodes,counters.edges,counters.observations,counters.predictions,counters.resolved,counters.anomalies,counters.routesCalculated,counters.linksCreated,counters.calibrationProfiles,cycleId).run();
     return {cycleId,status:"success",graphSync,...counters};
   } catch(error) {
     await env.DB.prepare("UPDATE intelligence_cycles SET finished_at=?1,status='failed',error=?2 WHERE cycle_id=?3").bind(new Date().toISOString(),String(error?.message||error).slice(0,500),cycleId).run(); throw error;
