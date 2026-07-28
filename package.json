@@ -16,7 +16,10 @@
     "update-fuel-accessibility": "node scripts/import-lun-accessibility.mjs",
     "update-fuel-incidents": "node scripts/collect-fuel-incidents.mjs",
     "deduplicate-fuel": "node scripts/deduplicate-fuel.mjs",
-    "update-freight-intelligence": "node scripts/collect-freight-sources.mjs"
+    "update-freight-intelligence": "node scripts/collect-freight-sources.mjs",
+    "update-rail-stations": "node scripts/fetch-osm-rail-graph.mjs && node scripts/build-rail-graph.mjs",
+    "update-rail-graph": "node scripts/fetch-osm-rail-graph.mjs --full && node scripts/build-rail-graph.mjs",
+    "build-rail-graph": "node scripts/build-rail-graph.mjs"
   },
   "engines": {
     "node": ">=20"
