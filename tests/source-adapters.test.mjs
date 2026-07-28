@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { boardRowsToUpdates } from "../scripts/source-adapters/official-board.mjs";
+import { boardRowsToUpdates, recoverOfficialBoard } from "../scripts/source-adapters/official-board.mjs";
 import { BOARD_STATIONS, classifyBoardWindow, distributeStations, stationBoardPlan } from "../scripts/source-adapters/station-board-coverage.mjs";
 import { parseTelegramFeed, rehydrateTelegramPosts, telegramUpdates } from "../scripts/source-adapters/telegram.mjs";
 
@@ -42,6 +42,21 @@ test("station board separates a current observation window from a future schedul
   assert.equal(update.reportedStation, null);
   assert.equal(update.positionEvidence, "schedule-only");
   assert.equal(update.scheduledStationAt, "2026-07-20T13:00:00.000Z");
+});
+
+test("official board failure preserves the last successful snapshot without refreshing its facts", () => {
+  const observedAt = "2026-07-20T07:00:00Z";
+  const recovered = recoverOfficialBoard({
+    status: { status: "online", checkedAt: observedAt },
+    records: [{ station: "Львів", boardType: "arrival", trainNumber: "91", route: "Київ → Львів", scheduledTime: "09:26", platform: "2", delayLabel: "", observedAt }],
+    coverage: { plannedStations: 54, successfulStations: 54 },
+  }, new Error("page.waitForSelector: Timeout 90000ms exceeded"), "2026-07-20T08:00:00Z");
+  assert.equal(recovered.status.status, "stale");
+  assert.equal(recovered.status.failureKind, "upstream-challenge");
+  assert.equal(recovered.status.lastSuccessfulAt, observedAt);
+  assert.equal(recovered.records.length, 1);
+  assert.equal(recovered.updates.length, 1);
+  assert.equal(recovered.updates[0].updatedAt, observedAt);
 });
 
 test("official Telegram preview produces traceable station-passage updates", () => {

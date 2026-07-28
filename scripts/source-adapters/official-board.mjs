@@ -4,6 +4,34 @@ import { BOARD_STATIONS, classifyBoardWindow, distributeStations, stationBoardPl
 export const BOARD_URL = "https://booking.uz.gov.ua/schedule";
 export { BOARD_STATIONS } from "./station-board-coverage.mjs";
 
+export function recoverOfficialBoard(previous = {}, error, checkedAt = new Date().toISOString()) {
+  const records = Array.isArray(previous.records) ? previous.records : [];
+  const updates = records.length
+    ? boardRowsToUpdates(records)
+    : Array.isArray(previous.updates) ? previous.updates : [];
+  const message = String(error?.message || error || "unknown error").slice(0, 500);
+  const challengeDetected = /cloudflare|challenge|waitForSelector|timeout/i.test(message);
+  const lastSuccessfulAt = previous.status?.lastSuccessfulAt
+    || (previous.status?.status === "online" ? previous.status.checkedAt : null)
+    || records.map((record) => record.observedAt).filter(Boolean).sort().at(-1)
+    || null;
+  return {
+    status: {
+      status: records.length || updates.length ? "stale" : "unavailable",
+      checkedAt,
+      lastSuccessfulAt,
+      label: records.length || updates.length ? "Табло УЗ: последний успешный снимок" : "Табло УЗ: недоступно",
+      error: message,
+      failureKind: challengeDetected ? "upstream-challenge" : "transport-error",
+      capabilities: ["station-board", "last-successful-cache"],
+      coverage: previous.coverage || previous.status?.coverage || null,
+    },
+    records,
+    updates,
+    failures: [{ station: null, error: message }],
+    coverage: previous.coverage || previous.status?.coverage || null,
+  };
+}
 export function boardRowsToUpdates(records) {
   return records.map((record) => {
     const route = splitRoute(record.route);
@@ -84,7 +112,7 @@ export async function collectOfficialBoard({ stations = BOARD_STATIONS } = {}) {
   const updates = boardRowsToUpdates(records), successfulStations = new Set(records.map((item) => item.station)).size;
   const coverage = { plannedStations: plannedStations.length, successfulStations, failedStations: failures.length, records: records.length, stationFacts: updates.filter((item) => item.reportedStation).length, scheduleRows: updates.filter((item) => !item.reportedStation).length };
   return {
-    status: { status: failures.length && successfulStations < plannedStations.length * .7 ? "degraded" : "online", checkedAt, label: `Табло УЗ: ${records.length} строк, ${successfulStations}/${plannedStations.length} станций, ${coverage.stationFacts} актуальных окон`, capabilities: ["station-board", "platform", "schedule", "delay", "mass-node-coverage"], coverage },
+    status: { status: failures.length && successfulStations < plannedStations.length * .7 ? "degraded" : "online", checkedAt, lastSuccessfulAt: checkedAt, label: `Табло УЗ: ${records.length} строк, ${successfulStations}/${plannedStations.length} станций, ${coverage.stationFacts} актуальных окон`, capabilities: ["station-board", "platform", "schedule", "delay", "mass-node-coverage"], coverage },
     records, failures, updates, coverage,
   };
 }

@@ -2,7 +2,7 @@ import { readFile, rename, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parseDelayTable } from "./update-ukraine-data.mjs";
 import { fetchText } from "./source-adapters/html.mjs";
-import { collectOfficialBoard } from "./source-adapters/official-board.mjs";
+import { collectOfficialBoard, recoverOfficialBoard } from "./source-adapters/official-board.mjs";
 import { checkReferences } from "./source-adapters/references.mjs";
 import { collectTelegram, rehydrateTelegramPosts, telegramUpdates } from "./source-adapters/telegram.mjs";
 import { buildExpectedRuns } from "./source-adapters/expected-registry.mjs";
@@ -74,10 +74,7 @@ async function main() {
   });
   const boardPromise = process.env.SKIP_BROWSER_SOURCE === "1"
     ? Promise.resolve({ status: { status: "unavailable", checkedAt: new Date().toISOString(), label: "Табло УЗ: browser-adapter отключён" }, records: [], updates: [] })
-    : collectOfficialBoard().catch((error) => ({
-      status: staleStatus(previousRuntime.sources?.["uz-public-board"]?.records?.length, error, "Табло УЗ"),
-      records: previousRuntime.sources?.["uz-public-board"]?.records || [], failures: [], updates: [],
-    }));
+    : collectOfficialBoard().catch((error) => recoverOfficialBoard(previousRuntime.sources?.["uz-public-board"], error));
   const referencePromise = checkReferences();
   const internationalPromise = collectInternationalRailSources();
 
