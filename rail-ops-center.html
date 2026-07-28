@@ -85,18 +85,18 @@
 
       <section class="panel">
         <header class="panel-header"><div><p class="eyebrow">SOURCE WATCH</p><h2>Источники данных</h2></div><span id="updated-at" class="muted"></span></header>
-        <div class="table-wrap">
+        <details class="collapsible-list" data-collapse-key="source-watch" open><summary>Реестр источников</summary><div class="table-wrap">
           <table>
             <thead><tr><th>Источник</th><th>Состояние</th><th>Возраст</th><th>Записей</th><th>Последняя ошибка</th></tr></thead>
             <tbody id="source-rows"></tbody>
           </table>
-        </div>
+        </div></details>
       </section>
 
       <section class="panel">
         <header class="panel-header"><div><p class="eyebrow">INTELLIGENCE CONTROL</p><h2>Качество и автоматические циклы</h2></div><button id="retry-collector" type="button">Запустить collector</button></header>
         <div id="intelligence-metrics" class="metrics"></div><div id="cycle-chart" class="cycle-chart" aria-label="Циклы collector за 24 часа"></div>
-        <div class="table-wrap"><table><thead><tr><th>Время</th><th>Источник</th><th>Поезд</th><th>Причина</th><th>Статус</th></tr></thead><tbody id="quarantine-rows"></tbody></table></div>
+        <details class="collapsible-list" data-collapse-key="quality-quarantine" open><summary>Карантин качества</summary><div class="table-wrap"><table><thead><tr><th>Время</th><th>Источник</th><th>Поезд</th><th>Причина</th><th>Статус</th></tr></thead><tbody id="quarantine-rows"></tbody></table></div></details>
       </section>
       <section id="platform-suite" class="platform-suite panel">
         <header class="panel-header"><div><p class="eyebrow">INTELLIGENCE PLATFORM</p><h2>Железнодорожный операционный контур</h2></div><span id="platform-updated-at" class="muted">—</span></header>
@@ -108,8 +108,8 @@
         <div class="platform-panel active" data-platform-panel="rail">
           <div id="rail-intelligence-metrics" class="metrics platform-metrics"></div>
           <div class="platform-grid">
-            <article><h3>Цифровые двойники</h3><p class="muted">Прогнозы создаются до следующего подтверждённого события и затем используются для калибровки.</p><div class="table-wrap"><table><thead><tr><th>Поезд</th><th>Участок</th><th>ETA P50</th><th>P80</th><th>Уверенность</th><th>Статус</th></tr></thead><tbody id="rail-twin-rows"></tbody></table></div></article>
-            <article><h3>Последние наблюдения</h3><p class="muted">Только трассируемые станционные факты и операторские подтверждения.</p><div class="table-wrap"><table><thead><tr><th>Время</th><th>Поезд</th><th>Станция</th><th>Источник</th><th>Надёжность</th></tr></thead><tbody id="rail-observation-rows"></tbody></table></div></article>
+            <article><details class="collapsible-list embedded-list" data-collapse-key="rail-twins" open><summary>Цифровые двойники v2</summary><p class="muted">Основная и альтернативные гипотезы до следующего подтверждённого события.</p><div class="table-wrap"><table><thead><tr><th>Поезд</th><th>Участок</th><th>ETA P50</th><th>P80</th><th>Уверенность</th><th>Погрешность</th><th>Статус</th></tr></thead><tbody id="rail-twin-rows"></tbody></table></div></details></article>
+            <article><details class="collapsible-list embedded-list" data-collapse-key="rail-observations" open><summary>Последние наблюдения</summary><p class="muted">Только трассируемые станционные факты и операторские подтверждения.</p><div class="table-wrap"><table><thead><tr><th>Время</th><th>Поезд</th><th>Станция</th><th>Источник</th><th>Надёжность</th></tr></thead><tbody id="rail-observation-rows"></tbody></table></div></details></article>
           </div>
         </div>
         <div class="platform-panel" data-platform-panel="operations" hidden>
@@ -123,18 +123,18 @@
               <div id="operations-notifications" class="notification-list"></div>
             </aside>
           </div>
-          <details class="freight-track-registry" open>
+          <details class="freight-track-registry collapsible-list" data-collapse-key="freight-tracks" open>
             <summary>Связанные грузовые наблюдения</summary>
             <p class="muted">Автоматическая связь создаётся только по устойчивому идентификатору локомотива или явно указанному номеру поезда.</p>
             <div class="table-wrap"><table><thead><tr><th>Идентификатор</th><th>Коридор</th><th>Направление</th><th>Станционные факты</th><th>Источники</th><th>Уверенность</th></tr></thead><tbody id="freight-track-rows"></tbody></table></div>
           </details>
-          <div class="table-wrap"><table><thead><tr><th>Поезд</th><th>Маршрут</th><th>Статус</th><th>Задержка</th><th>ETA</th><th>Последний факт</th><th>Workflow</th></tr></thead><tbody id="operations-movement-rows"></tbody></table></div>
+          <details class="collapsible-list" data-collapse-key="operations-movements" open><summary>Реестр перевозок</summary><div class="table-wrap"><table><thead><tr><th>Поезд</th><th>Маршрут</th><th>Статус</th><th>Задержка</th><th>ETA</th><th>Последний факт</th><th>Workflow</th></tr></thead><tbody id="operations-movement-rows"></tbody></table></div></details>
         </div>
         <div class="platform-panel" data-platform-panel="analytics" hidden>
           <div id="analytics-network-metrics" class="metrics platform-metrics"></div>
           <div class="platform-grid analytics-grid">
-            <article><h3>Node Activity Score</h3><div class="table-wrap"><table><thead><tr><th>Узел</th><th>Score</th><th>Фактов/ч</th><th>Изменение</th><th>Уверенность</th></tr></thead><tbody id="node-activity-rows"></tbody></table></div></article>
-            <article><h3>Аномалии сети</h3><div class="table-wrap"><table><thead><tr><th>Время</th><th>Узел</th><th>Тип</th><th>Уровень</th><th>Описание</th></tr></thead><tbody id="network-anomaly-rows"></tbody></table></div></article>
+            <article><details class="collapsible-list embedded-list" data-collapse-key="node-activity" open><summary>Node Activity Score</summary><div class="table-wrap"><table><thead><tr><th>Узел</th><th>Score</th><th>Фактов/ч</th><th>Изменение</th><th>Уверенность</th></tr></thead><tbody id="node-activity-rows"></tbody></table></div></details></article>
+            <article><details class="collapsible-list embedded-list" data-collapse-key="network-anomalies" open><summary>Аномалии сети</summary><div class="table-wrap"><table><thead><tr><th>Время</th><th>Узел</th><th>Тип</th><th>Уровень</th><th>Описание</th></tr></thead><tbody id="network-anomaly-rows"></tbody></table></div></details></article>
           </div>
           <h3>Международные коридоры</h3><div id="international-corridors" class="corridor-list"></div>
         </div>
@@ -144,23 +144,23 @@
       <section class="panel">
         <header class="panel-header"><div><p class="eyebrow">FUEL SAFETY WATCH</p><h2>Сигналы о работе и инцидентах АЗС</h2></div><span id="fuel-incident-count" class="tag">—</span></header>
         <p class="muted">Автоматически найденные сообщения не меняют публичный статус до проверки оператором.</p>
-        <div class="table-wrap"><table><thead><tr><th>Время</th><th>Тип</th><th>АЗС</th><th>Сообщение</th><th>Уверенность</th><th>Решение</th></tr></thead><tbody id="fuel-incident-rows"></tbody></table></div>
+        <details class="collapsible-list" data-collapse-key="fuel-incidents" open><summary>Очередь сигналов АЗС</summary><div class="table-wrap"><table><thead><tr><th>Время</th><th>Тип</th><th>АЗС</th><th>Сообщение</th><th>Уверенность</th><th>Решение</th></tr></thead><tbody id="fuel-incident-rows"></tbody></table></div></details>
       </section>
       <section class="panel">
         <header class="panel-header"><div><p class="eyebrow">FREIGHT SOURCE WATCH</p><h2>Грузовые железнодорожные сигналы</h2></div><span id="freight-evidence-count" class="tag">—</span></header>
         <p class="muted">Приватный контур проверки: точные позиции и потенциально чувствительные сообщения не публикуются.</p>
         <p id="freight-review-status" class="muted review-status" role="status" aria-live="polite"></p>
-        <div class="table-wrap"><table><thead><tr><th>Источник</th><th>Состояние</th><th>Проверен</th><th>Сообщений</th><th>Принято</th><th>Отброшено</th><th>Ошибка</th></tr></thead><tbody id="freight-source-rows"></tbody></table></div>
-        <div class="table-wrap"><table><thead><tr><th>Время</th><th>Источник</th><th>Коридор</th><th>Тип</th><th>Уверенность</th><th>Свидетельство</th></tr></thead><tbody id="freight-evidence-rows"></tbody></table></div>
+        <details class="collapsible-list" data-collapse-key="freight-sources" open><summary>Состояние Telegram-источников</summary><div class="table-wrap"><table><thead><tr><th>Источник</th><th>Состояние</th><th>Проверен</th><th>Сообщений</th><th>Принято</th><th>Отброшено</th><th>Ошибка</th></tr></thead><tbody id="freight-source-rows"></tbody></table></div></details>
+        <details class="collapsible-list" data-collapse-key="freight-evidence" open><summary>Очередь железнодорожных свидетельств</summary><div class="table-wrap"><table><thead><tr><th>Время</th><th>Источник</th><th>Коридор</th><th>Тип</th><th>Уверенность</th><th>Свидетельство</th></tr></thead><tbody id="freight-evidence-rows"></tbody></table></div></details>
       </section>
       <section class="panel">
         <header class="panel-header"><div><p class="eyebrow">EVENT LEDGER</p><h2>Последние события</h2></div><span id="events-caption" class="muted"></span></header>
-        <div class="table-wrap">
+        <details class="collapsible-list" data-collapse-key="event-ledger" open><summary>Журнал событий</summary><div class="table-wrap">
           <table>
             <thead><tr><th>Время</th><th>Поезд</th><th>Событие</th><th>Станция</th><th>Источник</th></tr></thead>
             <tbody id="event-rows"></tbody>
           </table>
-        </div>
+        </div></details>
       </section>
     </section>
   </main>

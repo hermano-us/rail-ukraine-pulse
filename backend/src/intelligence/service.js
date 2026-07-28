@@ -57,12 +57,75 @@ export function normalizeOperationalCoordinates(update = {}) {
   return { latitude: null, longitude: null, coordinateQuality: 'outside-ukraine-rejected', rejected: Number.isFinite(latitude) || Number.isFinite(longitude) };
 }
 
+function railGeometryCoordinates(value) {
+  const parsed = typeof value === "string" ? parseJson(value, null) : value;
+  const coordinates = parsed?.type === "LineString" ? parsed.coordinates : Array.isArray(parsed) ? parsed : null;
+  if (!Array.isArray(coordinates) || coordinates.length < 2) return null;
+  const valid = coordinates.map((point) => [Number(point?.[0]), Number(point?.[1])]).filter(([longitude, latitude]) => insideUkraine(latitude, longitude));
+  return valid.length === coordinates.length ? valid : null;
+}
+
+const segmentLength = ([leftLongitude, leftLatitude], [rightLongitude, rightLatitude]) => {
+  const radians = (value) => value * Math.PI / 180;
+  const latitudeDistance = radians(rightLatitude - leftLatitude);
+  const longitudeDistance = radians(rightLongitude - leftLongitude);
+  const a = Math.sin(latitudeDistance / 2) ** 2 + Math.cos(radians(leftLatitude)) * Math.cos(radians(rightLatitude)) * Math.sin(longitudeDistance / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+export function interpolateRailGeometry(geometry, progress = 0) {
+  const coordinates = railGeometryCoordinates(geometry);
+  if (!coordinates) return null;
+  const distances = coordinates.slice(1).map((point, index) => segmentLength(coordinates[index], point));
+  const total = distances.reduce((sum, distance) => sum + distance, 0);
+  if (!(total > 0)) return null;
+  const target = total * clamp(progress); let traversed = 0;
+  for (let index = 0; index < distances.length; index += 1) {
+    if (traversed + distances[index] < target) { traversed += distances[index]; continue; }
+    const ratio = clamp((target - traversed) / distances[index]);
+    const [fromLongitude, fromLatitude] = coordinates[index], [toLongitude, toLatitude] = coordinates[index + 1];
+    return { latitude: fromLatitude + (toLatitude - fromLatitude) * ratio, longitude: fromLongitude + (toLongitude - fromLongitude) * ratio, distanceKm: total };
+  }
+  const [longitude, latitude] = coordinates.at(-1);
+  return { latitude, longitude, distanceKm: total };
+}
+
+export function buildTwinHypotheses({ event, candidates = [], now = new Date().toISOString(), routeHint = "", maximum = 3 }) {
+  const anchorTime = Date.parse(event?.occurred_at || event?.observedAt || ""), currentTime = Date.parse(now);
+  if (!Number.isFinite(anchorTime) || !Number.isFinite(currentTime)) return { hypotheses: [], state: null, ambiguous: false };
+  const fromNodeId = stationId(event.station || event.fromNodeId), trainNumber = event.train_number || event.trainNumber || null;
+  const routeTokens = stationId(routeHint).split("-").filter((token) => token.length >= 3);
+  const scored = candidates.map((edge) => {
+    const toNodeId = edge.to_station_id || edge.to_node_id, p50 = Number(edge.p50_minutes), samples = Math.max(0, Number(edge.sample_count) || 0);
+    if (!toNodeId || toNodeId === fromNodeId || !(p50 > 0) || p50 > 1440) return null;
+    const reliability = clamp(edge.reliability ?? Math.log1p(samples) / Math.log(21));
+    const familyMatch = trainNumber && String(edge.train_family) === String(trainNumber) ? 1 : 0;
+    const routeMatch = routeTokens.some((token) => stationId(toNodeId).includes(token)) ? 1 : 0;
+    const score = .35 + familyMatch * 1.4 + routeMatch * .65 + Math.log1p(samples) * .32 + reliability * .8;
+    return { edge, toNodeId, p50, samples, reliability, score };
+  }).filter(Boolean).sort((left, right) => right.score - left.score).slice(0, Math.max(1, maximum));
+  if (!scored.length) return { hypotheses: [], state: null, ambiguous: false };
+  const maxScore = scored[0].score, weights = scored.map((item) => Math.exp(item.score - maxScore)), weightTotal = weights.reduce((sum, weight) => sum + weight, 0);
+  const ageMinutes = Math.max(0, (currentTime - anchorTime) / 60_000), freshness = Math.exp(-ageMinutes / 180);
+  const positionStatus = ageMinutes > 240 ? "unknown" : ageMinutes > 90 ? "stale" : "estimated";
+  const hypotheses = scored.map((item, index) => {
+    const probability = weights[index] / weightTotal, p10 = Math.max(0, Number(item.edge.p10_minutes ?? item.p50)), p90 = Math.max(p10, Number(item.edge.p90_minutes ?? item.p50));
+    const progress = clamp(ageMinutes / item.p50), geometry = railGeometryCoordinates(item.edge.geometry_json), point = positionStatus === "unknown" ? null : interpolateRailGeometry(geometry, progress);
+    const spreadRatio = Math.max(.05, (p90 - p10) / Math.max(item.p50, 1)), distanceKm = Number(item.edge.distance_km) || point?.distanceKm || 0;
+    const uncertaintyKm = clamp(Math.max(3, distanceKm ? distanceKm * spreadRatio * .5 : 8) + ageMinutes * .35 + (1 - probability) * 35, 3, 300);
+    const confidence = clamp((event.reliability ?? .6) * item.reliability * probability * freshness);
+    return { hypothesisId:`${event.run_id}:${event.event_id}:${fromNodeId}>${item.toNodeId}`,runId:event.run_id,trainNumber,basedOnObservationId:event.event_id,fromNodeId,toNodeId:item.toNodeId,probability:Number(probability.toFixed(4)),progress:Number(progress.toFixed(4)),etaP50:addMinutes(event.occurred_at,item.p50),etaP80Start:addMinutes(event.occurred_at,p10),etaP80End:addMinutes(event.occurred_at,p90),confidence:Number(confidence.toFixed(4)),uncertaintyKm:Number(uncertaintyKm.toFixed(1)),geometry,latitude:point?.latitude??null,longitude:point?.longitude??null,expiresAt:addMinutes(event.occurred_at,Math.max(p90+360,item.p50*2)),samples:item.samples,reasons:{familyMatch:String(item.edge.train_family)===String(trainNumber),routeMatch:routeTokens.some((token)=>stationId(item.toNodeId).includes(token)),edgeReliability:item.reliability,freshness:Number(freshness.toFixed(4)),geometryAvailable:Boolean(geometry)}};
+  });
+  const primary=hypotheses[0],probabilityGap=primary.probability-(hypotheses[1]?.probability||0),ambiguous=primary.probability<.58||(hypotheses.length>1&&probabilityGap<.18);
+  return {hypotheses,ambiguous,state:{runId:event.run_id,trainNumber,anchorObservationId:event.event_id,anchorNodeId:fromNodeId,nextNodeId:primary.toNodeId,positionStatus,calculatedAt:now,anchorObservedAt:event.occurred_at,etaP50:primary.etaP50,etaP80Start:primary.etaP80Start,etaP80End:primary.etaP80End,confidence:primary.confidence,uncertaintyKm:primary.uncertaintyKm,method:"station-graph-probabilistic-twin-v2",primaryHypothesisId:primary.hypothesisId,alternativesCount:Math.max(0,hypotheses.length-1),latitude:primary.latitude,longitude:primary.longitude,ambiguous,ageMinutes:Number(ageMinutes.toFixed(1)),geometryAvailable:Boolean(primary.geometry)}};
+}
+
 export async function runIntelligenceCycle(env, now = new Date().toISOString()) {
   const cycleId = crypto.randomUUID();
   await env.DB.prepare("INSERT INTO intelligence_cycles(cycle_id,started_at,status) VALUES(?1,?2,'running')").bind(cycleId, now).run();
   const counters = { nodes: 0, edges: 0, observations: 0, predictions: 0, resolved: 0, replayed: 0, anomalies: 0 };
   try {
-    const eventRows = rows(await env.DB.prepare(`SELECT e.event_id,e.run_id,e.station,e.occurred_at,e.observed_at,e.source_id,e.authority,e.reliability,e.raw_update_json,r.train_number
+    const eventRows = rows(await env.DB.prepare(`SELECT e.event_id,e.run_id,e.station,e.occurred_at,e.observed_at,e.source_id,e.authority,e.reliability,e.raw_update_json,r.train_number,r.route,r.origin,r.destination
       FROM events e LEFT JOIN runs r ON r.run_id=e.run_id
       WHERE e.event_type='station_report' AND e.station IS NOT NULL AND e.occurred_at>=datetime('now','-7 days')
       ORDER BY e.occurred_at DESC LIMIT 1500`).all());
@@ -90,13 +153,16 @@ export async function runIntelligenceCycle(env, now = new Date().toISOString()) 
     const edgeStatements = segmentRows.map((edge) => { const reliability=clamp(Math.log1p(Number(edge.sample_count)||0)/Math.log(21)); return env.DB.prepare(`INSERT INTO rail_edges(edge_id,from_node_id,to_node_id,train_family,sample_count,p10_minutes,p50_minutes,p90_minutes,reliability,updated_at)
       VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10) ON CONFLICT(edge_id) DO UPDATE SET sample_count=excluded.sample_count,p10_minutes=excluded.p10_minutes,p50_minutes=excluded.p50_minutes,p90_minutes=excluded.p90_minutes,reliability=excluded.reliability,updated_at=excluded.updated_at`).bind(`${edge.from_station_id}>${edge.to_station_id}:${edge.train_family}`,edge.from_station_id,edge.to_station_id,edge.train_family,Number(edge.sample_count)||0,edge.p10_minutes,edge.p50_minutes,edge.p90_minutes,reliability,edge.updated_at||now); });
     await batch(env, edgeStatements); counters.edges = edgeStatements.length;
+    const persistedEdges=rows(await env.DB.prepare("SELECT edge_id,from_node_id,to_node_id,train_family,geometry_json,distance_km,reliability FROM rail_edges WHERE geometry_json IS NOT NULL OR distance_km IS NOT NULL").all());
+    const persistedEdgeById=new Map(persistedEdges.map(edge=>[edge.edge_id,edge]));
+    const candidateEdges=segmentRows.map(edge=>{const persisted=persistedEdgeById.get(`${edge.from_station_id}>${edge.to_station_id}:${edge.train_family}`);return {...edge,geometry_json:persisted?.geometry_json||null,distance_km:persisted?.distance_km||null,reliability:persisted?.reliability};});
 
     // Historical replay warms up calibration without turning a replay into a live fact.
     // The evaluation id keeps replay samples distinguishable from prospective twin resolutions.
     const eventsByRun=new Map();
     for(const event of eventRows){const group=eventsByRun.get(event.run_id)||[];group.push(event);eventsByRun.set(event.run_id,group);}
     const replayStatements=[];
-    for(const [runId,events] of eventsByRun){events.sort((a,b)=>Date.parse(a.occurred_at)-Date.parse(b.occurred_at));for(let index=1;index<events.length;index+=1){const previous=events[index-1],actual=events[index],fromId=stationId(previous.station),toId=stationId(actual.station);if(fromId===toId)continue;const actualMinutes=differenceMinutes(previous.occurred_at,actual.occurred_at);if(!Number.isFinite(actualMinutes)||actualMinutes<=0||actualMinutes>1440)continue;const candidates=segmentRows.filter(edge=>edge.from_station_id===fromId&&edge.to_station_id===toId&&(edge.train_family===actual.train_number||Number(edge.sample_count)>=10)).sort((a,b)=>Number(b.sample_count)-Number(a.sample_count)),edge=candidates[0];if(!edge||!Number.isFinite(Number(edge.p50_minutes)))continue;const predictedMinutes=Number(edge.p50_minutes),low=Number(edge.p10_minutes??predictedMinutes),high=Number(edge.p90_minutes??predictedMinutes),within=actualMinutes>=low&&actualMinutes<=high;replayStatements.push(env.DB.prepare(`INSERT OR IGNORE INTO model_evaluations(evaluation_id,run_id,train_number,from_station_id,to_station_id,predicted_minutes,actual_minutes,absolute_error_minutes,within_p80,baseline_samples,evaluated_at)
+    for(const [runId,events] of eventsByRun){events.sort((a,b)=>Date.parse(a.occurred_at)-Date.parse(b.occurred_at));for(let index=1;index<events.length;index+=1){const previous=events[index-1],actual=events[index],fromId=stationId(previous.station),toId=stationId(actual.station);if(fromId===toId)continue;const actualMinutes=differenceMinutes(previous.occurred_at,actual.occurred_at);if(!Number.isFinite(actualMinutes)||actualMinutes<=0||actualMinutes>1440)continue;const candidates=candidateEdges.filter(edge=>edge.from_station_id===fromId&&edge.to_station_id===toId&&(edge.train_family===actual.train_number||Number(edge.sample_count)>=10)).sort((a,b)=>Number(b.sample_count)-Number(a.sample_count)),edge=candidates[0];if(!edge||!Number.isFinite(Number(edge.p50_minutes)))continue;const predictedMinutes=Number(edge.p50_minutes),low=Number(edge.p10_minutes??predictedMinutes),high=Number(edge.p90_minutes??predictedMinutes),within=actualMinutes>=low&&actualMinutes<=high;replayStatements.push(env.DB.prepare(`INSERT OR IGNORE INTO model_evaluations(evaluation_id,run_id,train_number,from_station_id,to_station_id,predicted_minutes,actual_minutes,absolute_error_minutes,within_p80,baseline_samples,evaluated_at)
         VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)`).bind(`replay:${previous.event_id}:${actual.event_id}`,runId,actual.train_number||"unknown",fromId,toId,predictedMinutes,actualMinutes,Math.abs(actualMinutes-predictedMinutes),within?1:0,Number(edge.sample_count)||0,actual.occurred_at));counters.replayed+=1;}}
     await batch(env,replayStatements);
 
@@ -117,18 +183,26 @@ export async function runIntelligenceCycle(env, now = new Date().toISOString()) 
     const predictionStatements = [];
     const predictionByRun = new Map();
     for (const event of latestByRun.values()) {
-      const fromId=stationId(event.station); const candidates=segmentRows.filter((edge)=>edge.from_station_id===fromId && (edge.train_family===event.train_number || Number(edge.sample_count)>=5)).sort((a,b)=>Number(b.sample_count)-Number(a.sample_count)); const edge=candidates[0];
-      if(!edge||!Number.isFinite(Number(edge.p50_minutes)))continue; const p10=Number(edge.p10_minutes??edge.p50_minutes),p50=Number(edge.p50_minutes),p90=Number(edge.p90_minutes??edge.p50_minutes); const confidence=clamp(Math.log1p(Number(edge.sample_count)||0)/Math.log(31))*clamp(event.reliability??.6); predictionByRun.set(event.run_id,{eta:addMinutes(event.occurred_at,p50),confidence,toNodeId:edge.to_station_id});
+      const candidates=candidateEdges.filter(edge=>edge.from_station_id===stationId(event.station)&&(edge.train_family===event.train_number||Number(edge.sample_count)>=5));
+      const twin=buildTwinHypotheses({event,candidates,now,routeHint:[event.route,event.origin,event.destination].filter(Boolean).join(" ")});
+      if(!twin.state)continue;const primary=twin.hypotheses[0];predictionByRun.set(event.run_id,{eta:twin.state.etaP50,confidence:twin.state.confidence,toNodeId:twin.state.nextNodeId,state:twin.state,hypotheses:twin.hypotheses});
+      predictionStatements.push(env.DB.prepare("UPDATE twin_hypotheses SET status='superseded' WHERE run_id=?1 AND status='active' AND based_on_observation_id!=?2").bind(event.run_id,event.event_id));
+      for(const hypothesis of twin.hypotheses)predictionStatements.push(env.DB.prepare(`INSERT INTO twin_hypotheses(hypothesis_id,run_id,train_number,based_on_observation_id,from_node_id,to_node_id,probability,progress,eta_p50,eta_p80_start,eta_p80_end,confidence,uncertainty_km,geometry_json,status,calculated_at,expires_at,reason_json)
+        VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,'active',?15,?16,?17) ON CONFLICT(hypothesis_id) DO UPDATE SET probability=excluded.probability,progress=excluded.progress,confidence=excluded.confidence,uncertainty_km=excluded.uncertainty_km,geometry_json=excluded.geometry_json,status='active',calculated_at=excluded.calculated_at,expires_at=excluded.expires_at,reason_json=excluded.reason_json`).bind(hypothesis.hypothesisId,hypothesis.runId,hypothesis.trainNumber,hypothesis.basedOnObservationId,hypothesis.fromNodeId,hypothesis.toNodeId,hypothesis.probability,hypothesis.progress,hypothesis.etaP50,hypothesis.etaP80Start,hypothesis.etaP80End,hypothesis.confidence,hypothesis.uncertaintyKm,hypothesis.geometry?JSON.stringify({type:"LineString",coordinates:hypothesis.geometry}):null,now,hypothesis.expiresAt,JSON.stringify(hypothesis.reasons)));
+      const state=twin.state;predictionStatements.push(env.DB.prepare(`INSERT INTO twin_states(run_id,train_number,anchor_observation_id,anchor_node_id,next_node_id,position_status,calculated_at,anchor_observed_at,eta_p50,eta_p80_start,eta_p80_end,confidence,uncertainty_km,method,primary_hypothesis_id,alternatives_count,latitude,longitude,state_json)
+        VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19) ON CONFLICT(run_id) DO UPDATE SET train_number=excluded.train_number,anchor_observation_id=excluded.anchor_observation_id,anchor_node_id=excluded.anchor_node_id,next_node_id=excluded.next_node_id,position_status=excluded.position_status,calculated_at=excluded.calculated_at,anchor_observed_at=excluded.anchor_observed_at,eta_p50=excluded.eta_p50,eta_p80_start=excluded.eta_p80_start,eta_p80_end=excluded.eta_p80_end,confidence=excluded.confidence,uncertainty_km=excluded.uncertainty_km,method=excluded.method,primary_hypothesis_id=excluded.primary_hypothesis_id,alternatives_count=excluded.alternatives_count,latitude=excluded.latitude,longitude=excluded.longitude,state_json=excluded.state_json`).bind(state.runId,state.trainNumber,state.anchorObservationId,state.anchorNodeId,state.nextNodeId,state.positionStatus,state.calculatedAt,state.anchorObservedAt,state.etaP50,state.etaP80Start,state.etaP80End,state.confidence,state.uncertaintyKm,state.method,state.primaryHypothesisId,state.alternativesCount,state.latitude,state.longitude,JSON.stringify({ambiguous:state.ambiguous,ageMinutes:state.ageMinutes,geometryAvailable:state.geometryAvailable})));
       predictionStatements.push(env.DB.prepare(`INSERT OR IGNORE INTO twin_predictions(prediction_id,run_id,train_number,from_node_id,to_node_id,based_on_observation_id,predicted_at,eta_p50,eta_p80_start,eta_p80_end,confidence,method,baseline_samples)
-        VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,'station-graph-digital-twin-v1',?12)`).bind(`${event.run_id}:${event.event_id}:${edge.from_station_id}>${edge.to_station_id}`,event.run_id,event.train_number||null,edge.from_station_id,edge.to_station_id,event.event_id,event.occurred_at,addMinutes(event.occurred_at,p50),addMinutes(event.occurred_at,p10),addMinutes(event.occurred_at,p90),confidence,Number(edge.sample_count)||0)); counters.predictions += 1;
+        VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,'station-graph-probabilistic-twin-v2',?12)`).bind(primary.hypothesisId,event.run_id,event.train_number||null,primary.fromNodeId,primary.toNodeId,event.event_id,event.occurred_at,primary.etaP50,primary.etaP80Start,primary.etaP80End,primary.confidence,primary.samples));
+      if(twin.ambiguous)predictionStatements.push(env.DB.prepare(`INSERT OR IGNORE INTO ops_workflows(workflow_id,movement_id,workflow_type,state,priority,title,description,created_by,created_at,updated_at) VALUES(?1,?2,'twin_ambiguity','open','normal',?3,?4,'rail-intelligence-v2',?5,?5)`).bind(`twin-review:${event.run_id}:${event.event_id}`,event.run_id,`Уточнить траекторию поезда ${event.train_number||event.run_id}`,`${twin.hypotheses.length} вероятных следующих участка; лучший вариант ${Math.round(primary.probability*100)}%.`,now));
+      else predictionStatements.push(env.DB.prepare("UPDATE ops_workflows SET state='resolved',resolved_at=?1,resolution='automatic confidence restored',updated_at=?1 WHERE movement_id=?2 AND workflow_type='twin_ambiguity' AND state!='resolved'").bind(now,event.run_id));
+      counters.predictions += 1;
     }
     await batch(env, predictionStatements);
-
     const runRows = rows(await env.DB.prepare("SELECT run_id,train_number,route,origin,destination,last_observed_at,current_update_json FROM runs WHERE last_observed_at>=datetime('now','-12 hours') ORDER BY last_observed_at DESC LIMIT 750").all());
     const movementStatements=[];
-    for(const run of runRows){const update=parseJson(run.current_update_json),point=normalizeOperationalCoordinates(update),delay=Number(update.delayMinutes),prediction=predictionByRun.get(run.run_id),eta=update.forecastArrival||update.estimatedArrival||update.nextStationEta||prediction?.eta||null,status=Number.isFinite(delay)&&delay>=60?"delayed":update.status||"observed",observationAgeMinutes=Math.max(0,differenceMinutes(run.last_observed_at,now)||0),rawConfidence=clamp(update.confidence??update.reliability??prediction?.confidence),agedConfidence=clamp(rawConfidence*Math.exp(-observationAgeMinutes/240)),positionStatus=observationAgeMinutes>240?"unknown":observationAgeMinutes>90?"stale":update.positionStatus||update.status||(prediction?"estimated":"unknown"),safeLatitude=observationAgeMinutes>240?null:point.latitude,safeLongitude=observationAgeMinutes>240?null:point.longitude;
+    for(const run of runRows){const update=parseJson(run.current_update_json),point=normalizeOperationalCoordinates(update),delay=Number(update.delayMinutes),prediction=predictionByRun.get(run.run_id),twinState=prediction?.state,eta=update.forecastArrival||update.estimatedArrival||update.nextStationEta||prediction?.eta||null,status=Number.isFinite(delay)&&delay>=60?"delayed":update.status||"observed",observationAgeMinutes=Math.max(0,differenceMinutes(run.last_observed_at,now)||0),rawConfidence=clamp(update.confidence??update.reliability??prediction?.confidence),agedConfidence=clamp(rawConfidence*Math.exp(-observationAgeMinutes/240)),positionStatus=observationAgeMinutes>240?"unknown":observationAgeMinutes>90?"stale":update.positionStatus||update.status||(prediction?"estimated":"unknown"),safeLatitude=observationAgeMinutes>240?null:point.latitude??twinState?.latitude??null,safeLongitude=observationAgeMinutes>240?null:point.longitude??twinState?.longitude??null;
       movementStatements.push(env.DB.prepare(`INSERT INTO ops_movements(movement_id,run_id,train_number,movement_type,origin,destination,route,status,delay_minutes,eta,last_station,last_observed_at,latitude,longitude,confidence,position_status,metadata_json)
-        VALUES(?1,?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16) ON CONFLICT(run_id) DO UPDATE SET status=excluded.status,delay_minutes=excluded.delay_minutes,eta=excluded.eta,last_station=excluded.last_station,last_observed_at=excluded.last_observed_at,latitude=excluded.latitude,longitude=excluded.longitude,confidence=excluded.confidence,position_status=excluded.position_status,metadata_json=excluded.metadata_json`).bind(run.run_id,run.train_number||null,update.trainCategory||"passenger",run.origin,run.destination,run.route,status,Number.isFinite(delay)?delay:null,eta,update.reportedStation||update.lastStation||null,run.last_observed_at,safeLatitude,safeLongitude,agedConfidence,positionStatus,JSON.stringify({sourceId:update.sourceId||null,method:update.positionMethod||(prediction?"station-graph-digital-twin-v1":null),nextNodeId:prediction?.toNodeId||null,coordinateQuality:point.coordinateQuality,coordinateRejected:point.rejected,observationAgeMinutes:Number(observationAgeMinutes.toFixed(1)),uncertaintyKm:Number((Math.max(3,Number(update.errorKm)||0)+observationAgeMinutes*.45).toFixed(1))})));
+        VALUES(?1,?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16) ON CONFLICT(run_id) DO UPDATE SET status=excluded.status,delay_minutes=excluded.delay_minutes,eta=excluded.eta,last_station=excluded.last_station,last_observed_at=excluded.last_observed_at,latitude=excluded.latitude,longitude=excluded.longitude,confidence=excluded.confidence,position_status=excluded.position_status,metadata_json=excluded.metadata_json`).bind(run.run_id,run.train_number||null,update.trainCategory||"passenger",run.origin,run.destination,run.route,status,Number.isFinite(delay)?delay:null,eta,update.reportedStation||update.lastStation||null,run.last_observed_at,safeLatitude,safeLongitude,agedConfidence,positionStatus,JSON.stringify({sourceId:update.sourceId||null,method:update.positionMethod||twinState?.method||null,nextNodeId:prediction?.toNodeId||null,coordinateQuality:point.latitude!=null?point.coordinateQuality:twinState?.geometryAvailable?"rail-geometry-interpolation":"no-rail-geometry",coordinateRejected:point.rejected,observationAgeMinutes:Number(observationAgeMinutes.toFixed(1)),uncertaintyKm:twinState?.uncertaintyKm??Number((Math.max(3,Number(update.errorKm)||0)+observationAgeMinutes*.45).toFixed(1)),alternativesCount:twinState?.alternativesCount||0,ambiguous:Boolean(twinState?.ambiguous),anchorObservationId:twinState?.anchorObservationId||null})));
       if(Number.isFinite(delay)&&delay>=60)movementStatements.push(env.DB.prepare(`INSERT OR IGNORE INTO ops_notifications(notification_id,movement_id,notification_type,severity,title,message,occurred_at,dedupe_key,details_json) VALUES(?1,?2,'delay',?3,?4,?5,?6,?1,?7)`).bind(`delay:${run.run_id}:${Math.floor(delay/30)}`,run.run_id,delay>=180?"high":"medium",`Train ${run.train_number||run.run_id} delayed`,`Current delay: ${Math.round(delay)} minutes`,run.last_observed_at,JSON.stringify({delayMinutes:delay})));
     }
     await batch(env,movementStatements);
@@ -142,7 +216,7 @@ export async function runIntelligenceCycle(env, now = new Date().toISOString()) 
     const corridorRows=rows(await env.DB.prepare("SELECT corridor_id,border_nodes_json FROM international_corridors").all()),corridorStatements=[];
     for(const corridor of corridorRows){const nodeScores=parseJson(corridor.border_nodes_json,[]).map(nodeId=>scoreByNode.get(nodeId)).filter(Number.isFinite);if(!nodeScores.length)continue;const corridorScore=Number((nodeScores.reduce((sum,value)=>sum+value,0)/nodeScores.length).toFixed(1));corridorStatements.push(env.DB.prepare("UPDATE international_corridors SET status='monitored',activity_score=?1,last_observed_at=?2 WHERE corridor_id=?3").bind(corridorScore,now,corridor.corridor_id));}
     await batch(env,corridorStatements);
-    await env.DB.batch([env.DB.prepare("UPDATE twin_predictions SET status='expired' WHERE status='pending' AND eta_p80_end<datetime('now','-6 hours')"),env.DB.prepare("DELETE FROM node_activity_scores WHERE calculated_at<datetime('now','-30 days')")]);
+    await env.DB.batch([env.DB.prepare("UPDATE twin_predictions SET status='expired' WHERE status='pending' AND eta_p80_end<datetime('now','-6 hours')"),env.DB.prepare("DELETE FROM node_activity_scores WHERE calculated_at<datetime('now','-30 days')"),env.DB.prepare("UPDATE twin_hypotheses SET status='expired' WHERE status='active' AND expires_at<datetime('now')")]);
     await env.DB.prepare(`UPDATE intelligence_cycles SET finished_at=?1,status='success',nodes_updated=?2,edges_updated=?3,observations_added=?4,predictions_created=?5,predictions_resolved=?6,anomalies_detected=?7 WHERE cycle_id=?8`).bind(new Date().toISOString(),counters.nodes,counters.edges,counters.observations,counters.predictions,counters.resolved,counters.anomalies,cycleId).run();
     return {cycleId,status:"success",...counters};
   } catch(error) {

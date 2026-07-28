@@ -20,7 +20,7 @@ class D1Adapter {
 
 test("autonomous intelligence cycle persists graph, twin, operations and analytics", async () => {
   const database=new DatabaseSync(":memory:");
-  for(const file of ["0001_initial.sql","0004_model_observability.sql","0011_intelligence_platform.sql"]){
+  for(const file of ["0001_initial.sql","0004_model_observability.sql","0011_intelligence_platform.sql","0013_rail_intelligence_v2.sql"]){
     database.exec(await readFile(new URL(`../backend/migrations/${file}`,import.meta.url),"utf8"));
   }
   const now=new Date(),observedAt=new Date(now.getTime()-5*60_000).toISOString(),nowIso=now.toISOString();
@@ -38,6 +38,9 @@ test("autonomous intelligence cycle persists graph, twin, operations and analyti
   assert.equal(database.prepare("SELECT COUNT(*) total FROM rail_edges").get().total,1);
   assert.equal(database.prepare("SELECT COUNT(*) total FROM rail_observations").get().total,1);
   assert.equal(database.prepare("SELECT COUNT(*) total FROM twin_predictions WHERE status='pending'").get().total,1);
+  assert.equal(database.prepare("SELECT COUNT(*) total FROM twin_states").get().total,1);
+  assert.equal(database.prepare("SELECT COUNT(*) total FROM twin_hypotheses WHERE status='active'").get().total,1);
+  assert.equal(database.prepare("SELECT method FROM twin_states WHERE run_id='run-1'").get().method,"station-graph-probabilistic-twin-v2");
   const movement=database.prepare("SELECT * FROM ops_movements WHERE run_id='run-1'").get();
   assert.equal(movement.status,"delayed");
   assert.ok(movement.eta);
@@ -54,7 +57,7 @@ test("autonomous intelligence cycle persists graph, twin, operations and analyti
 
 test("historical station pairs warm calibration while stale positions lose coordinates", async () => {
   const database=new DatabaseSync(":memory:");
-  for(const file of ["0001_initial.sql","0004_model_observability.sql","0011_intelligence_platform.sql"]){database.exec(await readFile(new URL(`../backend/migrations/${file}`,import.meta.url),"utf8"));}
+  for(const file of ["0001_initial.sql","0004_model_observability.sql","0011_intelligence_platform.sql","0013_rail_intelligence_v2.sql"]){database.exec(await readFile(new URL(`../backend/migrations/${file}`,import.meta.url),"utf8"));}
   const now=new Date(),firstAt=new Date(now.getTime()-6*60*60_000).toISOString(),lastAt=new Date(now.getTime()-5*60*60_000).toISOString(),nowIso=now.toISOString();
   database.prepare(`INSERT INTO runs(run_id,train_number,service_date,route,origin,destination,current_update_json,first_observed_at,last_observed_at) VALUES(?,?,?,?,?,?,?,?,?)`).run("run-replay","2417","2026-07-27","Kyiv - Fastiv","Kyiv","Fastiv",JSON.stringify({latitude:50.45,longitude:30.52,confidence:.9,reportedStation:"Fastiv"}),firstAt,lastAt);
   const event=database.prepare(`INSERT INTO events(event_id,run_id,event_type,station,occurred_at,observed_at,source_id,authority,reliability,position_evidence,raw_update_json) VALUES(?,?,?,?,?,?,?,?,?,?,?)`);
