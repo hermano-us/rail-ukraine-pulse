@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import { buildRailGraph, buildStationRegistry, normalizeStationAlias, stationAliasVariants } from "../scripts/lib/rail-graph-builder.mjs";
-import { loadStationAliasMap, syncRailGraphReference } from "../backend/src/intelligence/rail-graph-sync.js";
+import { analyzeRailTopology, graphImportTelemetry, loadStationAliasMap, syncRailGraphReference } from "../backend/src/intelligence/rail-graph-sync.js";
 import { resolveRailRouteGeometries } from "../backend/src/intelligence/rail-route-cache.js";
 
 class Statement {
@@ -48,6 +48,7 @@ test("chunked graph import activates a complete version and creates reverse geom
   database.exec(await readFile(new URL("../backend/migrations/0011_intelligence_platform.sql",import.meta.url),"utf8"));
   database.exec(await readFile(new URL("../backend/migrations/0014_rail_graph_registry.sql",import.meta.url),"utf8"));
   database.exec(await readFile(new URL("../backend/migrations/0015_rail_intelligence_routing.sql",import.meta.url),"utf8"));
+  database.exec(await readFile(new URL("../backend/migrations/0016_rail_foundation_fusion.sql",import.meta.url),"utf8"));
   const versionId="test-v1";
   const assets=new Map([
     ["manifest.json",{versionId,source:"test",checksum:"abc",stationCount:2,segmentCount:1,aliasConflictCount:0,unmatchedStationCount:0,stationChunkSize:1,segmentChunkSize:1,stationChunks:["stations-000.json","stations-001.json"],segmentChunks:["segments-000.json"]}],
@@ -57,13 +58,14 @@ test("chunked graph import activates a complete version and creates reverse geom
     ["topology.json",{versionId,edges:[["alpha","beta",25]]}],
   ]);
   const env={DB:new D1Adapter(database),ASSETS:{fetch:async(request)=>{const name=new URL(request.url).pathname.split("/").at(-1);return assets.has(name)?Response.json(assets.get(name)):new Response("missing",{status:404});}}};
-  const partial=await syncRailGraphReference(env,"2026-07-28T10:00:00.000Z");
+  const partial=await syncRailGraphReference(env,"2026-07-28T10:00:00.000Z",{stationChunks:1,segmentChunks:1});
   assert.equal(partial.status,"importing");
   assert.equal(database.prepare("SELECT COUNT(*) total FROM rail_segment_geometries WHERE active=1").get().total,0);
-  const result=await syncRailGraphReference(env,"2026-07-28T10:05:00.000Z");
+  const result=await syncRailGraphReference(env,"2026-07-28T10:05:00.000Z",{stationChunks:1,segmentChunks:1});
   assert.equal(result.status,"activated");
   assert.equal(database.prepare("SELECT status FROM rail_graph_versions WHERE version_id=?").get(versionId).status,"active");
   assert.equal(database.prepare("SELECT COUNT(*) total FROM rail_segment_geometries WHERE active=1").get().total,2);
+  assert.equal(database.prepare("SELECT health_status FROM rail_graph_diagnostics WHERE version_id=?").get(versionId).health_status,"healthy");
   const reverse=JSON.parse(database.prepare("SELECT geometry_json FROM rail_segment_geometries WHERE from_station_id='beta'").get().geometry_json);
   assert.deepEqual(reverse.coordinates,[[30.2,50],[30.1,50.1],[30,50]]);
   const firstRoute=await resolveRailRouteGeometries(env,[{from:"alpha",to:"beta"}],"2026-07-28T10:10:00.000Z"); assert.equal(firstRoute.calculated,1); assert.equal(JSON.parse(firstRoute.routes.get("alpha>beta").geometry_json).coordinates.length,3);

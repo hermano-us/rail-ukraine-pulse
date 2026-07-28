@@ -139,7 +139,7 @@ export async function runIntelligenceCycle(env, now = new Date().toISOString()) 
   try {
     try { graphSync = await syncRailGraphReference(env, now); } catch (error) { graphSync = { status:'degraded', error:String(error?.message||error).slice(0,300) }; }
     const stationAliases = await loadStationAliasMap(env);
-    const linkResult=await linkRecentObservations(env,now); counters.linksCreated=linkResult.linked;
+    const linkResult=await linkRecentObservations(env,now,stationAliases); counters.linksCreated=linkResult.linked;
     const eventRows = rows(await env.DB.prepare(`SELECT e.event_id,COALESCE(CASE WHEN l.status='linked' THEN l.canonical_run_id END,e.run_id) run_id,e.station,e.occurred_at,e.observed_at,e.source_id,e.authority,e.reliability,e.raw_update_json,r.train_number,r.route,r.origin,r.destination
       FROM events e LEFT JOIN observation_run_links l ON l.event_id=e.event_id LEFT JOIN runs r ON r.run_id=COALESCE(CASE WHEN l.status='linked' THEN l.canonical_run_id END,e.run_id)
       WHERE e.event_type='station_report' AND e.station IS NOT NULL AND e.occurred_at>=datetime('now','-7 days')

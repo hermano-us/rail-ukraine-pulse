@@ -52,6 +52,7 @@ test("Operations Center exposes all three protected platform surfaces", async ()
   assert.match(admin, /FREIGHT_CORRIDOR_GEOMETRY/);
   assert.match(admin, /freightStationFacts/);
   assert.match(admin, /validUkraineOperationsPoint/);
+  assert.match(admin, /entityResolutionRows:\s*document\.querySelector\("#entity-resolution-rows"\)/);
   assert.match(admin, /coordinate-order-repaired|coordinateQuality/);
   assert.match(html, /freight-track-rows/);
   assert.match(html, /«Прочитано» закрывает только уведомление/);
@@ -123,4 +124,8 @@ test("Operations Center exposes persistent collapsible registries and v2 state",
   assert.match(migration,/CREATE TABLE IF NOT EXISTS twin_hypotheses/);
   assert.match(api,/activeHypotheses/);
   assert.match(admin,/renderSelectedTwinLayer/);
+  assert.match(html,/data-collapse-key="entity-resolution"/);
+  assert.match(admin,/resolveObservationLink/);
+  assert.match(admin,/estimatedCompletionAt/);
+  assert.match(css,/entity-resolution-actions/);
 });
