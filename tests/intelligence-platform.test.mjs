@@ -53,6 +53,10 @@ test("Operations Center exposes all three protected platform surfaces", async ()
   assert.match(admin, /freightStationFacts/);
   assert.match(admin, /validUkraineOperationsPoint/);
   assert.match(admin, /entityResolutionRows:\s*document\.querySelector\("#entity-resolution-rows"\)/);
+  assert.match(html, /State Machine v3/);
+  assert.match(html, /calibration-profile-rows/);
+  assert.match(admin, /twinTransitionRows:\s*document\.querySelector\("#twin-transition-rows"\)/);
+  assert.match(admin, /TWIN_STATE_LABELS/);
   assert.match(admin, /coordinate-order-repaired|coordinateQuality/);
   assert.match(html, /freight-track-rows/);
   assert.match(html, /«Прочитано» закрывает только уведомление/);

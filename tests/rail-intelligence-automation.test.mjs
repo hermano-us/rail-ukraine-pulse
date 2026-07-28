@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyCalibration, calculateCalibrationProfile } from "../backend/src/intelligence/calibration.js";
+import { applyCalibration, applyCalibrationV3, calculateCalibrationProfile, calculateCalibrationProfileV3, calibrationDimensions } from "../backend/src/intelligence/calibration.js";
+import { deriveTwinOperationalState, stateTransition, summarizeStationEvidence } from "../backend/src/intelligence/twin-state-machine.js";
 import { chooseCanonicalRun, scoreRunCandidate, scoreRunCandidateDetails } from "../backend/src/intelligence/observation-linker.js";
 import { analyzeRailTopology, graphImportTelemetry } from "../backend/src/intelligence/rail-graph-sync.js";
 import { buildTopology, composeRouteGeometry, shortestPhysicalPath } from "../backend/src/intelligence/rail-route-cache.js";
@@ -39,4 +40,32 @@ test("entity resolution exposes candidate probabilities and human-readable evide
   const candidate={run_id:"run-6366",train_number:"6366",service_date:"2026-07-28",origin:"Hrebinka",destination:"Romodan",route:"Hrebinka - Romodan",last_observed_at:"2026-07-28T09:30:00Z",locomotive:"VL80T-1445"};
   const details=scoreRunCandidateDetails(event,candidate),decision=chooseCanonicalRun(event,[candidate]);
   assert.ok(details.features.some(item=>item.id==="locomotive"&&item.matched));assert.equal(decision.status,"linked");assert.equal(decision.candidates[0].probability,1);assert.ok(decision.candidates[0].features.length>=5);
+});
+test("Rail Intelligence v3 separates operational phase from position status",()=>{
+  const fresh=deriveTwinOperationalState({now:"2026-07-28T10:04:00Z",anchorAt:"2026-07-28T10:00:00Z",positionStatus:"estimated",progress:.04,etaP80End:"2026-07-28T11:00:00Z",confidence:.8});
+  assert.equal(fresh.state,"at_station");assert.ok(fresh.stateConfidence>.7);
+  const dwelling=deriveTwinOperationalState({now:"2026-07-28T10:10:00Z",anchorAt:"2026-07-28T10:00:00Z",positionStatus:"estimated",progress:.1,etaP80End:"2026-07-28T11:00:00Z",confidence:.8,repeatCount:2,dwellMinutes:6});
+  assert.equal(dwelling.state,"dwelling");
+  const approaching=deriveTwinOperationalState({now:"2026-07-28T10:45:00Z",anchorAt:"2026-07-28T10:00:00Z",positionStatus:"estimated",progress:.84,etaP80End:"2026-07-28T11:00:00Z",confidence:.7});
+  assert.equal(approaching.state,"approaching");
+  const overdue=deriveTwinOperationalState({now:"2026-07-28T11:20:00Z",anchorAt:"2026-07-28T10:00:00Z",positionStatus:"estimated",progress:1,etaP80End:"2026-07-28T11:00:00Z",confidence:.6});
+  assert.equal(overdue.state,"overdue");assert.equal(overdue.overdueMinutes,20);
+  const transition=stateTransition({operational_state:"in_transit",anchor_node_id:"kyiv",next_node_id:"fastiv"},{...approaching,now:"2026-07-28T10:45:00Z",anchorNodeId:"kyiv",nextNodeId:"fastiv",positionStatus:"estimated"});
+  assert.equal(transition.fromState,"in_transit");assert.equal(transition.toState,"approaching");
+});
+
+test("Rail Intelligence v3 detects dwell evidence without inventing movement",()=>{
+  const evidence=summarizeStationEvidence([
+    {station:"Kyiv",occurred_at:"2026-07-28T09:00:00Z"},
+    {station:"Fastiv",occurred_at:"2026-07-28T10:00:00Z"},
+    {station:"Fastiv",occurred_at:"2026-07-28T10:06:00Z"},
+  ],(value)=>value.toLowerCase());
+  assert.equal(evidence.repeatCount,2);assert.equal(evidence.dwellMinutes,6);assert.equal(evidence.previousNodeId,"kyiv");
+});
+
+test("calibration v3 prefers live segment evidence and expands weak P80",()=>{
+  const evaluations=Array.from({length:12},(_,index)=>({evaluation_id:`v3:${index}`,evaluation_kind:index<8?"prospective":"replay",predicted_minutes:60,actual_minutes:70+(index%4),within_p80:index<6?1:0,evaluated_at:`2026-07-${String(10+index).padStart(2,"0")}T10:00:00Z`})),profile=calculateCalibrationProfileV3(evaluations);
+  assert.equal(profile.readiness,"operational");assert.equal(profile.prospectiveCount,8);assert.ok(profile.uncertaintyMultiplier>1);
+  const dimension=calibrationDimensions({train_number:"091",source_id:"uz",from_station_id:"kyiv",to_station_id:"fastiv"}).find(item=>item.type==="train-segment"),profiles=new Map([[dimension.profileId,{...profile,...dimension}]]),edge=applyCalibrationV3({train_family:"091",from_station_id:"kyiv",to_station_id:"fastiv",p10_minutes:52,p50_minutes:60,p90_minutes:68},profiles,{trainFamily:"091",sourceId:"other"});
+  assert.equal(edge.calibration_profile.version,"v3");assert.equal(edge.calibration_profile.dimension,"train-segment");assert.ok(edge.p90_minutes-edge.p10_minutes>16);
 });

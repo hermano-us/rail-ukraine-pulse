@@ -23,3 +23,42 @@ export function applyCalibration(edge, profiles) {
   const rawP50=Number(edge.p50_minutes),rawP10=Number(edge.p10_minutes??rawP50),rawP90=Number(edge.p90_minutes??rawP50),p50=Math.max(1,rawP50+profile.residualP50),p10=Math.max(1,Math.min(p50,rawP10+profile.residualP10)),p90=Math.max(p50,rawP90+profile.residualP90);
   return {...edge,p10_minutes:Number(p10.toFixed(2)),p50_minutes:Number(p50.toFixed(2)),p90_minutes:Number(p90.toFixed(2)),calibration_profile:{readiness:profile.readiness,evaluations:profile.evaluationCount,prospective:profile.prospectiveCount,maeMinutes:profile.maeMinutes,p80Coverage:profile.p80Coverage}};
 }
+
+const v3Key = (type, key) => `${type}:${key}`;
+const evaluationKind = (item) => item.evaluation_kind || (String(item.evaluation_id || "").startsWith("replay:") ? "replay" : "prospective");
+
+export function calculateCalibrationProfileV3(evaluations = []) {
+  const base=calculateCalibrationProfile(evaluations);if(!base)return null;
+  const valid=evaluations.filter((item)=>Number.isFinite(Number(item.actual_minutes))&&Number.isFinite(Number(item.predicted_minutes)));
+  const residuals=valid.map((item)=>Number(item.actual_minutes)-Number(item.predicted_minutes));
+  const prospective=valid.filter((item)=>evaluationKind(item)==="prospective").length;
+  const bias=residuals.reduce((sum,value)=>sum+value,0)/residuals.length;
+  const coverage=base.p80Coverage??80,uncertaintyMultiplier=coverage>=78?1:Math.min(2.5,Math.max(1.05,80/Math.max(35,coverage)));
+  return {...base,prospectiveCount:prospective,biasMinutes:Number(bias.toFixed(2)),uncertaintyMultiplier:Number(uncertaintyMultiplier.toFixed(3)),readiness:valid.length>=12&&prospective>=8?"operational":valid.length>=6&&prospective>=3?"warming":"insufficient-evidence"};
+}
+
+export function calibrationDimensions(item = {}) {
+  const train=String(item.train_number||"unknown"),source=String(item.source_id||"unknown"),from=item.from_station_id,to=item.to_station_id,segment=`${from}>${to}`;
+  return [
+    {type:"source-segment",key:`${source}:${segment}`,trainFamily:null,sourceId:source},
+    {type:"train-segment",key:`${train}:${segment}`,trainFamily:train,sourceId:null},
+    {type:"segment",key:segment,trainFamily:null,sourceId:null},
+  ].map((dimension)=>({...dimension,profileId:v3Key(dimension.type,dimension.key),fromStationId:from,toStationId:to}));
+}
+
+export async function refreshCalibrationProfilesV3(env, now = new Date().toISOString(), stationAliases = new Map()) {
+  const evaluations=rows(await env.DB.prepare("SELECT evaluation_id,train_number,source_id,evaluation_kind,from_station_id,to_station_id,predicted_minutes,actual_minutes,within_p80,evaluated_at FROM model_evaluations WHERE evaluated_at>=datetime('now','-45 days') ORDER BY evaluated_at DESC LIMIT 10000").all()),groups=new Map();
+  for(const item of evaluations){const canonical={...item,from_station_id:stationAliases.get(item.from_station_id)||item.from_station_id,to_station_id:stationAliases.get(item.to_station_id)||item.to_station_id};for(const dimension of calibrationDimensions(canonical)){const group=groups.get(dimension.profileId)||{dimension,items:[]};group.items.push(canonical);groups.set(dimension.profileId,group);}}
+  const profiles=new Map(),statements=[];
+  for(const [profileId,{dimension,items}] of groups){const profile=calculateCalibrationProfileV3(items);if(!profile)continue;const row={...profile,...dimension};profiles.set(profileId,row);statements.push(env.DB.prepare(`INSERT INTO model_calibration_profiles_v3(profile_id,dimension_type,dimension_key,train_family,source_id,from_station_id,to_station_id,evaluation_count,prospective_count,mae_minutes,p80_coverage,residual_p10_minutes,residual_p50_minutes,residual_p90_minutes,bias_minutes,uncertainty_multiplier,readiness,window_started_at,window_ended_at,updated_at)
+    VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20) ON CONFLICT(profile_id) DO UPDATE SET evaluation_count=excluded.evaluation_count,prospective_count=excluded.prospective_count,mae_minutes=excluded.mae_minutes,p80_coverage=excluded.p80_coverage,residual_p10_minutes=excluded.residual_p10_minutes,residual_p50_minutes=excluded.residual_p50_minutes,residual_p90_minutes=excluded.residual_p90_minutes,bias_minutes=excluded.bias_minutes,uncertainty_multiplier=excluded.uncertainty_multiplier,readiness=excluded.readiness,window_started_at=excluded.window_started_at,window_ended_at=excluded.window_ended_at,updated_at=excluded.updated_at`).bind(profileId,dimension.type,dimension.key,dimension.trainFamily,dimension.sourceId,dimension.fromStationId,dimension.toStationId,profile.evaluationCount,profile.prospectiveCount,profile.maeMinutes,profile.p80Coverage,profile.residualP10,profile.residualP50,profile.residualP90,profile.biasMinutes,profile.uncertaintyMultiplier,profile.readiness,profile.windowStartedAt,profile.windowEndedAt,now));}
+  await batch(env,statements);return {profiles,updated:statements.length,evaluations:evaluations.length};
+}
+
+export function applyCalibrationV3(edge, profiles, context = {}) {
+  const segment=`${edge.from_station_id}>${edge.to_station_id}`,keys=[v3Key("source-segment",`${context.sourceId||"unknown"}:${segment}`),v3Key("train-segment",`${context.trainFamily||edge.train_family||"unknown"}:${segment}`),v3Key("segment",segment)];
+  const candidates=keys.map((key)=>profiles.get(key)).filter((profile)=>profile&&profile.evaluationCount>=3).sort((left,right)=>{const rank={operational:2,warming:1,"insufficient-evidence":0};return (rank[right.readiness]-rank[left.readiness])||(right.prospectiveCount-left.prospectiveCount)||(right.evaluationCount-left.evaluationCount);});
+  const profile=candidates[0];if(!profile)return edge;
+  const rawP50=Number(edge.p50_minutes),rawP10=Number(edge.p10_minutes??rawP50),rawP90=Number(edge.p90_minutes??rawP50),p50=Math.max(1,rawP50+profile.residualP50),baseLow=Math.max(1,Math.min(p50,rawP10+profile.residualP10)),baseHigh=Math.max(p50,rawP90+profile.residualP90),halfRange=Math.max(p50-baseLow,baseHigh-p50)*profile.uncertaintyMultiplier,p10=Math.max(1,p50-halfRange),p90=p50+halfRange;
+  return {...edge,p10_minutes:Number(p10.toFixed(2)),p50_minutes:Number(p50.toFixed(2)),p90_minutes:Number(p90.toFixed(2)),calibration_profile:{version:"v3",dimension:profile.type,key:profile.key,readiness:profile.readiness,evaluations:profile.evaluationCount,prospective:profile.prospectiveCount,maeMinutes:profile.maeMinutes,p80Coverage:profile.p80Coverage,biasMinutes:profile.biasMinutes,uncertaintyMultiplier:profile.uncertaintyMultiplier}};
+}

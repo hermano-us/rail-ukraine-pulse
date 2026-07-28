@@ -16,9 +16,11 @@ test("D1 migration creates the event backend schema", {
   const secureCoreSql = await readFile(new URL("../backend/migrations/0010_secure_core.sql", import.meta.url), "utf8");
   const intelligencePlatformSql = await readFile(new URL("../backend/migrations/0011_intelligence_platform.sql", import.meta.url), "utf8");
   const corridorNodesSql = await readFile(new URL("../backend/migrations/0012_international_corridor_nodes.sql", import.meta.url), "utf8");
+  const railV2Sql = await readFile(new URL("../backend/migrations/0013_rail_intelligence_v2.sql", import.meta.url), "utf8");
   const railGraphSql = await readFile(new URL("../backend/migrations/0014_rail_graph_registry.sql", import.meta.url), "utf8");
   const routingSql = await readFile(new URL("../backend/migrations/0015_rail_intelligence_routing.sql", import.meta.url), "utf8");
   const foundationFusionSql = await readFile(new URL("../backend/migrations/0016_rail_foundation_fusion.sql", import.meta.url), "utf8");
+  const railV3Sql = await readFile(new URL("../backend/migrations/0017_rail_intelligence_v3.sql", import.meta.url), "utf8");
   database.exec(historySql);
   database.exec(sql);
   database.exec(observabilitySql);
@@ -28,9 +30,13 @@ test("D1 migration creates the event backend schema", {
   database.exec(secureCoreSql);
   database.exec(intelligencePlatformSql);
   database.exec(corridorNodesSql);
+  database.exec(railV2Sql);
   database.exec(railGraphSql);
   database.exec(routingSql);
   database.exec(foundationFusionSql);
+  database.prepare("INSERT INTO model_evaluations(evaluation_id,run_id,train_number,from_station_id,to_station_id,predicted_minutes,actual_minutes,absolute_error_minutes,within_p80,baseline_samples,evaluated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").run("replay:legacy","run-a","1","a","b",10,11,1,1,1,"2026-07-28T10:00:00Z");
+  database.prepare("INSERT INTO model_evaluations(evaluation_id,run_id,train_number,from_station_id,to_station_id,predicted_minutes,actual_minutes,absolute_error_minutes,within_p80,baseline_samples,evaluated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").run("twin:legacy","run-b","2","a","b",10,12,2,0,1,"2026-07-28T10:00:00Z");
+  database.exec(railV3Sql);
   const tables = database.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all().map((row) => row.name);
   assert.ok(tables.includes("runs"));
   assert.ok(tables.includes("events"));
@@ -72,6 +78,10 @@ test("D1 migration creates the event backend schema", {
   assert.ok(tables.includes("rail_graph_diagnostics"));
   assert.ok(tables.includes("station_codes"));
   assert.ok(tables.includes("observation_link_candidates"));
+  assert.ok(tables.includes("twin_state_transitions"));
+  assert.ok(tables.includes("model_calibration_profiles_v3"));
+  assert.equal(database.prepare("SELECT evaluation_kind FROM model_evaluations WHERE evaluation_id='replay:legacy'").get().evaluation_kind,"replay");
+  assert.equal(database.prepare("SELECT evaluation_kind FROM model_evaluations WHERE evaluation_id='twin:legacy'").get().evaluation_kind,"prospective");
   const corridors=database.prepare("SELECT corridor_id,border_nodes_json FROM international_corridors ORDER BY corridor_id").all();
   assert.equal(corridors.length,5);
   assert.ok(corridors.every((item)=>JSON.parse(item.border_nodes_json).length>0));

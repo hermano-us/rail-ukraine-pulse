@@ -118,10 +118,14 @@
         <div class="platform-panel active" data-platform-panel="rail">
           <div id="rail-intelligence-metrics" class="metrics platform-metrics"></div>
           <div class="platform-grid">
-            <article><details class="collapsible-list embedded-list" data-collapse-key="rail-twins" open><summary>Цифровые двойники v2</summary><p class="muted">Основная и альтернативные гипотезы до следующего подтверждённого события.</p><div class="table-wrap"><table><thead><tr><th>Поезд</th><th>Участок</th><th>ETA P50</th><th>P80</th><th>Уверенность</th><th>Погрешность</th><th>Статус</th></tr></thead><tbody id="rail-twin-rows"></tbody></table></div></details></article>
+            <article><details class="collapsible-list embedded-list" data-collapse-key="rail-twins" open><summary>Цифровые двойники v3</summary><p class="muted">Основная и альтернативные гипотезы до следующего подтверждённого события.</p><div class="table-wrap"><table><thead><tr><th>Поезд</th><th>Участок</th><th>ETA P50</th><th>P80</th><th>Уверенность</th><th>Погрешность</th><th>Позиция</th><th>Фаза</th></tr></thead><tbody id="rail-twin-rows"></tbody></table></div></details></article>
             <article><details class="collapsible-list embedded-list" data-collapse-key="rail-observations" open><summary>Последние наблюдения</summary><p class="muted">Только трассируемые станционные факты и операторские подтверждения.</p><div class="table-wrap"><table><thead><tr><th>Время</th><th>Поезд</th><th>Станция</th><th>Источник</th><th>Надёжность</th></tr></thead><tbody id="rail-observation-rows"></tbody></table></div></details></article>
           </div>
-          <details class="collapsible-list" data-collapse-key="entity-resolution" open>
+          <details class="collapsible-list" data-collapse-key="twin-state-transitions">
+            <summary>State Machine v3 · переходы фаз</summary>
+            <p class="muted">Фаза описывает состояние модели и не превращает расчётную координату в подтверждённый факт.</p>
+            <div class="table-wrap"><table><thead><tr><th>Время</th><th>Поезд</th><th>Переход</th><th>Участок</th><th>Уверенность</th><th>Основание</th></tr></thead><tbody id="twin-transition-rows"></tbody></table></div>
+          </details>          <details class="collapsible-list" data-collapse-key="entity-resolution" open>
             <summary>Observation Fusion · спорные сопоставления</summary>
             <p class="muted">Несколько вероятных рейсов с объяснением оценки. Очевидные случаи применяются автоматически.</p>
             <div class="table-wrap"><table><thead><tr><th>Время</th><th>Наблюдение</th><th>Кандидаты</th><th>Почему</th><th>Решение</th></tr></thead><tbody id="entity-resolution-rows"></tbody></table></div>
@@ -151,7 +155,11 @@
             <article><details class="collapsible-list embedded-list" data-collapse-key="node-activity" open><summary>Node Activity Score</summary><div class="table-wrap"><table><thead><tr><th>Узел</th><th>Score</th><th>Фактов/ч</th><th>Изменение</th><th>Уверенность</th></tr></thead><tbody id="node-activity-rows"></tbody></table></div></details></article>
             <article><details class="collapsible-list embedded-list" data-collapse-key="network-anomalies" open><summary>Аномалии сети</summary><div class="table-wrap"><table><thead><tr><th>Время</th><th>Узел</th><th>Тип</th><th>Уровень</th><th>Описание</th></tr></thead><tbody id="network-anomaly-rows"></tbody></table></div></details></article>
           </div>
-          <h3>Международные коридоры</h3><div id="international-corridors" class="corridor-list"></div>
+          <details class="collapsible-list" data-collapse-key="calibration-v3">
+            <summary>Калибровка MAE / P80 v3</summary>
+            <p class="muted">Иерархические профили по источнику, типу поезда и перегону. Недостаток статистики показывается нейтрально.</p>
+            <div class="table-wrap"><table><thead><tr><th>Измерение</th><th>Профиль</th><th>Проверки</th><th>Live</th><th>MAE</th><th>P80</th><th>Поправка</th><th>Готовность</th></tr></thead><tbody id="calibration-profile-rows"></tbody></table></div>
+          </details>          <h3>Международные коридоры</h3><div id="international-corridors" class="corridor-list"></div>
         </div>
         <p id="platform-error" class="error" role="alert"></p>
       </section>
