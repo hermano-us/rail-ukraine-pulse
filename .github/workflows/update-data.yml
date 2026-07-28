@@ -8,7 +8,8 @@ on:
       - "package.json"
       - ".github/workflows/update-data.yml"
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/5 * * * *"
+    - cron: "17,47 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -17,7 +18,7 @@ permissions:
 
 concurrency:
   group: ukraine-public-data-refresh
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   refresh:
@@ -33,12 +34,15 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-1.61.1
       - run: npm install --omit=dev --no-audit --no-fund
-      - run: npx playwright install --with-deps chromium
-      - run: npm test
+      - if: github.event_name != 'schedule' || github.event.schedule != '*/5 * * * *'
+        run: npx playwright install --with-deps chromium
+      - if: github.event_name != 'schedule'
+        run: npm test
       - name: Collect public transport evidence
         shell: bash
         env:
           BOARD_HEADLESS: "false"
+          SKIP_BROWSER_SOURCE: ${{ github.event_name == 'schedule' && github.event.schedule == '*/5 * * * *' && '1' || '0' }}
         run: |
           retry() {
             local attempt=1
@@ -55,7 +59,11 @@ jobs:
               delay=$((delay * 2))
             done
           }
-          retry xvfb-run --auto-servernum npm run update-data
+          if [ "$SKIP_BROWSER_SOURCE" = "1" ]; then
+            retry npm run update-data
+          else
+            retry xvfb-run --auto-servernum npm run update-data
+          fi
       - name: Push snapshot to live backend
         shell: bash
         env:

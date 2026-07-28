@@ -23,3 +23,11 @@ test("station points require an explicit non-sensitive station fact",()=>{
   assert.equal("latitude" in result.stationFacts[0],false);
   assert.equal("longitude" in result.stationFacts[0],false);
 });
+
+test("stable identifiers create a reversible probabilistic freight track without exact coordinates",()=>{
+  const first=item({classification_json:JSON.stringify({freightType:"bulk",locomotive:"ВЛ80Т-1445",entityKey:"locomotive:ВЛ80Т-1445",entityConfidence:.92,station:"Коростень",stationEvidence:"passed_station",direction:"київ"})});
+  const second=item({evidence_id:"e-2",source_id:"freight-tg-two",occurred_at:"2026-07-27T11:50:00Z",classification_json:JSON.stringify({freightType:"bulk",locomotive:"ВЛ80Т-1445",entityKey:"locomotive:ВЛ80Т-1445",entityConfidence:.92,station:"Ірпінь",stationEvidence:"passed_station",direction:"київ"})});
+  const vague=item({evidence_id:"e-3",classification_json:JSON.stringify({freightType:"bulk",direction:"київ"})});
+  const result=buildRestrictedFreightLayer([first,second,vague],"2026-07-27T12:00:00Z");
+  assert.equal(result.tracks.length,1); assert.equal(result.tracks[0].trackId,"locomotive:ВЛ80Т-1445"); assert.deepEqual(result.tracks[0].stationSequence.map(item=>item.station),["Коростень","Ірпінь"]); assert.equal(result.tracks[0].status,"corroborated"); assert.equal("latitude" in result.tracks[0],false); assert.equal("longitude" in result.tracks[0],false);
+});

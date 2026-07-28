@@ -51,3 +51,18 @@ test("autonomous intelligence cycle persists graph, twin, operations and analyti
   assert.equal(cycle.observations_added,1);
   database.close();
 });
+
+test("historical station pairs warm calibration while stale positions lose coordinates", async () => {
+  const database=new DatabaseSync(":memory:");
+  for(const file of ["0001_initial.sql","0004_model_observability.sql","0011_intelligence_platform.sql"]){database.exec(await readFile(new URL(`../backend/migrations/${file}`,import.meta.url),"utf8"));}
+  const now=new Date(),firstAt=new Date(now.getTime()-6*60*60_000).toISOString(),lastAt=new Date(now.getTime()-5*60*60_000).toISOString(),nowIso=now.toISOString();
+  database.prepare(`INSERT INTO runs(run_id,train_number,service_date,route,origin,destination,current_update_json,first_observed_at,last_observed_at) VALUES(?,?,?,?,?,?,?,?,?)`).run("run-replay","2417","2026-07-27","Kyiv - Fastiv","Kyiv","Fastiv",JSON.stringify({latitude:50.45,longitude:30.52,confidence:.9,reportedStation:"Fastiv"}),firstAt,lastAt);
+  const event=database.prepare(`INSERT INTO events(event_id,run_id,event_type,station,occurred_at,observed_at,source_id,authority,reliability,position_evidence,raw_update_json) VALUES(?,?,?,?,?,?,?,?,?,?,?)`);
+  event.run("replay-a","run-replay","station_report","Kyiv",firstAt,firstAt,"test-source","public",.9,"station","{}");
+  event.run("replay-b","run-replay","station_report","Fastiv",lastAt,lastAt,"test-source","public",.9,"station","{}");
+  database.prepare(`INSERT INTO segment_stats(from_station_id,to_station_id,train_family,sample_count,mean_minutes,variance_minutes,p10_minutes,p50_minutes,p90_minutes,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)`).run("kyiv","fastiv","2417",24,58,25,50,60,70,lastAt);
+  const result=await runIntelligenceCycle({DB:new D1Adapter(database)},nowIso);
+  assert.ok(result.replayed>=1); const evaluation=database.prepare("SELECT * FROM model_evaluations WHERE evaluation_id LIKE 'replay:%'").get(); assert.ok(evaluation); assert.equal(evaluation.absolute_error_minutes,0); assert.equal(evaluation.within_p80,1);
+  const movement=database.prepare("SELECT * FROM ops_movements WHERE run_id='run-replay'").get(); assert.equal(movement.position_status,"unknown"); assert.equal(movement.latitude,null); assert.equal(movement.longitude,null); assert.ok(JSON.parse(movement.metadata_json).uncertaintyKm>100);
+  database.close();
+});

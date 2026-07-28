@@ -52,3 +52,17 @@ test("freight ingest repeats the sensitive-content guard before D1", async () =>
   assert.equal(batches.flat().length, 2);
   assert.match(batches.flat()[1].sql, /restricted_evidence/);
 });
+test("freight entity extraction separates station facts, directions and stable identities", () => {
+  const passed=extractFreightEntities("Вантажний поїзд ВЛ80Т-1445 прослідував станцію Фастів, слідує на Київ");
+  assert.equal(passed.locomotive,"ВЛ80Т-1445"); assert.equal(passed.station,"Фастів"); assert.equal(passed.stationEvidence,"passed_station"); assert.equal(passed.direction,"київ"); assert.equal(passed.entityKey,"locomotive:ВЛ80Т-1445");
+  const numbered=extractFreightEntities("Вантажний поїзд №2417 відправився зі станції Козятин");
+  assert.equal(numbered.trainNumber,"2417"); assert.equal(numbered.entityKey,"train:2417"); assert.equal(numbered.station,"Козятин");
+  const vague=extractFreightEntities("Вантажний склад рухається у напрямку Києва");
+  assert.equal(vague.entityKey,null);
+});
+test("freight ingest infers a known corridor from an explicit station", async () => {
+  const batches=[]; const env={DB:{prepare(sql){return{bind(...values){return{sql,values};}};},async batch(statements){batches.push(statements);}}};
+  const observation={observationId:"freight-tg-test:station",sourceId:"freight-tg-test",sourceUrl:"https://t.me/test/2",occurredAt:"2026-07-27T10:00:00Z",corridor:"unresolved",freightType:"bulk",confidence:.4,contentFingerprint:"station",evidenceExcerpt:"Вантажний поїзд ВЛ80Т-1445 пройшов станцію Коростень",publicEligible:false};
+  const response=await handleFreightRequest(new Request("https://example.test/api/v1/freight/ingest",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({observations:[observation],sources:[]})}),env,{authorized:()=>true,authorizedAdmin:()=>false});
+  assert.equal(response.status,202); assert.equal(batches[0][0].values[5],"kyiv-korosten"); assert.equal(batches[0][1].values[8],"kyiv-korosten");
+});

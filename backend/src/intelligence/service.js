@@ -38,17 +38,29 @@ export function evaluatePrediction(prediction, actualAt) {
   return { absoluteErrorMinutes: Number((Math.abs(actual - predictedAt) / 60_000).toFixed(2)), withinP80: actual >= low && actual <= high };
 }
 
-function coordinates(update = {}) {
+const UKRAINE_BOUNDS = { minLatitude: 43.8, maxLatitude: 53.0, minLongitude: 21.0, maxLongitude: 41.5 };
+const insideUkraine = (latitude, longitude) => Number.isFinite(latitude) && Number.isFinite(longitude)
+  && latitude >= UKRAINE_BOUNDS.minLatitude && latitude <= UKRAINE_BOUNDS.maxLatitude
+  && longitude >= UKRAINE_BOUNDS.minLongitude && longitude <= UKRAINE_BOUNDS.maxLongitude;
+
+export function normalizeOperationalCoordinates(update = {}) {
   const position = update.position || update.estimatedPosition || update.calculatedPosition || {};
-  const latitude = Number(update.latitude ?? update.lat ?? position.latitude ?? position.lat);
-  const longitude = Number(update.longitude ?? update.lon ?? update.lng ?? position.longitude ?? position.lon ?? position.lng);
-  return { latitude: Number.isFinite(latitude) ? latitude : null, longitude: Number.isFinite(longitude) ? longitude : null };
+  const pair = Array.isArray(position.coordinates) ? position.coordinates : Array.isArray(update.coordinates) ? update.coordinates : null;
+  let latitude = Number(update.latitude ?? update.lat ?? position.latitude ?? position.lat);
+  let longitude = Number(update.longitude ?? update.lon ?? update.lng ?? position.longitude ?? position.lon ?? position.lng);
+  let coordinateQuality = 'explicit-fields';
+  if ((!Number.isFinite(latitude) || !Number.isFinite(longitude)) && pair?.length >= 2) {
+    longitude = Number(pair[0]); latitude = Number(pair[1]); coordinateQuality = 'geojson-pair';
+  }
+  if (insideUkraine(latitude, longitude)) return { latitude, longitude, coordinateQuality, rejected: false };
+  if (insideUkraine(longitude, latitude)) return { latitude: longitude, longitude: latitude, coordinateQuality: 'coordinate-order-repaired', rejected: false };
+  return { latitude: null, longitude: null, coordinateQuality: 'outside-ukraine-rejected', rejected: Number.isFinite(latitude) || Number.isFinite(longitude) };
 }
 
 export async function runIntelligenceCycle(env, now = new Date().toISOString()) {
   const cycleId = crypto.randomUUID();
   await env.DB.prepare("INSERT INTO intelligence_cycles(cycle_id,started_at,status) VALUES(?1,?2,'running')").bind(cycleId, now).run();
-  const counters = { nodes: 0, edges: 0, observations: 0, predictions: 0, resolved: 0, anomalies: 0 };
+  const counters = { nodes: 0, edges: 0, observations: 0, predictions: 0, resolved: 0, replayed: 0, anomalies: 0 };
   try {
     const eventRows = rows(await env.DB.prepare(`SELECT e.event_id,e.run_id,e.station,e.occurred_at,e.observed_at,e.source_id,e.authority,e.reliability,e.raw_update_json,r.train_number
       FROM events e LEFT JOIN runs r ON r.run_id=e.run_id
@@ -57,7 +69,7 @@ export async function runIntelligenceCycle(env, now = new Date().toISOString()) 
     const nodeMap = new Map();
     const observationStatements = [];
     for (const event of eventRows) {
-      const nodeId = stationId(event.station); const raw = parseJson(event.raw_update_json); const point = coordinates(raw);
+      const nodeId = stationId(event.station); const raw = parseJson(event.raw_update_json); const point = normalizeOperationalCoordinates(raw);
       const node = nodeMap.get(nodeId) || { nodeId, stationName: event.station, first: event.occurred_at, last: event.occurred_at, count: 0, ...point };
       node.first = Date.parse(event.occurred_at) < Date.parse(node.first) ? event.occurred_at : node.first;
       node.last = Date.parse(event.occurred_at) > Date.parse(node.last) ? event.occurred_at : node.last;
@@ -78,6 +90,15 @@ export async function runIntelligenceCycle(env, now = new Date().toISOString()) 
     const edgeStatements = segmentRows.map((edge) => { const reliability=clamp(Math.log1p(Number(edge.sample_count)||0)/Math.log(21)); return env.DB.prepare(`INSERT INTO rail_edges(edge_id,from_node_id,to_node_id,train_family,sample_count,p10_minutes,p50_minutes,p90_minutes,reliability,updated_at)
       VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10) ON CONFLICT(edge_id) DO UPDATE SET sample_count=excluded.sample_count,p10_minutes=excluded.p10_minutes,p50_minutes=excluded.p50_minutes,p90_minutes=excluded.p90_minutes,reliability=excluded.reliability,updated_at=excluded.updated_at`).bind(`${edge.from_station_id}>${edge.to_station_id}:${edge.train_family}`,edge.from_station_id,edge.to_station_id,edge.train_family,Number(edge.sample_count)||0,edge.p10_minutes,edge.p50_minutes,edge.p90_minutes,reliability,edge.updated_at||now); });
     await batch(env, edgeStatements); counters.edges = edgeStatements.length;
+
+    // Historical replay warms up calibration without turning a replay into a live fact.
+    // The evaluation id keeps replay samples distinguishable from prospective twin resolutions.
+    const eventsByRun=new Map();
+    for(const event of eventRows){const group=eventsByRun.get(event.run_id)||[];group.push(event);eventsByRun.set(event.run_id,group);}
+    const replayStatements=[];
+    for(const [runId,events] of eventsByRun){events.sort((a,b)=>Date.parse(a.occurred_at)-Date.parse(b.occurred_at));for(let index=1;index<events.length;index+=1){const previous=events[index-1],actual=events[index],fromId=stationId(previous.station),toId=stationId(actual.station);if(fromId===toId)continue;const actualMinutes=differenceMinutes(previous.occurred_at,actual.occurred_at);if(!Number.isFinite(actualMinutes)||actualMinutes<=0||actualMinutes>1440)continue;const candidates=segmentRows.filter(edge=>edge.from_station_id===fromId&&edge.to_station_id===toId&&(edge.train_family===actual.train_number||Number(edge.sample_count)>=10)).sort((a,b)=>Number(b.sample_count)-Number(a.sample_count)),edge=candidates[0];if(!edge||!Number.isFinite(Number(edge.p50_minutes)))continue;const predictedMinutes=Number(edge.p50_minutes),low=Number(edge.p10_minutes??predictedMinutes),high=Number(edge.p90_minutes??predictedMinutes),within=actualMinutes>=low&&actualMinutes<=high;replayStatements.push(env.DB.prepare(`INSERT OR IGNORE INTO model_evaluations(evaluation_id,run_id,train_number,from_station_id,to_station_id,predicted_minutes,actual_minutes,absolute_error_minutes,within_p80,baseline_samples,evaluated_at)
+        VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)`).bind(`replay:${previous.event_id}:${actual.event_id}`,runId,actual.train_number||"unknown",fromId,toId,predictedMinutes,actualMinutes,Math.abs(actualMinutes-predictedMinutes),within?1:0,Number(edge.sample_count)||0,actual.occurred_at));counters.replayed+=1;}}
+    await batch(env,replayStatements);
 
     const pending = rows(await env.DB.prepare("SELECT * FROM twin_predictions WHERE status='pending' ORDER BY predicted_at LIMIT 1000").all());
     const resolutionStatements = [];
@@ -105,9 +126,9 @@ export async function runIntelligenceCycle(env, now = new Date().toISOString()) 
 
     const runRows = rows(await env.DB.prepare("SELECT run_id,train_number,route,origin,destination,last_observed_at,current_update_json FROM runs WHERE last_observed_at>=datetime('now','-12 hours') ORDER BY last_observed_at DESC LIMIT 750").all());
     const movementStatements=[];
-    for(const run of runRows){const update=parseJson(run.current_update_json),point=coordinates(update),delay=Number(update.delayMinutes),prediction=predictionByRun.get(run.run_id),eta=update.forecastArrival||update.estimatedArrival||update.nextStationEta||prediction?.eta||null,status=Number.isFinite(delay)&&delay>=60?"delayed":update.status||"observed";
+    for(const run of runRows){const update=parseJson(run.current_update_json),point=normalizeOperationalCoordinates(update),delay=Number(update.delayMinutes),prediction=predictionByRun.get(run.run_id),eta=update.forecastArrival||update.estimatedArrival||update.nextStationEta||prediction?.eta||null,status=Number.isFinite(delay)&&delay>=60?"delayed":update.status||"observed",observationAgeMinutes=Math.max(0,differenceMinutes(run.last_observed_at,now)||0),rawConfidence=clamp(update.confidence??update.reliability??prediction?.confidence),agedConfidence=clamp(rawConfidence*Math.exp(-observationAgeMinutes/240)),positionStatus=observationAgeMinutes>240?"unknown":observationAgeMinutes>90?"stale":update.positionStatus||update.status||(prediction?"estimated":"unknown"),safeLatitude=observationAgeMinutes>240?null:point.latitude,safeLongitude=observationAgeMinutes>240?null:point.longitude;
       movementStatements.push(env.DB.prepare(`INSERT INTO ops_movements(movement_id,run_id,train_number,movement_type,origin,destination,route,status,delay_minutes,eta,last_station,last_observed_at,latitude,longitude,confidence,position_status,metadata_json)
-        VALUES(?1,?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16) ON CONFLICT(run_id) DO UPDATE SET status=excluded.status,delay_minutes=excluded.delay_minutes,eta=excluded.eta,last_station=excluded.last_station,last_observed_at=excluded.last_observed_at,latitude=excluded.latitude,longitude=excluded.longitude,confidence=excluded.confidence,position_status=excluded.position_status,metadata_json=excluded.metadata_json`).bind(run.run_id,run.train_number||null,update.trainCategory||"passenger",run.origin,run.destination,run.route,status,Number.isFinite(delay)?delay:null,eta,update.reportedStation||update.lastStation||null,run.last_observed_at,point.latitude,point.longitude,clamp(update.confidence??update.reliability??prediction?.confidence),update.positionStatus||update.status||(prediction?"estimated":"unknown"),JSON.stringify({sourceId:update.sourceId||null,method:update.positionMethod||(prediction?"station-graph-digital-twin-v1":null),nextNodeId:prediction?.toNodeId||null})));
+        VALUES(?1,?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16) ON CONFLICT(run_id) DO UPDATE SET status=excluded.status,delay_minutes=excluded.delay_minutes,eta=excluded.eta,last_station=excluded.last_station,last_observed_at=excluded.last_observed_at,latitude=excluded.latitude,longitude=excluded.longitude,confidence=excluded.confidence,position_status=excluded.position_status,metadata_json=excluded.metadata_json`).bind(run.run_id,run.train_number||null,update.trainCategory||"passenger",run.origin,run.destination,run.route,status,Number.isFinite(delay)?delay:null,eta,update.reportedStation||update.lastStation||null,run.last_observed_at,safeLatitude,safeLongitude,agedConfidence,positionStatus,JSON.stringify({sourceId:update.sourceId||null,method:update.positionMethod||(prediction?"station-graph-digital-twin-v1":null),nextNodeId:prediction?.toNodeId||null,coordinateQuality:point.coordinateQuality,coordinateRejected:point.rejected,observationAgeMinutes:Number(observationAgeMinutes.toFixed(1)),uncertaintyKm:Number((Math.max(3,Number(update.errorKm)||0)+observationAgeMinutes*.45).toFixed(1))})));
       if(Number.isFinite(delay)&&delay>=60)movementStatements.push(env.DB.prepare(`INSERT OR IGNORE INTO ops_notifications(notification_id,movement_id,notification_type,severity,title,message,occurred_at,dedupe_key,details_json) VALUES(?1,?2,'delay',?3,?4,?5,?6,?1,?7)`).bind(`delay:${run.run_id}:${Math.floor(delay/30)}`,run.run_id,delay>=180?"high":"medium",`Train ${run.train_number||run.run_id} delayed`,`Current delay: ${Math.round(delay)} minutes`,run.last_observed_at,JSON.stringify({delayMinutes:delay})));
     }
     await batch(env,movementStatements);
