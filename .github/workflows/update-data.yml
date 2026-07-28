@@ -9,7 +9,7 @@ on:
       - ".github/workflows/update-data.yml"
   schedule:
     - cron: "*/5 * * * *"
-    - cron: "17,47 * * * *"
+    - cron: "7,27,47 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -43,6 +43,7 @@ jobs:
         env:
           BOARD_HEADLESS: "false"
           SKIP_BROWSER_SOURCE: ${{ github.event_name == 'schedule' && github.event.schedule == '*/5 * * * *' && '1' || '0' }}
+          BOARD_CONCURRENCY: "3"
           PKP_PLK_API_URL: ${{ secrets.PKP_PLK_API_URL }}
           PKP_PLK_API_KEY: ${{ secrets.PKP_PLK_API_KEY }}
           ZSR_RAIL_API_URL: ${{ secrets.ZSR_RAIL_API_URL }}

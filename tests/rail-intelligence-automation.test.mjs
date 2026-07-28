@@ -41,6 +41,16 @@ test("entity resolution exposes candidate probabilities and human-readable evide
   const details=scoreRunCandidateDetails(event,candidate),decision=chooseCanonicalRun(event,[candidate]);
   assert.ok(details.features.some(item=>item.id==="locomotive"&&item.matched));assert.equal(decision.status,"linked");assert.equal(decision.candidates[0].probability,1);assert.ok(decision.candidates[0].features.length>=5);
 });
+
+test("entity resolution auto-links a station fact using registry calls and schedule proximity",()=>{
+  const event={train_number:"091",service_date:"2026-07-28",station:"Коростень",occurred_at:"2026-07-28T08:05:00Z"};
+  const matching={run_id:"matching",train_number:"091",service_date:"2026-07-28",origin:"Київ",destination:"Львів",route:"Київ — Львів",metadata_json:JSON.stringify({stations:["Коростень"],stationCalls:[{station:"Коростень",scheduledAt:"2026-07-28T08:00:00Z"}]})};
+  const other={...matching,run_id:"other",origin:"Львів",destination:"Київ",route:"Львів — Київ",metadata_json:JSON.stringify({stations:["Фастів"],stationCalls:[{station:"Фастів",scheduledAt:"2026-07-28T08:00:00Z"}]})};
+  const decision=chooseCanonicalRun(event,[other,matching]);
+  assert.equal(decision.status,"linked");
+  assert.equal(decision.canonicalRunId,"matching");
+  assert.ok(decision.candidates[0].features.some((item)=>item.id==="station_schedule"&&item.matched));
+});
 test("Rail Intelligence v3 separates operational phase from position status",()=>{
   const fresh=deriveTwinOperationalState({now:"2026-07-28T10:04:00Z",anchorAt:"2026-07-28T10:00:00Z",positionStatus:"estimated",progress:.04,etaP80End:"2026-07-28T11:00:00Z",confidence:.8});
   assert.equal(fresh.state,"at_station");assert.ok(fresh.stateConfidence>.7);

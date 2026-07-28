@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { boardRowsToUpdates } from "../scripts/source-adapters/official-board.mjs";
+import { BOARD_STATIONS, classifyBoardWindow, distributeStations, stationBoardPlan } from "../scripts/source-adapters/station-board-coverage.mjs";
 import { parseTelegramFeed, rehydrateTelegramPosts, telegramUpdates } from "../scripts/source-adapters/telegram.mjs";
 
 test("official board rows become station-window updates, not GPS", () => {
@@ -14,6 +15,33 @@ test("official board rows become station-window updates, not GPS", () => {
   assert.equal(update.positionEvidence, "station-board-window");
   assert.equal(update.delayMinutes, 30);
   assert.equal(update.gps, undefined);
+});
+
+test("mass station plan covers core and corridor nodes without duplicates", () => {
+  const plan = stationBoardPlan();
+  assert.ok(plan.length >= 50);
+  assert.equal(new Set(plan).size, plan.length);
+  const shards = [0, 1, 2].flatMap((shardIndex) => stationBoardPlan({ shardIndex, shardCount: 3 }));
+  assert.deepEqual(new Set(shards), new Set(BOARD_STATIONS));
+  const buckets = distributeStations(plan, 3);
+  assert.equal(buckets.length, 3);
+  assert.equal(buckets.flat().length, plan.length);
+});
+
+test("station board separates a current observation window from a future schedule row", () => {
+  const current = classifyBoardWindow({ scheduledTime: "09:26", observedAt: "2026-07-20T07:00:00Z" });
+  const future = classifyBoardWindow({ scheduledTime: "16:00", observedAt: "2026-07-20T07:00:00Z" });
+  assert.equal(current.isStationFact, true);
+  assert.equal(current.scheduledAt, "2026-07-20T06:26:00.000Z");
+  assert.equal(future.isStationFact, false);
+  const [update] = boardRowsToUpdates([{
+    station: "Львів", boardType: "departure", trainNumber: "91",
+    route: "Київ → Львів", scheduledTime: "16:00", platform: "2",
+    delayLabel: "", observedAt: "2026-07-20T07:00:00Z",
+  }]);
+  assert.equal(update.reportedStation, null);
+  assert.equal(update.positionEvidence, "schedule-only");
+  assert.equal(update.scheduledStationAt, "2026-07-20T13:00:00.000Z");
 });
 
 test("official Telegram preview produces traceable station-passage updates", () => {
