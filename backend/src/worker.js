@@ -315,6 +315,35 @@ async function getEvents(request, env) {
 }
 
 async function getRunHistory(request,env){const url=new URL(request.url),runId=String(url.searchParams.get("runId")||"").trim();if(!runId)return json({error:"run_id_required"},{status:400},request,env);const limit=Math.min(6720,Math.max(2,Number(url.searchParams.get("limit"))||672)),since=url.searchParams.get("since")||new Date(Date.now()-7*24*60*60*1000).toISOString();const result=await env.DB.prepare("SELECT snapshot_id,captured_at,source_updated_at,update_json FROM run_snapshots WHERE run_id=?1 AND captured_at>=?2 ORDER BY captured_at ASC LIMIT ?3").bind(runId,since,limit).all();const snapshots=(result.results||[]).map(row=>({id:row.snapshot_id,capturedAt:row.captured_at,sourceUpdatedAt:row.source_updated_at,update:JSON.parse(row.update_json)}));return json({runId,snapshots,count:snapshots.length,retentionDays:HISTORY_RETENTION_DAYS,sampleMinutes:HISTORY_SAMPLE_MINUTES,geometryPolicy:"client-rail-network-only"},{headers:{"Cache-Control":"private, max-age=30"}},request,env);}
+async function getMapTimeline(request,env){
+  const url=new URL(request.url),now=new Date(),requested=new Date(url.searchParams.get("at")||now);
+  if(!Number.isFinite(requested.getTime()))return json({error:"invalid_at"},{status:400},request,env);
+  const rangeStart=new Date(now.getTime()-24*60*60*1000),at=new Date(Math.min(now.getTime(),Math.max(rangeStart.getTime(),requested.getTime())));
+  const queryStart=new Date(at.getTime()-6*60*60*1000).toISOString();
+  const cacheKey=`public:v1:timeline:${Math.floor(at.getTime()/300000)}`;
+  const cached=env.SNAPSHOT?await env.SNAPSHOT.get(cacheKey,"json"):null;
+  if(cached)return json({...cached,cache:"hit"},{headers:{"Cache-Control":"public, max-age=30"}},request,env);
+  const result=await env.DB.prepare(`
+    SELECT history.run_id,history.snapshot_id,history.captured_at,history.source_updated_at,history.update_json
+    FROM run_snapshots history
+    INNER JOIN (
+      SELECT run_id,MAX(captured_at) AS captured_at FROM run_snapshots
+      WHERE captured_at<=?1 AND captured_at>=?2 GROUP BY run_id
+    ) latest ON latest.run_id=history.run_id AND latest.captured_at=history.captured_at
+    ORDER BY history.captured_at DESC LIMIT 2500
+  `).bind(at.toISOString(),queryStart).all();
+  const snapshots=[];
+  for(const row of result.results||[]){
+    try{snapshots.push({runId:row.run_id,id:row.snapshot_id,capturedAt:row.captured_at,sourceUpdatedAt:row.source_updated_at,update:JSON.parse(row.update_json)});}catch{}
+  }
+  const payload={
+    at:at.toISOString(),snapshots,count:snapshots.length,
+    range:{from:rangeStart.toISOString(),to:now.toISOString(),hours:24,sampleMinutes:HISTORY_SAMPLE_MINUTES},
+    geometryPolicy:"client-rail-network-only",positionSemantics:"latest-observation-at-or-before-requested-time",cache:"miss",
+  };
+  if(env.SNAPSHOT)await env.SNAPSHOT.put(cacheKey,JSON.stringify(payload),{expirationTtl:120});
+  return json(payload,{headers:{"Cache-Control":"public, max-age=30"}},request,env);
+}
 async function getHealth(request, env) {
   const [database, sources, snapshot, segmentStats, modelQuality] = await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS runs FROM runs").first(),
@@ -513,6 +542,7 @@ export async function handleRequest(request, env) {
     if (request.method === "GET" && url.pathname === "/api/v1/snapshot") return getSnapshot(request, env);
     if (request.method === "GET" && url.pathname === "/api/v1/events") return getEvents(request, env);
     if (request.method === "GET" && url.pathname === "/api/v1/history") return getRunHistory(request, env);
+    if (request.method === "GET" && url.pathname === "/api/v1/timeline") return getMapTimeline(request, env);
     if (request.method === "POST" && url.pathname === "/api/v1/ingest") {
       if (!authorized(request, env)) return json({ error: "unauthorized" }, { status: 401 }, request, env);
       const result = await ingestPayload(env, await request.json());

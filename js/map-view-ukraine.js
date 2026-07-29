@@ -1,5 +1,5 @@
 import { POSITION_STATUSES } from "./positioning.js";
-import { OPERATION_COLORS, OPERATION_LABELS } from "./formatters-ukraine.js";
+import { OPERATION_COLORS, OPERATION_LABELS, escapeHtml } from "./formatters-ukraine.js";
 
 const GLYPHS={moving:"↗",station:"■",depot:"D","source-unavailable":"?"};
 
@@ -77,11 +77,11 @@ export class MapView{
       if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
       const status=object.position.status,operation=object.operationalStatus||"moving";
       const color=["stale","unknown"].includes(status)?POSITION_STATUSES[status].color:(OPERATION_COLORS[operation]||POSITION_STATUSES[status].color);
-      const estimateLabel=status==="estimated"?"<em>Расчётное · не GPS</em>":status==="stale"?"<em>Расчёт остановлен</em>":`<em>${OPERATION_LABELS[operation]}</em>`;
+      const estimateLabel=status==="estimated"?"<em>Расчётное · не GPS</em>":status==="stale"?`<em>${escapeHtml(object.stationPresence?.label||"Расчёт остановлен")}</em>`:`<em>${escapeHtml(object.stationPresence?.label||OPERATION_LABELS[operation])}</em>`;
       const delay=object.liveUpdate?.delayLabel||"—",qualitySignal=Math.round((object.quality||0)*100),freshSignal=object.position.freshness?.key==="fresh"?100:object.position.freshness?.key==="delayed"?55:20;
       const icon=L.divIcon({
         className:"transport-marker",
-        html:`<div class="transport-icon ${status} operation-${operation}" style="--marker-color:${color}"><b>${GLYPHS[operation]}</b><span class="marker-label">${object.name}<small>${delay}</small>${estimateLabel}<span class="marker-signal" title="Качество / свежесть"><i style="--signal:${qualitySignal}%"></i><i style="--signal:${freshSignal}%;--signal-color:#48d9e6"></i></span></span></div>`,
+        html:`<div class="transport-icon ${status} operation-${operation}" style="--marker-color:${color}"><b>${GLYPHS[operation]}</b><span class="marker-label">${object.name}<small>${delay}</small>${estimateLabel}${object.timelineChange?`<em class="marker-change">Δ ${escapeHtml(object.timelineChange)}</em>`:""}<span class="marker-signal" title="Качество / свежесть"><i style="--signal:${qualitySignal}%"></i><i style="--signal:${freshSignal}%;--signal-color:#48d9e6"></i></span></span></div>`,
         iconSize:[30,30],iconAnchor:[15,15],
       });
       const marker=L.marker([lat,lon],{

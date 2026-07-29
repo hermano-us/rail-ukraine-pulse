@@ -1,5 +1,5 @@
-import { buildHistoricalPosition, loadTransportData } from "./data-store-ukraine.js?v=20260722-server-history";
-import { loadRunHistory, loadRuntimeConfig, subscribeToLiveUpdates } from "./live-data-client.js";
+import { buildHistoricalPosition, deriveStationPresence, loadTransportData } from "./data-store-ukraine.js?v=20260729-station-ops";
+import { loadMapTimeline, loadRunHistory, loadRuntimeConfig, subscribeToLiveUpdates } from "./live-data-client.js";
 import { MapView } from "./map-view-ukraine.js";
 import { POSITION_STATUSES } from "./positioning.js";
 import { OPERATION_COLORS, OPERATION_LABELS, TRANSPORT_LABELS, TYPE_LABELS, escapeHtml, formatDateTime, formatRelative } from "./formatters-ukraine.js";
@@ -12,6 +12,7 @@ const state={
   data:null,transport:"all",favorites:readFavorites(),statuses:new Set(Object.keys(POSITION_STATUSES)),
   operations:new Set(Object.keys(OPERATION_LABELS)),regions:new Set(),minConfidence:0,
   query:"",quick:"all",sort:"delay",registryScope:"all",alertsEnabled:localStorage.getItem("rail-alerts")==="on",selected:null,followedId:null,
+  boardStation:"all",boardMode:"all",timelineMinutes:0,timelineObjects:null,timelineRouteMap:null,timelineAt:null,timelineSummary:null,
 };
 const $=(selector)=>document.querySelector(selector);
 let playbackTimer=null;
@@ -23,7 +24,7 @@ const elements={
   toast:$("#toast"),search:$("#object-search"),liveFeed:$("#live-feed"),liveFeedCount:$("#live-feed-count"),
   freightStatus:$("#freight-status"),fleetPanel:$("#fleet-panel"),fleetList:$("#fleet-list"),fleetCount:$("#fleet-count"),
   fleetSort:$("#fleet-sort"),regionSummary:$("#region-summary"),systemStatus:$("#system-status"),
-  sourceRegistryList:$("#source-registry-list"),
+  sourceRegistryList:$("#source-registry-list"),board:$("#station-board"),boardList:$("#station-board-list"),boardStation:$("#station-board-station"),
 };
 const mapView=new MapView("map",selectObject);
 const layoutState=(()=>{
@@ -75,7 +76,7 @@ function persistHistory(data){
         evidence:object.position.status==="estimated"?"calculated":"reported",
       });
     }
-    store[object.runId]=entries.sort((a,b)=>Date.parse(a.timestamp)-Date.parse(b.timestamp)).slice(-48);
+    store[object.runId]=entries.sort((a,b)=>Date.parse(a.timestamp)-Date.parse(b.timestamp)).slice(-96);
     object.history=store[object.runId];
   }
   try{localStorage.setItem(HISTORY_KEY,JSON.stringify(store));}catch{}
@@ -115,10 +116,12 @@ function matchesQuick(object){
   return true;
 }
 
+function objectsForView(){return state.timelineObjects||state.data.objects;}
+
 function filteredObjects(){
   const query=state.query.trim().toLocaleLowerCase("uk");
   const allRegions=state.regions.size===state.data.regionList.length;
-  return state.data.objects.filter((object)=>{
+  return objectsForView().filter((object)=>{
     const matchesTransport=state.transport==="all"||object.transport===state.transport;
     const matchesRegion=state.regions.size>0&&((object.regions||[]).some((id)=>state.regions.has(id))||(allRegions&&!(object.regions||[]).length));
     const haystack=`${object.name} ${object.trainNumber} ${object.route} ${object.origin} ${object.destination} ${object.description}`.toLocaleLowerCase("uk");
@@ -141,7 +144,7 @@ function renderLiveFeed(){
   elements.liveFeedCount.textContent=`${state.data.liveFeed.length} событий`;
   if(!updates.length){elements.liveFeed.innerHTML='<p class="feed-empty">Свежих публичных статусов пока нет</p>';return;}
   elements.liveFeed.innerHTML=updates.map((update)=>{
-    const object=state.data.objects.find((item)=>item.id===update.objectId);
+    const object=objectsForView().find((item)=>item.id===update.objectId);
     return `<button class="feed-item" data-object-id="${escapeHtml(object?.id||"")}"><span class="feed-number">№${escapeHtml(update.trainNumber)}</span><span class="feed-route"><strong>${escapeHtml(update.route||"Маршрут не указан")}</strong><small>${escapeHtml(update.publicStatus||"Статус УЗ")} · ${formatRelative(update.updatedAt)}</small></span><span class="feed-delay">${escapeHtml(update.delayLabel||"—")}</span></button>`;
   }).join("");
 }
@@ -196,12 +199,87 @@ function renderSourceRegistry(){
   </article>`).join("");
 }
 
-function render(){
+function stationKey(value){return String(value||"").trim().toLocaleLowerCase("uk");}
+function boardClock(value){if(!value||!Number.isFinite(Date.parse(value)))return "—";return new Intl.DateTimeFormat("ru-RU",{hour:"2-digit",minute:"2-digit",timeZone:"Europe/Kyiv"}).format(new Date(value));}
+function stationBoardEntry(object){
+  const selected=state.boardStation,reported=object.liveUpdate?.reportedStation,lifecycle=object.stationLifecycle||{};
+  const selectedKey=stationKey(selected),originMatch=selected==="all"||stationKey(object.origin)===selectedKey,destinationMatch=selected==="all"||stationKey(object.destination)===selectedKey,reportedMatch=selected!=="all"&&stationKey(reported)===selectedKey;
+  let kind=state.boardMode==="departures"?"departure":state.boardMode==="arrivals"?"arrival":["departure","passage"].includes(lifecycle.eventType)?lifecycle.eventType:"arrival";
+  if(kind==="departure"&&!originMatch&&!reportedMatch)return null;
+  if(kind==="arrival"&&!destinationMatch&&!reportedMatch)return null;
+  if(kind==="passage"&&selected!=="all"&&!reportedMatch)return null;
+  const station=selected==="all"?(reported||(kind==="departure"?object.origin:object.destination)):selected;
+  const actual=reported&&stationKey(reported)===stationKey(station)&&["arrival","departure","passage"].includes(lifecycle.eventType)?object.liveUpdate?.updatedAt:null;
+  const planned=kind==="departure"&&stationKey(station)===stationKey(object.origin)?object.forecast?.departureAt:kind==="arrival"&&stationKey(station)===stationKey(object.destination)?object.forecast?.arrivalAt:null;
+  const platform=object.liveUpdate?.platform||object.liveUpdate?.track||object.liveUpdate?.platformLabel||null;
+  return {object,kind,station,actual,planned,platform,state:lifecycle.label||object.stationPresence?.label||object.liveUpdate?.publicStatus||"Нет факта"};
+}
+function renderStationBoard(){
+  if(!elements.board)return;
+  const objects=objectsForView(),stations=[...new Set(objects.flatMap(object=>[object.liveUpdate?.reportedStation,object.origin,object.destination]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"uk"));
+  const current=state.boardStation;
+  elements.boardStation.innerHTML=`<option value="all">Все станции</option>${stations.map(station=>`<option value="${escapeHtml(station)}">${escapeHtml(station)}</option>`).join("")}`;
+  elements.boardStation.value=stations.some(station=>stationKey(station)===stationKey(current))?stations.find(station=>stationKey(station)===stationKey(current)):"all";
+  if(elements.boardStation.value==="all")state.boardStation="all";
+  const rows=objects.map(stationBoardEntry).filter(Boolean).sort((a,b)=>Date.parse(b.actual||b.planned||b.object.liveUpdate?.updatedAt||0)-Date.parse(a.actual||a.planned||a.object.liveUpdate?.updatedAt||0)).slice(0,120);
+  $("#station-board-count").textContent=`${rows.length} рейсов${state.timelineAt?" · архив":""}`;
+  elements.boardList.innerHTML=rows.length?rows.map(entry=>{
+    const object=entry.object,kindLabel=entry.kind==="departure"?"ОТПР":entry.kind==="passage"?"ПРОШ":"ПРИБ";
+    return `<button class="station-board-row" data-object-id="${escapeHtml(object.id)}"><strong>№${escapeHtml(object.trainNumber)}</strong><span><b>${escapeHtml(entry.station)} · ${kindLabel}</b><small class="station-board-state">${escapeHtml(entry.state)}${entry.platform?` · путь ${escapeHtml(entry.platform)}`:""}</small></span><span class="station-board-time">план <b>${boardClock(entry.planned)}</b>факт <b>${boardClock(entry.actual)}</b></span><em>${escapeHtml(object.liveUpdate?.delayLabel||"—")}</em></button>`;
+  }).join(""):'<p class="fleet-empty">Для выбранного режима станционных фактов пока нет</p>';
+}
+let timelineRequest=0,timelineDebounce=null,mapPlaybackTimer=null;
+function timelineLabel(minutes){
+  if(!minutes)return "Сейчас";
+  const at=new Date(Date.now()+minutes*60000);
+  return new Intl.DateTimeFormat("ru-RU",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit",timeZone:"Europe/Kyiv"}).format(at);
+}
+function historicalObjects(result,at){
+  const snapshots=result.snapshots||[],rebuilt=state.data.buildTimelineObjects?.(snapshots.map(snapshot=>snapshot.update),at);
+  if(!rebuilt)return {objects:[],routeMap:new Map(),summary:{snapshots:snapshots.length,reconstructed:0,positioned:0,facts:0,estimated:0,withoutGeometry:0,gaps:snapshots.length,changes:0}};
+  const objects=rebuilt.objects.map((object,index)=>{
+    const snapshot=snapshots[index],observationAge=Math.max(0,(Date.parse(at)-Date.parse(snapshot.capturedAt||at))/60000);
+    return {...object,id:snapshot.runId||object.id,runId:snapshot.runId||object.runId,timelineGap:observationAge>30,position:{...object.position,updatedAt:snapshot.capturedAt||object.position.updatedAt,sourceUpdatedAt:snapshot.sourceUpdatedAt||object.position.sourceUpdatedAt,method:`historical-${object.position.method}`}};
+  });
+  return {objects,routeMap:rebuilt.routeMap,summary:{snapshots:snapshots.length,reconstructed:objects.length,positioned:objects.filter(object=>object.position.coordinates).length,facts:objects.filter(object=>["reported","confirmed"].includes(object.position.status)||object.stationPresence?.holdsPosition).length,estimated:objects.filter(object=>object.position.status==="estimated").length,withoutGeometry:objects.filter(object=>!object.routeCoordinates?.length).length,gaps:objects.filter(object=>object.timelineGap).length,changes:0}};
+}
+function timelineDelta(previous,next){
+  if(!previous?.length)return {objects:next,count:0};
+  const before=new Map(previous.map(object=>[object.runId,object]));let count=0;
+  const objects=next.map(object=>{
+    const old=before.get(object.runId);let change=null;
+    if(!old)change="Новый рейс";
+    else if(old.stationLifecycle?.phase!==object.stationLifecycle?.phase)change=`${old.stationLifecycle?.label||"Статус"} → ${object.stationLifecycle?.label||"изменён"}`;
+    else if(old.liveUpdate?.reportedStation!==object.liveUpdate?.reportedStation&&object.liveUpdate?.reportedStation)change=`Новый факт: ${object.liveUpdate.reportedStation}`;
+    else if(Math.abs(Number(old.liveUpdate?.delayMinutes||0)-Number(object.liveUpdate?.delayMinutes||0))>=15)change=`Задержка ${object.liveUpdate?.delayLabel||"изменена"}`;
+    else if(old.route!==object.route)change="Изменён маршрут";
+    if(change)count+=1;
+    return change?{...object,timelineChange:change}:object;
+  });
+  return {objects,count};
+}
+function renderTimelineMeta(){
+  const target=$("#map-timeline-meta");if(!target||!state.data)return;
+  const s=state.timelineSummary||{snapshots:state.data.objects.length,reconstructed:state.data.objects.length,positioned:state.data.objects.filter(object=>object.position.coordinates).length,facts:state.data.objects.filter(object=>object.stationPresence?.holdsPosition).length,estimated:state.data.objects.filter(object=>object.position.status==="estimated").length,withoutGeometry:state.data.objects.filter(object=>!object.routeCoordinates?.length).length,gaps:0,changes:0};
+  target.innerHTML=`<span class="good">восстановлено ${s.reconstructed}/${s.snapshots}</span><span>на карте ${s.positioned}</span><span>фактов ${s.facts}</span><span>расчётных ${s.estimated}</span><span class="${s.withoutGeometry?"warn":""}">без пути ${s.withoutGeometry}</span><span class="${s.gaps?"warn":""}">пробелов ${s.gaps}</span>${s.changes?`<span class="delta">изменений ${s.changes}</span>`:""}`;
+}
+async function applyMapTimeline(minutes){
+  const requestId=++timelineRequest;state.timelineMinutes=Number(minutes);const panel=$("#map-timeline"),output=$("#map-timeline-output");
+  output.textContent=timelineLabel(state.timelineMinutes);panel.classList.toggle("historical",state.timelineMinutes<0);
+  if(!state.timelineMinutes){state.timelineObjects=null;state.timelineRouteMap=null;state.timelineAt=null;state.timelineSummary=null;panel.classList.remove("loading");render();return;}
+  const at=new Date(Date.now()+state.timelineMinutes*60000).toISOString();panel.classList.add("loading");
+  const result=await loadMapTimeline(at);if(requestId!==timelineRequest)return;
+  panel.classList.remove("loading");
+  if(result.transport!=="api"){showToast("История карты временно недоступна");return;}
+  const previous=state.timelineObjects;state.timelineAt=result.at||at;const historical=historicalObjects(result,state.timelineAt),delta=timelineDelta(previous,historical.objects);state.timelineObjects=delta.objects;state.timelineRouteMap=historical.routeMap;state.timelineSummary={...historical.summary,changes:delta.count};closeDetail();render();
+}
+function stopMapPlayback(){if(mapPlaybackTimer)clearInterval(mapPlaybackTimer);mapPlaybackTimer=null;const button=$("#map-timeline-play");if(button)button.textContent="▶";}
+function scheduleMapTimeline(minutes){clearTimeout(timelineDebounce);timelineDebounce=setTimeout(()=>applyMapTimeline(minutes),280);}function render(){
   if(!state.data)return;
   const visible=filteredObjects();
   const focused=state.selected&&visible.find((object)=>object.id===state.selected.id);
-  mapView.render(focused?[focused]:visible,state.data.routeMap,focused||null);mapView.updateRegionSelection(state.regions);
-  renderLiveFeed();renderFleet(visible);renderRegionSummary(visible);renderDiagnostics();renderSourceRegistry();renderFreshnessPulse();
+  mapView.render(focused?[focused]:visible,state.timelineRouteMap||state.data.routeMap,focused||null);mapView.updateRegionSelection(state.regions);
+  renderLiveFeed();renderFleet(visible);renderRegionSummary(visible);renderDiagnostics();renderSourceRegistry();renderFreshnessPulse();renderStationBoard();renderTimelineMeta();
   elements.visibleCount.textContent=`${visible.length} объектов`;$("#mobile-total").textContent=visible.length;
   $("#running-count").textContent=visible.filter((object)=>object.operationalStatus==="moving").length;
   $("#depot-count").textContent=visible.filter((object)=>object.operationalStatus==="station").length;
@@ -264,7 +342,7 @@ function detailTemplate(object){
       <section><small>РАСЧЁТ</small><strong style="color:${status.color}">${status.label}</strong><span>${position.status==="estimated"?"Не является GPS":position.status==="stale"?"Маркер больше не движется":"Координата не рассчитана"}</span></section>
     </div>
 
-    <div class="operation-banner" style="--operation-color:${OPERATION_COLORS[operation]}"><strong>${OPERATION_LABELS[operation]}</strong><span>${escapeHtml(object.rollingStock)}</span></div>
+    <div class="operation-banner" style="--operation-color:${OPERATION_COLORS[operation]}"><strong>${escapeHtml(object.stationPresence?.label||OPERATION_LABELS[operation])}</strong><span>${object.stationPresence?.holdsPosition?`Последний подтверждённый станционный факт · ${Math.round(object.stationPresence.ageMinutes)} мин назад`:escapeHtml(object.rollingStock)}</span></div>
     <div class="quality-panel">
       <div><span>Качество данных</span><strong class="quality-${qualityClass(object.quality)}">${quality}%</strong></div>
       <div class="quality-track"><i style="width:${quality}%"></i></div>
@@ -386,6 +464,18 @@ function bindControls(){
   $("#fit-button").addEventListener("click",()=>mapView.fitAll());
   $("#alerts-toggle")?.addEventListener("click",async(event)=>{if(typeof Notification!=="undefined"&&Notification.permission==="default")await Notification.requestPermission();state.alertsEnabled=!state.alertsEnabled;localStorage.setItem("rail-alerts",state.alertsEnabled?"on":"off");event.currentTarget.classList.toggle("active",state.alertsEnabled);showToast(state.alertsEnabled?"Оповещения включены":"Оповещения выключены");});
   $("#position-view")?.addEventListener("change",(event)=>{mapView.setViewMode(event.target.value);render();if(state.selected)mapView.focusObject(state.selected);});
+  $("#station-board-toggle")?.addEventListener("click",()=>{const open=!elements.board.classList.contains("open");elements.board.classList.toggle("open",open);elements.board.setAttribute("aria-hidden",String(!open));$("#station-board-toggle").setAttribute("aria-expanded",String(open));if(open)renderStationBoard();});
+  $("#station-board-close")?.addEventListener("click",()=>{elements.board.classList.remove("open");elements.board.setAttribute("aria-hidden","true");$("#station-board-toggle").setAttribute("aria-expanded","false");});
+  document.querySelectorAll("[data-board-mode]").forEach(button=>button.addEventListener("click",()=>{state.boardMode=button.dataset.boardMode;document.querySelectorAll("[data-board-mode]").forEach(item=>item.classList.toggle("active",item===button));renderStationBoard();}));
+  elements.boardStation?.addEventListener("change",()=>{state.boardStation=elements.boardStation.value;renderStationBoard();});
+  $("#map-timeline-range")?.addEventListener("input",event=>{$("#map-timeline-output").textContent=timelineLabel(Number(event.target.value));scheduleMapTimeline(Number(event.target.value));});
+  $("#map-timeline-live")?.addEventListener("click",()=>{stopMapPlayback();$("#map-timeline-range").value="0";applyMapTimeline(0);});
+  $("#map-timeline-play")?.addEventListener("click",()=>{
+    if(mapPlaybackTimer){stopMapPlayback();return;}
+    const range=$("#map-timeline-range");if(Number(range.value)>=0)range.value="-1440";
+    $("#map-timeline-play").textContent="Ⅱ";applyMapTimeline(Number(range.value));
+    mapPlaybackTimer=setInterval(()=>{const next=Math.min(0,Number(range.value)+30);range.value=String(next);applyMapTimeline(next);if(next>=0)stopMapPlayback();},1400);
+  });
   $("#detail-close").addEventListener("click",closeDetail);
   const openMobileSidebar=()=>{layoutState.mapOnly=false;applyWorkspaceLayout();elements.sidebar.classList.add("open");};
   $("#menu-button").addEventListener("click",openMobileSidebar);
@@ -411,9 +501,9 @@ function bindControls(){
   });
   document.addEventListener("click",(event)=>{
     const target=event.target.closest("[data-object-id]");if(!target)return;
-    const object=state.data?.objects.find((item)=>item.id===target.dataset.objectId);if(object)selectObject(object);
+    const object=objectsForView().find((item)=>item.id===target.dataset.objectId);if(object)selectObject(object);
   });
-  document.addEventListener("keydown",(event)=>{if(event.key==="Escape"){closeDetail();elements.fleetPanel.classList.remove("open");}});
+  document.addEventListener("keydown",(event)=>{if(event.key==="Escape"){closeDetail();elements.fleetPanel.classList.remove("open");elements.board?.classList.remove("open");}});
   window.addEventListener("resize",()=>{clearTimeout(applyWorkspaceLayout.timer);applyWorkspaceLayout.timer=setTimeout(applyWorkspaceLayout,120);});
   applyWorkspaceLayout();
 }

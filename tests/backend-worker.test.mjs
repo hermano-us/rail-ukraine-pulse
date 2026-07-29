@@ -163,3 +163,17 @@ test("trusted collector heartbeat requires ingest credentials and records bounde
   assert.equal(heartbeat.status, "healthy");
   assert.ok(env.DB.batches.some((batch) => batch.some(({ sql }) => /source_health/i.test(sql))));
 });
+
+test("timeline API returns a bounded 24-hour map view", async () => {
+  const env = environment();
+  const response = await handleRequest(new Request("https://api.example/api/v1/timeline?at=2026-07-20T09:00:00Z"), env);
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.range.hours, 24);
+  assert.equal(body.range.sampleMinutes, 15);
+  assert.equal(body.positionSemantics, "latest-observation-at-or-before-requested-time");
+  assert.deepEqual(body.snapshots, []);
+  assert.equal(body.cache, "miss");
+  const cached = await (await handleRequest(new Request("https://api.example/api/v1/timeline?at=2026-07-20T09:00:00Z"), env)).json();
+  assert.equal(cached.cache, "hit");
+});

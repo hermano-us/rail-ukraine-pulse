@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="css/leaflet.css" />
     <link rel="stylesheet" href="css/styles.css" />
     <link rel="stylesheet" href="css/ukraine.css" />
-    <link rel="stylesheet" href="css/enhancements.css" />
+    <link rel="stylesheet" href="css/enhancements.css?v=20260729-station-ops" />
   </head>
   <body>
     <a class="skip-link" href="#map">К карте</a>
@@ -119,6 +119,7 @@
             <button class="map-action layout-toggle" id="theme-toggle" aria-label="Переключить тему">◐ <span>Тема</span></button>
             <button class="map-action layout-toggle" id="map-only-toggle" aria-label="Режим только карта" aria-pressed="false">⛶ <span>Только карта</span></button>
             <select class="map-action" id="position-view" aria-label="Режим позиции"><option value="all">Точка + зона</option><option value="corridor">Вероятный участок</option><option value="point">Только точка</option><option value="density">Кластеры / плотность</option></select>
+            <button class="map-action" id="station-board-toggle" aria-expanded="false" aria-controls="station-board">▤ <span>Табло</span></button>
             <button class="map-action" id="alerts-toggle" aria-label="Оповещения">◉ <span>События</span></button>
             <button class="map-action" id="fit-button" aria-label="Показать все объекты" title="Показать все объекты">⌖ <span>Все объекты</span></button>
           </div>
@@ -131,6 +132,18 @@
           <div><span class="legend-ring"></span>Зона погрешности</div>
           <div><span class="legend-marker stale"></span>Экстраполяция остановлена</div>
         </div>
+        <section class="station-board" id="station-board" aria-label="Станционное табло" aria-hidden="true">
+          <header><div><small>СТАНЦИОННЫЕ ФАКТЫ</small><strong>Табло движения</strong></div><button id="station-board-close" aria-label="Закрыть табло">×</button></header>
+          <div class="station-board-tools"><label>Станция<select id="station-board-station"><option value="all">Все станции</option></select></label><span id="station-board-count">0 рейсов</span></div>
+          <div class="station-board-modes" role="group" aria-label="Тип табло"><button class="active" data-board-mode="all">Все</button><button data-board-mode="arrivals">Прибытия</button><button data-board-mode="departures">Отправления</button></div>
+          <div class="station-board-head"><span>Рейс</span><span>Направление / состояние</span><span>План / факт</span><span>Задержка</span></div>
+          <div class="station-board-list" id="station-board-list"></div>
+          <footer>Факт станции отделён от расчётного положения. Наличие в табло само по себе не означает физическую стоянку.</footer>
+        </section>
+        <section class="map-timeline" id="map-timeline" aria-label="История всей карты за 24 часа">
+          <button id="map-timeline-play" aria-label="Воспроизвести сутки">▶</button>
+          <div><header><strong>ВРЕМЯ КАРТЫ</strong><output id="map-timeline-output">Сейчас</output><button id="map-timeline-live">LIVE</button></header><input id="map-timeline-range" type="range" min="-1440" max="0" step="15" value="0" aria-label="Время карты: последние 24 часа"><div class="map-timeline-meta" id="map-timeline-meta" aria-live="polite"></div></div>
+        </section>
         <section class="freshness-pulse" id="freshness-pulse" aria-label="Свежесть расчёта">
           <div><small>ДАННЫЕ УЗ</small><strong id="pulse-source-age">—</strong></div>
           <div><small>РАСЧЁТ</small><strong id="pulse-calculated-at">—</strong></div>
@@ -168,6 +181,6 @@
     </main>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="js/vendor-leaflet.js"></script>
-    <script type="module" src="js/app-ukraine.js?v=20260721-positioning-v2"></script>
+    <script type="module" src="js/app-ukraine.js?v=20260729-station-ops"></script>
   </body>
 </html>

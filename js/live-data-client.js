@@ -2,6 +2,7 @@ const DEFAULT_CONFIG = Object.freeze({
   apiBase: "",
   snapshotPath: "/api/v1/snapshot",
   historyPath: "/api/v1/history",
+  timelinePath: "/api/v1/timeline",
   streamPath: "/api/v1/stream",
   fallbackUrl: "data/live.json",
   requestTimeoutMs: 4500,
@@ -68,6 +69,18 @@ export async function loadRunHistory(runId, options = {}) {
   }
 }
 
+export async function loadMapTimeline(at) {
+  const config = await loadRuntimeConfig();
+  if (!config.apiBase) return { at, snapshots: [], count: 0, transport: "unavailable" };
+  const endpoint = new URL(config.timelinePath || "/api/v1/timeline", `${config.apiBase.replace(/\/$/, "")}/`);
+  endpoint.searchParams.set("at", new Date(at).toISOString());
+  try {
+    return { ...(await readJson(endpoint, { timeoutMs: config.requestTimeoutMs })), transport: "api" };
+  } catch (error) {
+    console.warn("Global timeline unavailable", error);
+    return { at, snapshots: [], count: 0, transport: "unavailable", error: String(error?.message || error) };
+  }
+}
 export async function subscribeToLiveUpdates(onSnapshot, onState = () => {}) {
   const config = await loadRuntimeConfig();
   if (!config.apiBase || typeof EventSource === "undefined") {

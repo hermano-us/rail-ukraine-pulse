@@ -300,22 +300,61 @@ export function buildStationPlan(waypoints,update,position,forecastArrivalAt){
     return {sequence:index+1,station:point.name||point.label,distanceKm:Number(point.distanceKm.toFixed(1)),plannedAt:new Date(startMs+point.distanceKm/totalKm*(endMs-startMs)).toISOString(),actualAt:actual,status,category};
   });
 }
+export function deriveStationPresence(update, now = new Date()) {
+  const station=String(update?.reportedStation||"").trim();
+  if(!station)return null;
+  const observedAt=new Date(update.updatedAt||now),ageMinutes=Math.max(0,(now-observedAt)/60000);
+  const text=`${update.publicStatus||""} ${update.status||""}`.toLocaleLowerCase("uk");
+  const sameDestination=normalizePlace(station)===normalizePlace(update.destination||"");
+  const explicitDepot=update.operationalStatus==="depot";
+  const explicitStop=update.operationalStatus==="station"||/(прибув|прибыл|прибуття|на станц|стоїть|стоит|кінцева|конечн)/u.test(text);
+  if(!sameDestination&&!explicitDepot&&!explicitStop)return {station,kind:"passage",label:`Зафиксировано прохождение: ${station}`,ageMinutes:Number(ageMinutes.toFixed(1)),holdsPosition:false};
+  const dwellMinutes=explicitDepot?12*60:sameDestination?180:60;
+  const fresh=ageMinutes<=dwellMinutes;
+  return {
+    station,kind:explicitDepot?"depot":sameDestination?"destination-arrival":"station-stop",
+    label:explicitDepot?`В депо · ${station}`:fresh?`На станции · ${station}`:`Последний факт: ${station}`,
+    ageMinutes:Number(ageMinutes.toFixed(1)),holdsPosition:true,fresh,
+    confidence:fresh?(sameDestination?.9:.86):.45,
+    errorKm:fresh?1.2:4,
+    retentionMinutes:dwellMinutes,
+  };
+}
+export function deriveStationLifecycle(update, now = new Date(), previous = null) {
+  const presence=deriveStationPresence(update,now),text=`${update?.publicStatus||""} ${update?.status||""}`.toLocaleLowerCase("uk");
+  const departure=/(відправив|відправлено|вирушив|отправил|отправлен|прослідував далі)/u.test(text);
+  const cancelled=/(скасован|відмінено|отмен)/u.test(text);
+  let phase="in-transit",label="В пути",eventType="movement",certainty=.55;
+  if(cancelled){phase="cancelled";label="Отменён";eventType="service";certainty=.95;}
+  else if(presence?.kind==="depot"){phase=presence.fresh?"depot":"last-seen";label=presence.fresh?"В депо":presence.label;eventType="arrival";certainty=presence.confidence;}
+  else if(departure&&presence){phase="departed";label=`Отправился · ${presence.station}`;eventType="departure";certainty=.88;}
+  else if(presence?.kind==="destination-arrival"){phase=presence.fresh?"completed":"last-seen";label=presence.fresh?`Завершил рейс · ${presence.station}`:presence.label;eventType="arrival";certainty=presence.confidence;}
+  else if(presence?.kind==="station-stop"){phase=presence.fresh?"dwelling":"last-seen";label=presence.fresh?`Стоянка · ${presence.station}`:presence.label;eventType="arrival";certainty=presence.confidence;}
+  else if(presence?.kind==="passage"){phase="passed";label=presence.label;eventType="passage";certainty=.82;}
+  else if(update?.positionEvidence==="station-board-window"){phase="scheduled";label="Ожидается по табло";eventType="schedule";certainty=.55;}
+  const transition=previous?.phase&&previous.phase!==phase?`${previous.phase}->${phase}`:null;
+  return {phase,label,eventType,certainty:Number(certainty||0),station:presence?.station||null,observedAt:update?.updatedAt||null,transition,isCurrent:presence?.fresh!==false};
+}
 function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,sourceAgeMinutes,stations,stationLookup,segmentCalibration){
   const identity=buildRunIdentity(update,now), origin=stationCoordinates(update.origin,stationLookup);
   const reportedAnchor=stationCoordinates(update.reportedStation,stationLookup)||origin;
   const freshness=evaluateFreshness(sourceAgeMinutes);
+  const stationPresence=deriveStationPresence(update,now);
+  const stationLifecycle=deriveStationLifecycle(update,now);
   const isStationReport=Boolean(update.reportedStation&&["reported-station-passage","station-board-window"].includes(update.positionEvidence));
   const estimated=estimatePosition(update,routeResult,now,sourceAgeMinutes,isStationReport?reportedAnchor:null,segmentCalibration);
   const reportConfidence=update.positionEvidence==="reported-station-passage"?0.82:update.positionEvidence==="station-board-window"?0.66:0.58;
   const reportErrorKm=update.positionEvidence==="reported-station-passage"?2:update.positionEvidence==="station-board-window"?5:3;
-  const reported=freshness.canPosition&&reportedAnchor&&(update.operationalStatus!=="moving"||isStationReport)?{
-    status:freshness.frozen?"stale":"reported",coordinates:reportedAnchor,updatedAt:update.updatedAt,
-    sourceUpdatedAt:update.updatedAt,calculatedAt:now.toISOString(),confidence:freshness.frozen?0.28:reportConfidence,errorKm:freshness.frozen?12:reportErrorKm,
-    method:freshness.frozen?"stale-official-station-event":update.positionEvidence==="reported-station-passage"?"official-station-passage-report":update.positionEvidence==="station-board-window"?"official-station-board-window":"official-status-at-origin",lastConfirmedAt:update.updatedAt,
+  const reportableAnchor=freshness.canPosition&&reportedAnchor;
+  const retainedStationAnchor=stationPresence?.holdsPosition&&reportedAnchor;
+  const reported=(reportableAnchor||retainedStationAnchor)&&(update.operationalStatus!=="moving"||isStationReport||stationPresence?.holdsPosition)?{
+    status:freshness.frozen||stationPresence?.fresh===false?"stale":"reported",coordinates:reportedAnchor,updatedAt:update.updatedAt,
+    sourceUpdatedAt:update.updatedAt,calculatedAt:now.toISOString(),confidence:stationPresence?.holdsPosition?(stationPresence.confidence||0.45):(freshness.frozen?0.28:reportConfidence),errorKm:stationPresence?.holdsPosition?(stationPresence.errorKm||4):(freshness.frozen?12:reportErrorKm),
+    method:stationPresence?.fresh===false?"retained-last-confirmed-station":freshness.frozen?"stale-official-station-event":update.positionEvidence==="reported-station-passage"?"official-station-passage-report":update.positionEvidence==="station-board-window"?"official-station-board-window":"official-status-at-origin",lastConfirmedAt:update.updatedAt,
     freshness,sources:[update.sourceId||"uz-delay-dashboard"],
     confidenceReasons:freshnessReasons({freshness,hasRoute:Boolean(routeResult),hasForecast:Boolean(update.forecastArrival),anchorErrorKm:routeResult?.anchorErrorKm}),
   }:null;
-  const position=estimated||reported||{
+  const position=(stationPresence?.holdsPosition?reported||estimated:estimated||reported)||{
     status:"unknown",coordinates:null,updatedAt:update.updatedAt,sourceUpdatedAt:update.updatedAt,calculatedAt:now.toISOString(),confidence:0,errorKm:null,
     method:!freshness.canPosition?"source-snapshot-expired":routeResult?"forecast-arrival-unavailable":"rail-route-unavailable",lastConfirmedAt:update.updatedAt,
     freshness,sources:["UZ official public status"],
@@ -343,7 +382,8 @@ function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,so
     trainNumber:update.trainNumber,transport:"train",type:"passenger",name:`Поезд №${update.trainNumber}`,
     route:update.route,origin:update.origin,destination:update.destination,routeId,regions,routeCoordinates:routeResult?.coordinates||[],
     description:`Публичный рейс Укрзалізниці ${update.route}. Официальный статус: ${update.publicStatus}; задержка ${update.delayLabel||"не указана"}.`,
-    rollingStock:"Тип состава не опубликован в источнике",operationalStatus:update.operationalStatus,
+    rollingStock:"Тип состава не опубликован в источнике",operationalStatus:stationPresence?.holdsPosition?(stationPresence.kind==="depot"?"depot":"station"):update.operationalStatus,
+    stationPresence,stationLifecycle,
     liveUpdate:update,telemetry:{speedKph:null},position,quality,
     evidence:evidenceFor(update,position,sourceStatus),events,corridor,routeTimeline,
     waypoints:waypointData.waypoints,stationPlan,
@@ -379,23 +419,26 @@ export async function loadTransportData(now=new Date()){
   },now);
   const sourceSummary=sourceRegistrySummary(sourceRegistry);
   const stations=stationData?.stations||[],stationLookup=buildStationLookup(stations);
-  const graph=buildRailGraph(baseRoutes.features),dynamicFeatures=[];
-  const objects=(liveData?.updates||[]).map((update,index)=>{
-    const origin=stationCoordinates(update.origin,stationLookup),destination=stationCoordinates(update.destination,stationLookup),reported=stationCoordinates(update.reportedStation,stationLookup);
-    const routeResult=origin&&destination?railPathViaAnchor(graph,origin,destination,reported):null;
-    const routeId=`uz-live-route-${index}`;
-    if(routeResult)dynamicFeatures.push({
-      type:"Feature",properties:{id:routeId,quality:0.76,source:"rail-corridor-graph-v6",viaConfirmedStation:Boolean(routeResult.viaAnchor)},
-      geometry:{type:"LineString",coordinates:routeResult.coordinates},
+  const graph=buildRailGraph(baseRoutes.features);
+  const materializeUpdates=(updates,at=now,prefix="uz-live-route")=>{
+    const features=[];
+    const materialized=(updates||[]).map((update,index)=>{
+      const origin=stationCoordinates(update.origin,stationLookup),destination=stationCoordinates(update.destination,stationLookup),reported=stationCoordinates(update.reportedStation,stationLookup);
+      const routeResult=origin&&destination?railPathViaAnchor(graph,origin,destination,reported):null;
+      const routeId=`${prefix}-${index}`;
+      if(routeResult)features.push({
+        type:"Feature",properties:{id:routeId,quality:0.76,source:"rail-corridor-graph-v6",viaConfirmedStation:Boolean(routeResult.viaAnchor)},
+        geometry:{type:"LineString",coordinates:routeResult.coordinates},
+      });
+      const regionAnchors=routeResult?.coordinates||(reported||origin||destination?[reported,origin,destination].filter(Boolean):[]);
+      const updateAgeMinutes=ageOf(update.updatedAt||generatedAt,at);
+      const segmentCalibration=segmentCalibrationFor(liveData?.segmentStats||[],update.trainNumber);
+      return objectFromUpdate(update,routeResult,routeId,regionsForPoints(regionAnchors,regions.features),at,sourceStatus,updateAgeMinutes,stations,stationLookup,segmentCalibration);
     });
-    const regionAnchors=routeResult?.coordinates||(reported||origin||destination?[reported,origin,destination].filter(Boolean):[]);
-    const updateAgeMinutes=ageOf(update.updatedAt||generatedAt,now);
-    const segmentCalibration=segmentCalibrationFor(liveData?.segmentStats||[],update.trainNumber);
-    return objectFromUpdate(update,routeResult,routeId,regionsForPoints(regionAnchors,regions.features),now,sourceStatus,updateAgeMinutes,stations,stationLookup,segmentCalibration);
-  });
-  const routes={type:"FeatureCollection",features:dynamicFeatures};
-  const routeMap=new Map(dynamicFeatures.map((feature)=>[feature.properties.id,feature]));
-  const regionList=[...new Map(regions.features.map((feature)=>[feature.properties.id,{id:feature.properties.id,name:feature.properties.name}])).values()].sort((a,b)=>a.name.localeCompare(b.name,"ru"));
+    return {objects:materialized,routes:{type:"FeatureCollection",features},routeMap:new Map(features.map(feature=>[feature.properties.id,feature]))};
+  };
+  const currentMaterialized=materializeUpdates(liveData?.updates||[],now);
+  const {objects,routes,routeMap}=currentMaterialized,dynamicFeatures=routes.features;  const regionList=[...new Map(regions.features.map((feature)=>[feature.properties.id,{id:feature.properties.id,name:feature.properties.name}])).values()].sort((a,b)=>a.name.localeCompare(b.name,"ru"));
   const positioned=objects.filter((object)=>object.position.coordinates).length;
   const forecastCoverage=objects.filter((object)=>object.liveUpdate.forecastArrival||object.liveUpdate.forecastDeparture).length;
   const diagnostics={
@@ -418,5 +461,6 @@ export async function loadTransportData(now=new Date()){
     freightStatus:freightData?.sourceStatus||{status:"unavailable",label:"Грузовые позиции не отображаются"},
     liveFeed:(liveData?.updates||[]).map((update,index)=>({...update,objectId:objects[index]?.id||null})),eventFeed,
     objects,routes,routeMap,regions,regionList,
+    buildTimelineObjects:(updates,at)=>materializeUpdates(updates,new Date(at),"uz-history-route"),
   };
 }
