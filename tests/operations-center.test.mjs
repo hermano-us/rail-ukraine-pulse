@@ -18,6 +18,8 @@ test("operations center is custom, private-by-default and buildable", async () =
   assert.match(build, /rm\(new URL\("data\/freight-telegram-sources\.json", output\)/);
   assert.doesNotMatch(build, /admin\.html/);
   assert.match(worker, /\["\/admin\.html", "\/rail-ops-center\.html"\]\.includes/);
+  const productionConfig = await readFile(new URL("backend/wrangler.production.jsonc", root), "utf8");
+  assert.match(productionConfig, /"run_worker_first": true/);
   await assert.rejects(access(new URL("admin.html", root)));
 });
 
