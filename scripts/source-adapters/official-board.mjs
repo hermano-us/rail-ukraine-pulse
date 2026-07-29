@@ -1,15 +1,17 @@
 import { normalizeTrainNumber, parseDelayMinutes, splitRoute } from "./html.mjs";
 import { BOARD_STATIONS, classifyBoardWindow, distributeStations, stationBoardPlan } from "./station-board-coverage.mjs";
 import { fetchOfficialBoardRecords } from "./official-board-api.mjs";
+import { mergeBoardCache } from "./board-intelligence.mjs";
 
 export const BOARD_URL = "https://booking.uz.gov.ua/schedule";
 export { BOARD_STATIONS } from "./station-board-coverage.mjs";
 
 export function recoverOfficialBoard(previous = {}, error, checkedAt = new Date().toISOString()) {
   const records = Array.isArray(previous.records) ? previous.records : [];
-  const updates = records.length
-    ? boardRowsToUpdates(records)
-    : Array.isArray(previous.updates) ? previous.updates : [];
+  const updates = (Array.isArray(previous.updates) ? previous.updates : []).filter((update) => {
+    const age = Date.parse(checkedAt) - Date.parse(update?.updatedAt || "");
+    return Number.isFinite(age) && age >= 0 && age <= 20 * 60_000;
+  });
   const message = String(error?.message || error || "unknown error").slice(0, 500);
   const challengeDetected = /cloudflare|challenge|waitForSelector|timeout/i.test(message);
   const lastSuccessfulAt = previous.status?.lastSuccessfulAt
@@ -26,11 +28,13 @@ export function recoverOfficialBoard(previous = {}, error, checkedAt = new Date(
       failureKind: challengeDetected ? "upstream-challenge" : "transport-error",
       capabilities: ["station-board", "last-successful-cache"],
       coverage: previous.coverage || previous.status?.coverage || null,
+      scheduler: previous.scheduler || previous.status?.scheduler || null,
     },
     records,
     updates,
     failures: [{ station: null, error: message }],
     coverage: previous.coverage || previous.status?.coverage || null,
+    scheduler: previous.scheduler || previous.status?.scheduler || null,
   };
 }
 export function boardRowsToUpdates(records) {
@@ -125,14 +129,20 @@ export async function collectOfficialBoard(options = {}) {
       concurrency: options.concurrency || process.env.BOARD_CONCURRENCY || 2,
       fetchImpl: options.fetchImpl || fetch,
       sessionId: options.sessionId,
+      requestDelayMs: options.requestDelayMs,
+      requestBudget: options.requestBudget,
+      stationOffset: options.stationOffset,
+      updates: options.updates || [],
+      previousRecords: options.previous?.records || [],
     });
     const updates = boardRowsToUpdates(result.records);
+    const cache = mergeBoardCache(options.previous?.records || [], result.records, result.checkedAt, options.cacheTtlHours || 8);
     const successfulStations = new Set(result.records.map((item) => item.station)).size;
     const plannedStations = result.plannedStations.length;
-    const coverage = { plannedStations, successfulStations, failedStations: result.failures.length, records: result.records.length, stationFacts: updates.filter((item) => item.reportedStation).length, scheduleRows: updates.filter((item) => !item.reportedStation).length, transport: result.transport };
+    const coverage = { plannedStations, successfulStations, failedStations: result.failures.length, deferredStations: result.deferredStations?.length || 0, records: result.records.length, cachedRecords: cache.cachedRecords, cachedStations: cache.cachedStations, stationFacts: updates.filter((item) => item.reportedStation).length, scheduleRows: updates.filter((item) => !item.reportedStation).length, transport: result.transport };
     return {
       status: { status: result.failures.length && successfulStations < plannedStations * .7 ? "degraded" : "online", checkedAt: result.checkedAt, lastSuccessfulAt: result.checkedAt, label: `Табло УЗ API: ${result.records.length} строк, ${successfulStations}/${plannedStations} станций, ${coverage.stationFacts} актуальных окон`, capabilities: ["official-json-api", "station-board", "platform", "schedule", "delay", "mass-node-coverage"], coverage },
-      records: result.records, failures: result.failures, updates, coverage,
+      records: cache.records, failures: result.failures, updates, coverage, scheduler: result.scheduler,
     };
   } catch (error) {
     if (process.env.BOARD_UI_FALLBACK === "1") return collectOfficialBoardViaUi(options);

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { boardRowsToUpdates, recoverOfficialBoard } from "../scripts/source-adapters/official-board.mjs";
 import { BOARD_STATIONS, classifyBoardWindow, distributeStations, stationBoardPlan } from "../scripts/source-adapters/station-board-coverage.mjs";
 import { apiBoardToRecords, fetchOfficialBoardRecords, selectApiStations } from "../scripts/source-adapters/official-board-api.mjs";
+import { mergeBoardCache, rankBoardStations } from "../scripts/source-adapters/board-intelligence.mjs";
 import { parseTelegramFeed, rehydrateTelegramPosts, telegramUpdates } from "../scripts/source-adapters/telegram.mjs";
 
 test("official board rows become station-window updates, not GPS", () => {
@@ -56,8 +57,7 @@ test("official board failure preserves the last successful snapshot without refr
   assert.equal(recovered.status.failureKind, "upstream-challenge");
   assert.equal(recovered.status.lastSuccessfulAt, observedAt);
   assert.equal(recovered.records.length, 1);
-  assert.equal(recovered.updates.length, 1);
-  assert.equal(recovered.updates[0].updatedAt, observedAt);
+  assert.equal(recovered.updates.length, 0);
 });
 
 test("official Telegram preview produces traceable station-passage updates", () => {
@@ -165,4 +165,28 @@ test("official JSON collector uses a fresh anonymous session contract", async ()
   assert.notEqual(calls[1].headers["x-session-id"], calls[0].headers["x-session-id"]);
   assert.match(calls[1].headers["x-session-id"], /^[0-9a-f-]{36}$/i);
   assert.equal(selectApiStations([{ id: 1, name: "Львів" }], ["Київ-Пасажирський"]).length, 0);
+});
+test("board scheduler prioritizes uncertain traffic and explains the choice", () => {
+  const ranked = rankBoardStations([
+    { id: "1", name: "\u041b\u044c\u0432\u0456\u0432" }, { id: "2", name: "\u041a\u0438\u0457\u0432-\u041f\u0430\u0441\u0430\u0436\u0438\u0440\u0441\u044c\u043a\u0438\u0439" },
+  ], {
+    now: "2026-07-29T08:00:00Z",
+    updates: [{ trainNumber: "91", destination: "\u041b\u044c\u0432\u0456\u0432", confidence: .25, errorKm: 120 }],
+    previousRecords: [{ station: "\u041a\u0438\u0457\u0432-\u041f\u0430\u0441\u0430\u0436\u0438\u0440\u0441\u044c\u043a\u0438\u0439", observedAt: "2026-07-29T07:55:00Z" }],
+  });
+  assert.equal(ranked[0].name, "\u041b\u044c\u0432\u0456\u0432");
+  assert.equal(ranked[0].expectedTrains, 1);
+  assert.match(ranked[0].reasons.join(" "), /\u043e\u0436\u0438\u0434\u0430\u0435\u043c\u044b\u0445 \u0440\u0435\u0439\u0441\u043e\u0432|\u043a\u043b\u044e\u0447\u0435\u0432\u043e\u0439 \u0443\u0437\u0435\u043b/);
+});
+
+test("board cache replaces a refreshed station and expires old evidence", () => {
+  const now = "2026-07-29T08:00:00Z";
+  const previous = [
+    { station: "\u041b\u044c\u0432\u0456\u0432", boardType: "arrival", trainNumber: "1", scheduledAt: "2026-07-29T09:00:00Z", observedAt: "2026-07-29T07:00:00Z" },
+    { station: "\u041a\u0438\u0457\u0432", boardType: "departure", trainNumber: "2", scheduledAt: "2026-07-29T10:00:00Z", observedAt: "2026-07-28T20:00:00Z" },
+  ];
+  const fresh = [{ station: "\u041b\u044c\u0432\u0456\u0432", boardType: "arrival", trainNumber: "3", scheduledAt: "2026-07-29T09:30:00Z", observedAt: now }];
+  const cache = mergeBoardCache(previous, fresh, now, 8);
+  assert.deepEqual(cache.records.map((item) => item.trainNumber), ["3"]);
+  assert.equal(cache.cachedRecords, 0);
 });

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout as wait } from "node:timers/promises";
+import { rankBoardStations } from "./board-intelligence.mjs";
 
 export const BOARD_API_BASE = "https://app.uz.gov.ua/api/station-boards";
 export const BOARD_API_USER_AGENT = "UZ/2 Web/1 User/guest";
@@ -96,6 +97,9 @@ export async function fetchOfficialBoardRecords({
   sessionId = randomUUID(),
   requestDelayMs = process.env.BOARD_REQUEST_DELAY_MS || 1_500,
   stationOffset = null,
+  updates = [],
+  previousRecords = [],
+  requestBudget = process.env.BOARD_REQUEST_BUDGET || 1,
 } = {}) {
   const checkedAt = new Date().toISOString();
   const headers = {
@@ -105,16 +109,24 @@ export async function fetchOfficialBoardRecords({
     "x-user-agent": BOARD_API_USER_AGENT,
   };
   const catalog = await fetchJson(BOARD_API_BASE, headers, fetchImpl);
-  const available = selectApiStations(catalog, stations);
-  const rawOffset = stationOffset == null ? Math.floor(Date.parse(checkedAt) / 600_000) : Number(stationOffset);
-  const offset = ((Number.isFinite(rawOffset) ? rawOffset : 0) % available.length + available.length) % available.length;
-  const planned = [...available.slice(offset), ...available.slice(0, offset)];
-  if (!planned.length) throw new Error("official board API returned no matching stations");
-  const records = [], failures = [];
+  const ranked = rankBoardStations(selectApiStations(catalog, stations), { updates, previousRecords, now: checkedAt });
+  if (!ranked.length) throw new Error("official board API returned no matching stations");
+  const rawOffset = stationOffset == null ? 0 : Number(stationOffset);
+  const offset = ((Number.isFinite(rawOffset) ? rawOffset : 0) % ranked.length + ranked.length) % ranked.length;
+  const planned = [...ranked.slice(offset), ...ranked.slice(0, offset)];
+  const records = [], failures = [], deferredStations = [];
+  const budget = Math.max(1, Number(requestBudget) || 1);
+  let attempted = 0;
   let cursor = 0;
   const worker = async () => {
     while (cursor < planned.length) {
       const station = planned[cursor++];
+      if (attempted >= budget) {
+        deferredStations.push(...planned.slice(cursor - 1).map((item) => ({ station: item.name, stationId: item.id })));
+        cursor = planned.length;
+        break;
+      }
+      attempted += 1;
       try {
         const payload = await fetchJson(`${BOARD_API_BASE}/${encodeURIComponent(station.id)}`, () => ({ ...headers, "x-session-id": randomUUID() }), fetchImpl);
         records.push(...apiBoardToRecords(payload, new Date().toISOString()));
@@ -132,5 +144,13 @@ export async function fetchOfficialBoardRecords({
   const count = Math.max(1, Math.min(3, Number(concurrency) || 1, planned.length));
   await Promise.all(Array.from({ length: count }, worker));
   if (!records.length) throw new Error(`official board API returned no records; ${failures.length}/${planned.length} station failures`);
-  return { checkedAt, records, failures, plannedStations: planned, transport: "official-json-api" };
+  return {
+    checkedAt, records, failures, deferredStations, plannedStations: planned, transport: "official-json-api",
+    scheduler: {
+      strategy: "information-gain-v1", requestBudget: budget, attempted,
+      selectedStation: records[0]?.station || planned[0]?.name || null,
+      selectedReason: planned[0]?.reasons || [], selectedScore: planned[0]?.score || 0,
+      rankedStations: planned.slice(0, 5).map(({ id, name, score, expectedTrains, reasons }) => ({ id, name, score, expectedTrains, reasons })),
+    },
+  };
 }

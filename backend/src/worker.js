@@ -95,6 +95,32 @@ async function storeSourceHealth(env, sourceStatus, recordsCount) {
     sourceStatus.error || null,
   )]);
 }
+async function handleCollectorHeartbeat(request, env) {
+  if (!authorized(request, env)) return json({ error: "unauthorized" }, { status: 401 }, request, env);
+  const body = await request.json();
+  const checkedAt = new Date().toISOString();
+  const collectorId = String(body?.collectorId || "trusted-collector").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 80) || "trusted-collector";
+  const status = ["starting", "healthy", "degraded", "stopped"].includes(body?.status) ? body.status : "degraded";
+  const heartbeat = {
+    collectorId, status, checkedAt,
+    version: String(body?.version || "collector-v1").slice(0, 60),
+    lastStartedAt: body?.lastStartedAt || null,
+    lastSucceededAt: body?.lastSucceededAt || null,
+    consecutiveFailures: Math.max(0, Number(body?.consecutiveFailures) || 0),
+    runs: Math.max(0, Number(body?.runs) || 0),
+    board: body?.board && typeof body.board === "object" ? {
+      selectedStation: String(body.board.selectedStation || "").slice(0, 120) || null,
+      strategy: String(body.board.strategy || "").slice(0, 80) || null,
+      requestBudget: Math.max(0, Number(body.board.requestBudget) || 0),
+    } : null,
+  };
+  if (env.SNAPSHOT) await env.SNAPSHOT.put("collector:heartbeat", JSON.stringify(heartbeat), { expirationTtl: 900 });
+  await storeSourceHealth(env, {
+    sourceId: `trusted-collector:${collectorId}`, status: status === "healthy" ? "online" : status,
+    checkedAt, error: status === "healthy" ? null : `collector ${status}`,
+  }, Number(body?.recordsCount || 0));
+  return json({ accepted: true, checkedAt }, { status: 202, headers: { "Cache-Control": "no-store" } }, request, env);
+}
 
 export async function ingestPayload(env, payload, observedAt = new Date().toISOString()) {
   const expectedRegistry = await ingestExpectedRuns(env, payload?.expectedRuns || [], observedAt);
@@ -188,6 +214,7 @@ export async function ingestPayload(env, payload, observedAt = new Date().toISOS
     updates,
     eventCount: validEvents.length,
     quality: { accepted: updates.length, quarantined: quality.quarantined.length, warningCounts: quality.warningCounts, checkedAt: quality.checkedAt },
+    collectorDiagnostics: payload?.collectorDiagnostics || null,
   };
   if (env.SNAPSHOT) await env.SNAPSHOT.put(SNAPSHOT_KEY, JSON.stringify(snapshot), { expirationTtl: 900 });
   return { accepted: validEvents.length, rejected: events.length - validEvents.length, quarantined: quality.quarantined.length, runs: updateByRun.size, expectedRuns: expectedRegistry.accepted, snapshot };
@@ -307,7 +334,7 @@ async function getHealth(request, env) {
   }, { headers: { "Cache-Control": "no-store" } }, request, env);
 }
 async function getAdminOverview(request, env) {
-  const [runs, events, sources, recentEvents, snapshot, segmentStats, modelQuality] = await Promise.all([
+  const [runs, events, sources, recentEvents, snapshot, segmentStats, modelQuality, trustedCollector] = await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS total, MAX(last_observed_at) AS latest FROM runs").first(),
     env.DB.prepare("SELECT COUNT(*) AS total, MAX(observed_at) AS latest FROM events").first(),
     env.DB.prepare("SELECT * FROM source_health ORDER BY checked_at DESC").all(),
@@ -319,6 +346,7 @@ async function getAdminOverview(request, env) {
     readSnapshot(env),
     readSegmentStats(env),
     readModelQuality(env),
+    env.SNAPSHOT?.get("collector:heartbeat").then((raw) => raw ? JSON.parse(raw) : null).catch(() => null) || Promise.resolve(null),
   ]);
   const freshness = snapshotFreshness(snapshot);
   return json({
@@ -340,6 +368,8 @@ async function getAdminOverview(request, env) {
       observedAt: snapshot.observedAt || null,
       updates: Array.isArray(snapshot.updates) ? snapshot.updates.length : 0,
       sourceStatus: snapshot.sourceStatus || null,
+      collectorDiagnostics: snapshot.collectorDiagnostics || null,
+      trustedCollector: trustedCollector || null,
     } : null,
     coverage: {
       discovered: snapshot?.updates?.length || 0,
@@ -460,6 +490,7 @@ export async function handleRequest(request, env) {
       headers.set("Cache-Control", "no-store");
       return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
     }
+    if (request.method === "POST" && url.pathname === "/api/v1/collector/heartbeat") return handleCollectorHeartbeat(request, env);
     if (["GET","POST"].includes(request.method) && url.pathname === "/api/v1/rail-observations") return handlePublicObservationRequest(request,env,(value,status=200)=>json(value,{status,headers:{"Cache-Control":"no-store"}},request,env));
     if (request.method === "GET" && url.pathname === "/api/health") return getHealth(request, env);
     if (request.method === "GET" && url.pathname === "/api/v1/stream") return getSnapshotStream(request, env);

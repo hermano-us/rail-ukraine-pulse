@@ -143,3 +143,23 @@ test("model quality API exposes aggregate calibration only", async () => {
   assert.equal(body.aggregateOnly, true);
   assert.equal(body.evaluations, 0);
 });
+
+test("trusted collector heartbeat requires ingest credentials and records bounded status", async () => {
+  const env = environment();
+  const requestBody = { collectorId: "station-edge-1", status: "healthy", version: "trusted-collector-v1", requestBudget: 1 };
+  const denied = await handleRequest(new Request("https://api.example/api/v1/collector/heartbeat", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody),
+  }), env);
+  assert.equal(denied.status, 401);
+
+  const accepted = await handleRequest(new Request("https://api.example/api/v1/collector/heartbeat", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + env.INGEST_TOKEN, "Content-Type": "application/json" },
+    body: JSON.stringify(requestBody),
+  }), env);
+  assert.equal(accepted.status, 202);
+  const heartbeat = await env.SNAPSHOT.get("collector:heartbeat", "json");
+  assert.equal(heartbeat.collectorId, "station-edge-1");
+  assert.equal(heartbeat.status, "healthy");
+  assert.ok(env.DB.batches.some((batch) => batch.some(({ sql }) => /source_health/i.test(sql))));
+});

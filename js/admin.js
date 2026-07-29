@@ -248,7 +248,12 @@ function render(data) {
   );
 
   const coverage = data.coverage || {};
+  const boardScheduler = data.snapshot?.collectorDiagnostics?.board?.scheduler || {};
+  const trustedCollector = data.snapshot?.trustedCollector || null;
+  const collectorTone = trustedCollector?.status === "healthy" ? "ok" : "warning";
   nodes.coverageMetrics.replaceChildren(
+    metric("\u0421\u043b\u0435\u0434\u0443\u044e\u0449\u0435\u0435 \u0442\u0430\u0431\u043b\u043e", boardScheduler.selectedStation || "\u2014", (boardScheduler.selectedReason || []).join(" \u00b7 ") || "\u041f\u043b\u0430\u043d\u0438\u0440\u043e\u0432\u0449\u0438\u043a \u043e\u0436\u0438\u0434\u0430\u0435\u0442 \u0441\u043b\u0435\u0434\u0443\u044e\u0449\u0438\u0439 \u0446\u0438\u043a\u043b"),
+    metric("\u0414\u043e\u0432\u0435\u0440\u0435\u043d\u043d\u044b\u0439 collector", trustedCollector?.status || "\u043d\u0435 \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0451\u043d", trustedCollector ? trustedCollector.collectorId + " / heartbeat " + formatAge(trustedCollector.checkedAt) : "\u0417\u0430\u0449\u0438\u0449\u0451\u043d\u043d\u044b\u0439 heartbeat \u0435\u0449\u0451 \u043d\u0435 \u0437\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043e\u0432\u0430\u043d", collectorTone),
     metric("Найдено", coverage.discovered, "Все публичные рейсы"),
     metric("Маршрут определён", coverage.routed, "Начало и назначение"),
     metric("Есть прогноз", coverage.forecasted, "Прибытие или отправление"),

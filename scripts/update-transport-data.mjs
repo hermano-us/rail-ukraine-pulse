@@ -74,7 +74,7 @@ async function main() {
   });
   const boardPromise = process.env.SKIP_BROWSER_SOURCE === "1"
     ? Promise.resolve({ status: { status: "unavailable", checkedAt: new Date().toISOString(), label: "Табло УЗ: browser-adapter отключён" }, records: [], updates: [] })
-    : collectOfficialBoard().catch((error) => recoverOfficialBoard(previousRuntime.sources?.["uz-public-board"], error));
+    : collectOfficialBoard({ previous: previousRuntime.sources?.["uz-public-board"], updates: previousLive.updates || [] }).catch((error) => recoverOfficialBoard(previousRuntime.sources?.["uz-public-board"], error));
   const referencePromise = checkReferences();
   const internationalPromise = collectInternationalRailSources();
 
@@ -99,8 +99,9 @@ async function main() {
     label: `UZ fusion: ${updates.length} событий · ${onlineCount}/5 источников доступны`, checkedAt,
     capabilities: { officialStatus: true, forecast: true, stationPassage: true, gps: false, scope: "public-passenger-and-commuter-events" },
   };
+  const collectorDiagnostics = { board: { status: board.status?.status, checkedAt: board.status?.checkedAt, scheduler: board.scheduler || board.status?.scheduler || null, coverage: board.coverage || board.status?.coverage || null } };
   await atomicJson(runtimeTarget, { schemaVersion: 1, generatedAt: checkedAt, sources });
-  await atomicJson(liveTarget, { schemaVersion: 7, provider: "Ukrzaliznytsia public source fusion", generatedAt, sourceStatus, updates, expectedRuns, externalSources: international.sources });
+  await atomicJson(liveTarget, { schemaVersion: 7, provider: "Ukrzaliznytsia public source fusion", generatedAt, sourceStatus, updates, expectedRuns, externalSources: international.sources, collectorDiagnostics });
   console.log(`${sourceStatus.label}; board ${board.status.status}, Telegram ${telegram.status.status}, delays ${delay.status.status}.`);
 }
 

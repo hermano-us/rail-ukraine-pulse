@@ -1,11 +1,15 @@
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
 
 const intervalMs = Math.max(60_000, Number(process.env.COLLECTOR_INTERVAL_MS) || 180_000);
 const port = Math.max(1, Number(process.env.COLLECTOR_HEALTH_PORT) || 8080);
 const attempts = Math.min(5, Math.max(1, Number(process.env.COLLECTOR_ATTEMPTS) || 3));
 const scriptTimeoutMs = Math.max(60_000, Number(process.env.COLLECTOR_SCRIPT_TIMEOUT_MS) || 480_000);
 const staleAfterMs = Math.max(15 * 60_000, intervalMs * 3);
+const apiEndpoint = String(process.env.RAIL_API_URL || "").replace(/\/$/, "");
+const ingestToken = String(process.env.RAIL_INGEST_TOKEN || "");
+const collectorId = String(process.env.COLLECTOR_ID || "trusted-collector");
 let timer;
 let stopping = false;
 const state = {
@@ -19,10 +23,11 @@ const state = {
   runs: 0,
   consecutiveFailures: 0,
   attemptsLastCycle: 0,
+  lastHeartbeatAt: null,
+  lastHeartbeatError: null,
 };
 
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
-
 function runScript(script, extraEnv = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [script], { stdio: "inherit", env: { ...process.env, ...extraEnv } });
@@ -45,6 +50,36 @@ function runScript(script, extraEnv = {}) {
 async function runCycle() {
   await runScript("scripts/update-transport-data.mjs", { BOARD_HEADLESS: process.env.BOARD_HEADLESS || "true" });
   await runScript("scripts/push-backend-snapshot.mjs");
+}
+async function sendHeartbeat() {
+  if (!apiEndpoint || ingestToken.length < 24) return;
+  let board = null;
+  try {
+    const runtime = JSON.parse(await readFile(new URL("../data/source-runtime.json", import.meta.url), "utf8"));
+    board = runtime?.sources?.["uz-public-board"] || null;
+  } catch {}
+  const response = await fetch(`${apiEndpoint}/api/v1/collector/heartbeat`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${ingestToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      collectorId,
+      status: state.status,
+      version: "trusted-collector-v1",
+      lastStartedAt: state.lastStartedAt,
+      lastSucceededAt: state.lastSucceededAt,
+      consecutiveFailures: state.consecutiveFailures,
+      runs: state.runs,
+      recordsCount: Number(board?.coverage?.records || 0),
+      board: board?.scheduler ? {
+        selectedStation: board.scheduler.selectedStation,
+        strategy: board.scheduler.strategy,
+        requestBudget: board.scheduler.requestBudget,
+      } : null,
+    }),
+  });
+  if (!response.ok) throw new Error(`collector heartbeat HTTP ${response.status}`);
+  state.lastHeartbeatAt = new Date().toISOString();
+  state.lastHeartbeatError = null;
 }
 
 async function collect() {
@@ -78,6 +113,8 @@ async function collect() {
     state.lastError = String(error?.message || error).slice(0, 500);
     state.consecutiveFailures += 1;
   }
+
+  await sendHeartbeat().catch((candidate) => { state.lastHeartbeatError = String(candidate?.message || candidate).slice(0, 300); });
 
   if (!stopping) {
     state.nextRunAt = new Date(Date.now() + intervalMs).toISOString();

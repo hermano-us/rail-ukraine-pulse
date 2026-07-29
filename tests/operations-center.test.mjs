@@ -34,4 +34,6 @@ test("collector has bounded retries, timeout and readiness freshness", async () 
   assert.match(collector, /COLLECTOR_SCRIPT_TIMEOUT_MS/);
   assert.match(collector, /staleAfterMs/);
   assert.match(collector, /\/ready/);
+  assert.match(collector, /\/api\/v1\/collector\/heartbeat/);
+  assert.match(collector, /COLLECTOR_ID/);
 });
