@@ -68,13 +68,20 @@ async function fetchJson(url, headers, fetchImpl, attempts = 2) {
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
       const response = await fetchImpl(url, { headers, signal: AbortSignal.timeout(20_000) });
-      if (!response.ok) throw new Error(`official board API HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = new Error(`official board API HTTP ${response.status}`);
+        const retryAfter = Number(response.headers.get("retry-after"));
+        error.retryDelayMs = Number.isFinite(retryAfter) && retryAfter > 0
+          ? retryAfter * 1000
+          : ([429, 441].includes(response.status) ? 5_000 * attempt : 750 * attempt);
+        throw error;
+      }
       const type = response.headers.get("content-type") || "";
       if (!type.includes("application/json")) throw new Error(`official board API returned ${type || "non-JSON"}`);
       return await response.json();
     } catch (error) {
       lastError = error;
-      if (attempt < attempts) await wait(500 * attempt);
+      if (attempt < attempts) await wait(error?.retryDelayMs || 750 * attempt);
     }
   }
   throw lastError;
@@ -85,6 +92,7 @@ export async function fetchOfficialBoardRecords({
   concurrency = process.env.BOARD_CONCURRENCY || 2,
   fetchImpl = fetch,
   sessionId = randomUUID(),
+  requestDelayMs = process.env.BOARD_REQUEST_DELAY_MS || 1_500,
 } = {}) {
   const checkedAt = new Date().toISOString();
   const headers = {
@@ -107,7 +115,7 @@ export async function fetchOfficialBoardRecords({
       } catch (error) {
         failures.push({ station: station.name, stationId: station.id, error: String(error?.message || error).slice(0, 240) });
       }
-      await wait(350);
+      await wait(Math.max(0, Number(requestDelayMs) || 0));
     }
   };
   const count = Math.max(1, Math.min(3, Number(concurrency) || 1, planned.length));
