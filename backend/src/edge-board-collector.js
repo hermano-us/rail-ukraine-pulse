@@ -37,18 +37,20 @@ async function requestJson(url, headers, fetchImpl) {
   return { payload: await response.json(), diagnostics };
 }
 
-function rankStations(catalog, state, updates, nowMs) {
-  const stationState = state?.stations || {};
+function rankStations(catalog, state, updates, nowMs, coveragePriorities = []) {
+  const stationState = state?.stations || {},coverage=new Map();
+  for(const priority of Array.isArray(coveragePriorities)?coveragePriorities:[])for(const value of [priority?.stationName,priority?.stationId]){const key=normalize(value);if(key)coverage.set(key,priority);}
   return (Array.isArray(catalog) ? catalog : []).filter((item) => item?.id != null && item?.name).map((station) => {
-    const key = normalize(station.name);
+    const key = normalize(station.name),coverageDemand=coverage.get(key);
     const lastSuccess = Date.parse(stationState[String(station.id)]?.lastSuccessAt || "");
     const unseen = !Number.isFinite(lastSuccess);
     const silenceHours = unseen ? 24 : Math.max(0, (nowMs - lastSuccess) / 3_600_000);
     const matching = (Array.isArray(updates) ? updates : []).filter((update) => [update.reportedStation, update.origin, update.destination].some((value) => normalize(value) === key));
     const uncertain = matching.reduce((sum, update) => sum + Math.max(0, 1 - (Number(update.confidence) || .5)) + Math.min(2, (Number(update.errorKm) || 0) / 100), 0);
-    const score = (unseen ? 30 : 0) + Math.min(18, silenceHours) + (hubWeight.get(key) || 1) * 2 + matching.length * 5 + uncertain * 3;
+    const score = (unseen ? 30 : 0) + Math.min(18, silenceHours) + (hubWeight.get(key) || 1) * 2 + matching.length * 5 + uncertain * 3 + Math.min(90,Number(coverageDemand?.priorityScore)||0)*.75;
     const reasons = [];
     if (unseen) reasons.push("never-observed");
+    if(coverageDemand)reasons.push(...(Array.isArray(coverageDemand.reasons)?coverageDemand.reasons:["rail-intelligence-priority"]));
     if (matching.length) reasons.push(`${matching.length}-active-runs`);
     if ((hubWeight.get(key) || 0) >= 6) reasons.push("major-hub");
     reasons.push(`silence-${Math.round(silenceHours * 60)}m`);
@@ -109,15 +111,16 @@ async function heartbeat(env, state, station, status) {
   if (!env.SNAPSHOT) return;
   await env.SNAPSHOT.put(HEARTBEAT_KEY, JSON.stringify({
     collectorId: "cloudflare-board-edge", status, checkedAt: state.checkedAt,
-    version: "board-edge-v1", lastSucceededAt: state.lastSuccessAt || null,
+    version: "board-edge-v2", lastSucceededAt: state.lastSuccessAt || null,
     consecutiveFailures: state.consecutiveFailures || 0, runs: state.runs || 0,
-    board: { selectedStation: station?.name || null, strategy: "information-gain-edge-v1", requestBudget: 1 },
+    board: { selectedStation: station?.name || null, strategy: "information-gain-edge-v2", requestBudget: 1 },
   }), { expirationTtl: 900 });
 }
 
 export async function collectOfficialBoardEdge(env, { updates = [], now = new Date().toISOString(), fetchImpl = fetch } = {}) {
   const mode = String(env.BOARD_EDGE_MODE || "disabled");
-  const previous = await readJson(env, STATE_KEY) || { stations: {}, runs: 0, consecutiveFailures: 0 };
+  const [storedState,priorityState]=await Promise.all([readJson(env,STATE_KEY),readJson(env,"intelligence:board-priorities:v1")]);
+  const previous = storedState || { stations: {}, runs: 0, consecutiveFailures: 0 };
   if (mode === "disabled") return { status: "disabled", updates: [], diagnostics: { mode } };
   if (mode === "canary" && previous.canaryCompleted) return { status: "skipped", updates: [], diagnostics: { mode, reason: "canary-completed", state: previous } };
   const nowMs = Date.parse(now) || Date.now();
@@ -128,7 +131,7 @@ export async function collectOfficialBoardEdge(env, { updates = [], now = new Da
   let selected = null;
   try {
     const catalogResult = await requestJson(BASE, headers, fetchImpl);
-    const ranked = rankStations(catalogResult.payload, previous, updates, nowMs);
+    const ranked = rankStations(catalogResult.payload, previous, updates, nowMs, priorityState?.stations || []);
     selected = ranked[0];
     if (!selected) throw new Error("official board edge catalog is empty");
     const boardResult = await requestJson(`${BASE}/${encodeURIComponent(selected.id)}`, headers, fetchImpl);
@@ -141,7 +144,7 @@ export async function collectOfficialBoardEdge(env, { updates = [], now = new Da
     state.lastResult = { status: 200, station: selected.name, records: fresh.length, score: selected.score, reasons: selected.reasons, catalog: catalogResult.diagnostics, board: boardResult.diagnostics };
     await writeState(env, state);
     await heartbeat(env, state, selected, "healthy");
-    return { status: "online", updates: fresh, station: selected, diagnostics: { mode, scheduler: { strategy: "information-gain-edge-v1", requestBudget: 1, selectedStation: selected.name, selectedReason: selected.reasons, selectedScore: selected.score }, coverage: { catalogStations: ranked.length, records: fresh.length, observedStations: Object.keys(state.stations).length }, state } };
+    return { status: "online", updates: fresh, station: selected, diagnostics: { mode, scheduler: { strategy: "information-gain-edge-v2", requestBudget: 1, selectedStation: selected.name, selectedReason: selected.reasons, selectedScore: selected.score }, coverage: { catalogStations: ranked.length, records: fresh.length, observedStations: Object.keys(state.stations).length }, state } };
   } catch (error) {
     const status = Number(error?.status) || 0;
     state.consecutiveFailures = Number(previous.consecutiveFailures || 0) + 1;

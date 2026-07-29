@@ -25,6 +25,8 @@ const state = {
   attemptsLastCycle: 0,
   lastHeartbeatAt: null,
   lastHeartbeatError: null,
+  lastPriorityCount: 0,
+  lastPriorityError: null,
 };
 
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -47,8 +49,16 @@ function runScript(script, extraEnv = {}) {
   });
 }
 
+async function loadBoardPriorities(){
+  if(!apiEndpoint||ingestToken.length<24)return [];
+  const response=await fetch(`${apiEndpoint}/api/v1/collector/board-priorities`,{headers:{Authorization:`Bearer ${ingestToken}`,Accept:"application/json"},signal:AbortSignal.timeout(15_000)});
+  if(!response.ok)throw new Error(`collector priorities HTTP ${response.status}`);
+  const payload=await response.json();return Array.isArray(payload?.stations)?payload.stations:[];
+}
 async function runCycle() {
-  await runScript("scripts/update-transport-data.mjs", { BOARD_HEADLESS: process.env.BOARD_HEADLESS || "true" });
+  const priorities=await loadBoardPriorities().catch((error)=>{state.lastPriorityError=String(error?.message||error).slice(0,300);return [];});
+  state.lastPriorityCount=priorities.length;if(priorities.length)state.lastPriorityError=null;
+  await runScript("scripts/update-transport-data.mjs", { BOARD_HEADLESS: process.env.BOARD_HEADLESS || "true", BOARD_COVERAGE_PRIORITIES_JSON:JSON.stringify(priorities) });
   await runScript("scripts/push-backend-snapshot.mjs");
 }
 async function sendHeartbeat() {

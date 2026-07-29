@@ -180,6 +180,29 @@ test("official JSON collector never retries an upstream throttle response", asyn
   );
   assert.equal(calls, 2);
 });
+test("board scheduler advances after a failed station request", async () => {
+  const fetchImpl = async (url) => {
+    if (url.endsWith("/station-boards")) return new Response(JSON.stringify([
+      { id: 1, name: "\u041a\u0438\u0457\u0432" },
+      { id: 2, name: "\u041b\u044c\u0432\u0456\u0432" },
+    ]), { status: 200, headers: { "content-type": "application/json" } });
+    return new Response("unavailable", { status: 441 });
+  };
+  let failure;
+  try {
+    await fetchOfficialBoardRecords({ concurrency: 1, requestBudget: 1, stationOffset: 0, fetchImpl });
+  } catch (error) {
+    failure = error;
+  }
+  assert.ok(failure);
+  assert.equal(failure.boardDiagnostics.scheduler.offset, 0);
+  assert.equal(failure.boardDiagnostics.scheduler.nextOffset, 1);
+  const recovered = recoverOfficialBoard({ records: [], scheduler: { nextOffset: 0 } }, failure);
+  assert.equal(recovered.scheduler.strategy, "information-gain-v2");
+  assert.equal(recovered.scheduler.nextOffset, 1);
+  assert.equal(recovered.failures.length, 1);
+});
+
 test("board scheduler prioritizes uncertain traffic and explains the choice", () => {
   const ranked = rankBoardStations([
     { id: "1", name: "\u041b\u044c\u0432\u0456\u0432" }, { id: "2", name: "\u041a\u0438\u0457\u0432-\u041f\u0430\u0441\u0430\u0436\u0438\u0440\u0441\u044c\u043a\u0438\u0439" },

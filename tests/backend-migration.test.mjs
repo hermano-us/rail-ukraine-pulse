@@ -23,6 +23,8 @@ test("D1 migration creates the event backend schema", {
   const railV3Sql = await readFile(new URL("../backend/migrations/0017_rail_intelligence_v3.sql", import.meta.url), "utf8");
   const fusionV2Sql = await readFile(new URL("../backend/migrations/0018_observation_fusion_v2.sql", import.meta.url), "utf8");
   const timelineSql = await readFile(new URL("../backend/migrations/0019_map_timeline.sql", import.meta.url), "utf8");
+  const fusionV3Sql = await readFile(new URL("../backend/migrations/0020_observation_fusion_v3.sql", import.meta.url), "utf8");
+  const operationsHubV2Sql = await readFile(new URL("../backend/migrations/0021_operations_hub_v2.sql", import.meta.url), "utf8");
   database.exec(historySql);
   database.exec(sql);
   database.exec(observabilitySql);
@@ -41,6 +43,8 @@ test("D1 migration creates the event backend schema", {
   database.exec(railV3Sql);
   database.exec(fusionV2Sql);
   database.exec(timelineSql);
+  database.exec(fusionV3Sql);
+  database.exec(operationsHubV2Sql);
   const tables = database.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all().map((row) => row.name);
   assert.ok(tables.includes("runs"));
   assert.ok(tables.includes("events"));
@@ -68,10 +72,13 @@ test("D1 migration creates the event backend schema", {
   assert.ok(tables.includes("ops_movements"));
   assert.ok(tables.includes("ops_workflows"));
   assert.ok(tables.includes("ops_notifications"));
+  assert.ok(tables.includes("ops_prediction_changes"));
   assert.ok(tables.includes("node_activity_scores"));
   assert.ok(tables.includes("network_anomalies"));
   assert.ok(tables.includes("international_corridors"));
   assert.ok(tables.includes("intelligence_cycles"));
+  assert.ok(tables.includes("station_coverage_priorities"));
+  assert.ok(tables.includes("twin_recalculation_queue"));
   assert.ok(tables.includes("rail_graph_versions"));
   assert.ok(tables.includes("station_registry"));
   assert.ok(tables.includes("station_aliases"));

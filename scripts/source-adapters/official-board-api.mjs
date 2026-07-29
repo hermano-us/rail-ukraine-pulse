@@ -100,6 +100,7 @@ export async function fetchOfficialBoardRecords({
   stationOffset = null,
   updates = [],
   previousRecords = [],
+  coveragePriorities = [],
   requestBudget = process.env.BOARD_REQUEST_BUDGET || 1,
 } = {}) {
   const checkedAt = new Date().toISOString();
@@ -110,7 +111,7 @@ export async function fetchOfficialBoardRecords({
     "x-user-agent": BOARD_API_USER_AGENT,
   };
   const catalog = await fetchJson(BOARD_API_BASE, headers, fetchImpl);
-  const ranked = rankBoardStations(selectApiStations(catalog, stations), { updates, previousRecords, now: checkedAt });
+  const ranked = rankBoardStations(selectApiStations(catalog, stations), { updates, previousRecords, coveragePriorities, now: checkedAt });
   if (!ranked.length) throw new Error("official board API returned no matching stations");
   const rawOffset = stationOffset == null ? 0 : Number(stationOffset);
   const offset = ((Number.isFinite(rawOffset) ? rawOffset : 0) % ranked.length + ranked.length) % ranked.length;
@@ -144,14 +145,20 @@ export async function fetchOfficialBoardRecords({
   };
   const count = Math.max(1, Math.min(3, Number(concurrency) || 1, planned.length));
   await Promise.all(Array.from({ length: count }, worker));
-  if (!records.length) throw new Error(`official board API returned no records; ${failures.length}/${planned.length} station failures`);
+  const scheduler = {
+    strategy: "information-gain-v2", requestBudget: budget, attempted, offset,
+    nextOffset: (offset + Math.max(1, attempted)) % ranked.length,
+    selectedStation: records[0]?.station || planned[0]?.name || null,
+    selectedReason: planned[0]?.reasons || [], selectedScore: planned[0]?.score || 0,
+    rankedStations: planned.slice(0, 5).map(({ id, name, score, expectedTrains, reasons }) => ({ id, name, score, expectedTrains, reasons })),
+  };
+  if (!records.length) {
+    const error = new Error(`official board API returned no records; ${failures.length}/${planned.length} station failures`);
+    error.boardDiagnostics = { checkedAt, failures, deferredStations, plannedStations: planned, scheduler };
+    throw error;
+  }
   return {
     checkedAt, records, failures, deferredStations, plannedStations: planned, transport: "official-json-api",
-    scheduler: {
-      strategy: "information-gain-v1", requestBudget: budget, attempted,
-      selectedStation: records[0]?.station || planned[0]?.name || null,
-      selectedReason: planned[0]?.reasons || [], selectedScore: planned[0]?.score || 0,
-      rankedStations: planned.slice(0, 5).map(({ id, name, score, expectedTrains, reasons }) => ({ id, name, score, expectedTrains, reasons })),
-    },
+    scheduler,
   };
 }

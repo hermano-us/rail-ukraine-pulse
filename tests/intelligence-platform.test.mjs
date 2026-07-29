@@ -81,7 +81,7 @@ test("operational coordinate guard repairs swapped Ukraine coordinates and rejec
   assert.equal(rejected.latitude, null); assert.equal(rejected.longitude, null); assert.equal(rejected.coordinateQuality, "outside-ukraine-rejected"); assert.equal(rejected.rejected, true);
 });
 
-test("probabilistic twin v2 keeps alternatives, freshness and strict rail geometry", () => {
+test("probabilistic twin v4 keeps alternatives, freshness and strict rail geometry", () => {
   const geometry={type:"LineString",coordinates:[[30,50],[31,50]]};
   const midpoint=interpolateRailGeometry(geometry,.5);
   assert.ok(Math.abs(midpoint.longitude-30.5)<.01);
@@ -92,7 +92,7 @@ test("probabilistic twin v2 keeps alternatives, freshness and strict rail geomet
     {from_station_id:"київ",to_station_id:"вінниця",train_family:"generic",sample_count:18,p10_minutes:120,p50_minutes:150,p90_minutes:190,reliability:.75},
   ];
   const result=buildTwinHypotheses({event,candidates,now:"2026-07-28T10:30:00Z",routeHint:"Київ Львів"});
-  assert.equal(result.state.method,"station-graph-probabilistic-twin-v2");
+  assert.equal(result.state.method,"station-graph-probabilistic-twin-v4");
   assert.equal(result.state.positionStatus,"estimated");
   assert.equal(result.hypotheses.length,2);
   assert.ok(Math.abs(result.hypotheses.reduce((sum,item)=>sum+item.probability,0)-1)<.001);

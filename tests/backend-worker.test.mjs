@@ -164,6 +164,18 @@ test("trusted collector heartbeat requires ingest credentials and records bounde
   assert.ok(env.DB.batches.some((batch) => batch.some(({ sql }) => /source_health/i.test(sql))));
 });
 
+test("trusted collector receives protected adaptive board priorities", async () => {
+  const env=environment();
+  const denied=await handleRequest(new Request("https://api.example/api/v1/collector/board-priorities"),env);
+  assert.equal(denied.status,401);
+  const accepted=await handleRequest(new Request("https://api.example/api/v1/collector/board-priorities",{headers:{Authorization:"Bearer "+env.INGEST_TOKEN}}),env);
+  assert.equal(accepted.status,200);
+  const body=await accepted.json();
+  assert.equal(body.strategy,"information-gain-v2");
+  assert.deepEqual(body.stations,[]);
+  assert.ok(env.DB.prepare);
+});
+
 test("timeline API returns a bounded 24-hour map view", async () => {
   const env = environment();
   const response = await handleRequest(new Request("https://api.example/api/v1/timeline?at=2026-07-20T09:00:00Z"), env);

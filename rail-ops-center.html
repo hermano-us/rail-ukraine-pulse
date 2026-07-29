@@ -152,6 +152,14 @@
             <p class="muted">Автоматическая связь создаётся только по устойчивому идентификатору локомотива или явно указанному номеру поезда.</p>
             <div class="table-wrap"><table><thead><tr><th>Идентификатор</th><th>Коридор</th><th>Направление</th><th>Станционные факты</th><th>Источники</th><th>Уверенность</th></tr></thead><tbody id="freight-track-rows"></tbody></table></div>
           </details>
+          <div class="operations-filters" id="operations-filters" role="group" aria-label="Фильтр перевозок">
+            <button type="button" class="active" data-operations-filter="all">Все</button>
+            <button type="button" data-operations-filter="decision">Требует решения</button>
+            <button type="button" data-operations-filter="silent">Нет новых фактов</button>
+            <button type="button" data-operations-filter="low-confidence">Низкая уверенность</button>
+            <button type="button" data-operations-filter="changed">Прогноз изменился</button>
+            <output id="operations-filter-count">—</output>
+          </div>
           <details class="collapsible-list" data-collapse-key="operations-movements" open><summary>Реестр перевозок</summary><div class="table-wrap"><table><thead><tr><th>Поезд</th><th>Маршрут</th><th>Статус</th><th>Задержка</th><th>ETA</th><th>Последний факт</th><th>Workflow</th></tr></thead><tbody id="operations-movement-rows"></tbody></table></div></details>
         </div>
         <div class="platform-panel" data-platform-panel="analytics" hidden>

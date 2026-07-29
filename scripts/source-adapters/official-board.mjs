@@ -18,6 +18,8 @@ export function recoverOfficialBoard(previous = {}, error, checkedAt = new Date(
     || (previous.status?.status === "online" ? previous.status.checkedAt : null)
     || records.map((record) => record.observedAt).filter(Boolean).sort().at(-1)
     || null;
+  const diagnostics = error?.boardDiagnostics || {};
+  const scheduler = diagnostics.scheduler || previous.scheduler || previous.status?.scheduler || null;
   return {
     status: {
       status: records.length || updates.length ? "stale" : "unavailable",
@@ -28,13 +30,13 @@ export function recoverOfficialBoard(previous = {}, error, checkedAt = new Date(
       failureKind: challengeDetected ? "upstream-challenge" : "transport-error",
       capabilities: ["station-board", "last-successful-cache"],
       coverage: previous.coverage || previous.status?.coverage || null,
-      scheduler: previous.scheduler || previous.status?.scheduler || null,
+      scheduler,
     },
     records,
     updates,
-    failures: [{ station: null, error: message }],
+    failures: diagnostics.failures?.length ? diagnostics.failures : [{ station: null, error: message }],
     coverage: previous.coverage || previous.status?.coverage || null,
-    scheduler: previous.scheduler || previous.status?.scheduler || null,
+    scheduler,
   };
 }
 export function boardRowsToUpdates(records) {
@@ -134,6 +136,7 @@ export async function collectOfficialBoard(options = {}) {
       stationOffset: options.stationOffset,
       updates: options.updates || [],
       previousRecords: options.previous?.records || [],
+      coveragePriorities: options.coveragePriorities || [],
     });
     const updates = boardRowsToUpdates(result.records);
     const cache = mergeBoardCache(options.previous?.records || [], result.records, result.checkedAt, options.cacheTtlHours || 8);

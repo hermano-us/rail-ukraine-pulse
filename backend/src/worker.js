@@ -96,6 +96,12 @@ async function storeSourceHealth(env, sourceStatus, recordsCount) {
     sourceStatus.error || null,
   )]);
 }
+async function handleCollectorBoardPriorities(request,env){
+  if(!authorized(request,env))return json({error:"unauthorized"},{status:401},request,env);
+  const result=await env.DB.prepare("SELECT station_id,station_name,priority_score,expected_runs,silent_runs,ambiguous_twins,overdue_twins,minutes_since_fact,reason_json,calculated_at FROM station_coverage_priorities ORDER BY priority_score DESC LIMIT 100").all();
+  const stations=(result?.results||[]).map((item)=>{let reasons=[];try{reasons=JSON.parse(item.reason_json||"[]");}catch{}return {stationId:item.station_id,stationName:item.station_name,priorityScore:Number(item.priority_score)||0,expectedRuns:Number(item.expected_runs)||0,silentRuns:Number(item.silent_runs)||0,ambiguousTwins:Number(item.ambiguous_twins)||0,overdueTwins:Number(item.overdue_twins)||0,minutesSinceFact:item.minutes_since_fact==null?null:Number(item.minutes_since_fact),reasons,calculatedAt:item.calculated_at};});
+  return json({generatedAt:new Date().toISOString(),strategy:"information-gain-v2",stations},{headers:{"Cache-Control":"no-store"}},request,env);
+}
 async function handleCollectorHeartbeat(request, env) {
   if (!authorized(request, env)) return json({ error: "unauthorized" }, { status: 401 }, request, env);
   const body = await request.json();
@@ -524,6 +530,7 @@ export async function handleRequest(request, env) {
       headers.set("Cache-Control", "no-store");
       return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
     }
+    if (request.method === "GET" && url.pathname === "/api/v1/collector/board-priorities") return handleCollectorBoardPriorities(request,env);
     if (request.method === "POST" && url.pathname === "/api/v1/collector/heartbeat") return handleCollectorHeartbeat(request, env);
     if (["GET","POST"].includes(request.method) && url.pathname === "/api/v1/rail-observations") return handlePublicObservationRequest(request,env,(value,status=200)=>json(value,{status,headers:{"Cache-Control":"no-store"}},request,env));
     if (request.method === "GET" && url.pathname === "/api/health") return getHealth(request, env);

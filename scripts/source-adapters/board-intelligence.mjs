@@ -36,20 +36,25 @@ function demandForUpdates(updates) {
   return demand;
 }
 
-export function rankBoardStations(stations, { updates = [], previousRecords = [], now = new Date().toISOString() } = {}) {
+export function rankBoardStations(stations, { updates = [], previousRecords = [], coveragePriorities = [], now = new Date().toISOString() } = {}) {
   const nowMs = finiteDate(now) || Date.now(), demand = demandForUpdates(updates), lastSeen = new Map();
+  const coverage = new Map();
+  for (const priority of Array.isArray(coveragePriorities) ? coveragePriorities : []) {
+    for (const value of [priority?.stationName, priority?.stationId]) { const key=normalize(value); if(key) coverage.set(key,priority); }
+  }
   for (const record of Array.isArray(previousRecords) ? previousRecords : []) {
     const key = normalize(record?.station), observed = finiteDate(record?.observedAt);
     if (key && observed != null && observed > (lastSeen.get(key) || 0)) lastSeen.set(key, observed);
   }
   return (Array.isArray(stations) ? stations : []).map((station) => {
-    const key = normalize(station?.name), stationDemand = demand.get(key);
+    const key = normalize(station?.name), stationDemand = demand.get(key), coverageDemand=coverage.get(key);
     const lastObservedMs = lastSeen.get(key) || null;
     const silenceMinutes = lastObservedMs == null ? 720 : Math.max(0, (nowMs - lastObservedMs) / 60_000);
     const centrality = HUB_WEIGHT.get(key) || 1;
-    const score = centrality * 2 + (stationDemand?.points || 0) + Math.min(12, silenceMinutes / 60);
+    const score = centrality * 2 + (stationDemand?.points || 0) + Math.min(12, silenceMinutes / 60) + Math.min(90,Number(coverageDemand?.priorityScore)||0)*.75;
     const reasons = [];
     if (stationDemand?.trains.size) reasons.push(`${stationDemand.trains.size} \u043e\u0436\u0438\u0434\u0430\u0435\u043c\u044b\u0445 \u0440\u0435\u0439\u0441\u043e\u0432`);
+    if (coverageDemand) reasons.push(...(Array.isArray(coverageDemand.reasons)?coverageDemand.reasons:["Rail Intelligence priority"]));
     if (centrality >= 4) reasons.push("\u043a\u043b\u044e\u0447\u0435\u0432\u043e\u0439 \u0443\u0437\u0435\u043b");
     reasons.push(lastObservedMs == null ? "\u043d\u0435\u0442 \u0441\u0432\u0435\u0436\u0435\u0433\u043e \u0441\u043d\u0438\u043c\u043a\u0430" : `\u0442\u0438\u0448\u0438\u043d\u0430 ${Math.round(silenceMinutes)} \u043c\u0438\u043d`);
     return {

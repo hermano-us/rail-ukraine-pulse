@@ -37,7 +37,10 @@ test("public map contains a collapsible station board and a 24-hour timeline", a
   assert.match(html,/id="station-board"/);
   assert.match(html,/data-board-mode="arrivals"/);
   assert.match(html,/id="map-timeline-meta"/);
+  assert.match(html,/id="map-timeline-toggle"[^>]+aria-expanded="true"/);
   assert.match(html,/id="map-timeline-range"[^>]+min="-1440"[^>]+step="15"/);
+  assert.match(app,/TIMELINE_COLLAPSE_KEY/);
+  assert.match(app,/setMapTimelineCollapsed/);
   assert.match(app,/loadMapTimeline/);
   assert.match(app,/buildTimelineObjects/);
   assert.match(client,/\/api\/v1\/timeline/);

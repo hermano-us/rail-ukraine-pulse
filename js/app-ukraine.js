@@ -8,6 +8,7 @@ const HISTORY_KEY="rail-ukraine-pulse:run-history:v2";
 const FAVORITES_KEY="rail-ukraine-pulse:favorites:v1";
 function readFavorites(){try{return new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY)||"[]"));}catch{return new Set();}}
 const LAYOUT_KEY="rail-ukraine-pulse:workspace-layout:v1";
+const TIMELINE_COLLAPSE_KEY="rail-ukraine-pulse:map-timeline-collapsed:v1";
 const state={
   data:null,transport:"all",favorites:readFavorites(),statuses:new Set(Object.keys(POSITION_STATUSES)),
   operations:new Set(Object.keys(OPERATION_LABELS)),regions:new Set(),minConfidence:0,
@@ -442,7 +443,17 @@ function resetFilters(){
   document.querySelectorAll('.status-toggle input,.region-toggle input').forEach((input)=>input.checked=true);render();
 }
 
+function setMapTimelineCollapsed(collapsed){
+  const panel=$("#map-timeline"),button=$("#map-timeline-toggle");
+  panel?.classList.toggle("collapsed",collapsed);
+  button?.setAttribute("aria-expanded",String(!collapsed));
+  button?.setAttribute("aria-label",collapsed?"Expand map timeline":"Collapse map timeline");
+  if(button)button.innerHTML=collapsed?"&#8964;":"&#8963;";
+  try{localStorage.setItem(TIMELINE_COLLAPSE_KEY,collapsed?"1":"0");}catch{}
+}
+
 function bindControls(){
+  setMapTimelineCollapsed(localStorage.getItem(TIMELINE_COLLAPSE_KEY)==="1");
   document.querySelectorAll("[data-fleet-scope]").forEach(button=>button.addEventListener("click",()=>{
     state.registryScope=button.dataset.fleetScope;
     document.querySelectorAll("[data-fleet-scope]").forEach(item=>item.classList.toggle("active",item===button));
@@ -468,6 +479,7 @@ function bindControls(){
   $("#station-board-close")?.addEventListener("click",()=>{elements.board.classList.remove("open");elements.board.setAttribute("aria-hidden","true");$("#station-board-toggle").setAttribute("aria-expanded","false");});
   document.querySelectorAll("[data-board-mode]").forEach(button=>button.addEventListener("click",()=>{state.boardMode=button.dataset.boardMode;document.querySelectorAll("[data-board-mode]").forEach(item=>item.classList.toggle("active",item===button));renderStationBoard();}));
   elements.boardStation?.addEventListener("change",()=>{state.boardStation=elements.boardStation.value;renderStationBoard();});
+  $("#map-timeline-toggle")?.addEventListener("click",()=>setMapTimelineCollapsed(!$("#map-timeline")?.classList.contains("collapsed")));
   $("#map-timeline-range")?.addEventListener("input",event=>{$("#map-timeline-output").textContent=timelineLabel(Number(event.target.value));scheduleMapTimeline(Number(event.target.value));});
   $("#map-timeline-live")?.addEventListener("click",()=>{stopMapPlayback();$("#map-timeline-range").value="0";applyMapTimeline(0);});
   $("#map-timeline-play")?.addEventListener("click",()=>{

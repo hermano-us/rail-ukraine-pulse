@@ -78,3 +78,17 @@ test("edge collector persists cooldown and degraded heartbeat after throttling",
   assert.equal(state.cooldownUntil, "2026-07-29T12:10:00.000Z");
   assert.equal(JSON.parse(env.values.get("collector:heartbeat")).status, "degraded");
 });
+
+test("edge collector follows adaptive Rail Intelligence station priority", async () => {
+  const env=environment({"intelligence:board-priorities:v1":{stations:[{stationName:"Priority Junction",priorityScore:90,reasons:["silent run"]}]}});
+  const requested=[];
+  const fetchImpl=async (url)=>{
+    requested.push(String(url));
+    if(String(url).endsWith("station-boards"))return jsonResponse([{id:1,name:"Routine Junction"},{id:2,name:"Priority Junction"}]);
+    return jsonResponse({station:{name:String(url).endsWith("/2")?"Priority Junction":"Routine Junction"},departures:[],arrivals:[]});
+  };
+  const result=await collectOfficialBoardEdge(env,{now:"2026-07-29T12:00:00Z",fetchImpl});
+  assert.equal(result.station.name,"Priority Junction");
+  assert.ok(requested[1].endsWith("/2"));
+  assert.equal(result.diagnostics.scheduler.strategy,"information-gain-edge-v2");
+});
