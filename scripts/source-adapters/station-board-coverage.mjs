@@ -44,7 +44,9 @@ function clockOnServiceDay(value, observedAt) {
 
 export function classifyBoardWindow(record, options = {}) {
   const observedAt = record?.observedAt || options.observedAt || new Date().toISOString();
-  const scheduledAt = clockOnServiceDay(record?.scheduledTime, observedAt);
+  const exactScheduledAt = new Date(record?.scheduledAt || "");
+  const scheduledAt = Number.isFinite(exactScheduledAt.getTime())
+    ? exactScheduledAt.toISOString() : clockOnServiceDay(record?.scheduledTime, observedAt);
   if (!scheduledAt) return { scheduledAt: null, phase: "schedule", isStationFact: false, offsetMinutes: null };
   const offsetMinutes = (Date.parse(observedAt) - Date.parse(scheduledAt)) / 60_000;
   const before = Number(options.beforeMinutes ?? 45), after = Number(options.afterMinutes ?? 90);

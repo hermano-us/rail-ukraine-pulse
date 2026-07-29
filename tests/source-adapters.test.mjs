@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { boardRowsToUpdates, recoverOfficialBoard } from "../scripts/source-adapters/official-board.mjs";
 import { BOARD_STATIONS, classifyBoardWindow, distributeStations, stationBoardPlan } from "../scripts/source-adapters/station-board-coverage.mjs";
+import { apiBoardToRecords, fetchOfficialBoardRecords, selectApiStations } from "../scripts/source-adapters/official-board-api.mjs";
 import { parseTelegramFeed, rehydrateTelegramPosts, telegramUpdates } from "../scripts/source-adapters/telegram.mjs";
 
 test("official board rows become station-window updates, not GPS", () => {
@@ -122,4 +123,44 @@ test("delay parser ignores timetable clocks and impossible values", async () => 
   assert.equal(parseDelayMinutes("№6366: затримка до 40 хвилин"), 40);
   assert.equal(parseDelayMinutes("відправлення о 09:26"), null);
   assert.equal(parseDelayMinutes("затримка +66:40"), null);
+});
+
+test("official JSON board preserves exact schedule time and delay", () => {
+  const scheduledAt = "2026-07-29T05:00:00.000Z";
+  const records = apiBoardToRecords({
+    station: { id: 2200001, name: "Київ-Пасажирський" },
+    arrivals: [{ train: "24К", route: "Хелм → Київ-Пас", time: Date.parse(scheduledAt) / 1000, platform: null, delay_minutes: 145 }],
+    departures: [],
+    peron: false,
+  }, "2026-07-29T04:50:00.000Z");
+  assert.equal(records.length, 1);
+  assert.equal(records[0].scheduledAt, scheduledAt);
+  assert.equal(records[0].scheduledTime, "08:00");
+  assert.equal(records[0].delayLabel, "+2:25");
+  assert.equal(classifyBoardWindow(records[0]).isStationFact, true);
+});
+
+test("official JSON collector uses a fresh anonymous session contract", async () => {
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, headers: options.headers });
+    if (url.endsWith("/station-boards")) return new Response(JSON.stringify([
+      { id: 2200001, name: "Київ-Пасажирський" },
+      { id: 2218000, name: "Львів" },
+    ]), { status: 200, headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify({
+      station: { id: 2200001, name: "Київ-Пасажирський" },
+      arrivals: [],
+      departures: [{ train: "9К", route: "Київ-Пас → Будапешт", time: Date.parse("2026-07-29T07:00:00Z") / 1000, platform: "1", delay_minutes: null }],
+      peron: false,
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const result = await fetchOfficialBoardRecords({ stations: ["Київ-Пасажирський"], concurrency: 1, fetchImpl, sessionId: "11111111-1111-4111-8111-111111111111" });
+  assert.equal(result.plannedStations.length, 1);
+  assert.equal(result.records.length, 1);
+  assert.equal(result.transport, "official-json-api");
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].headers["x-session-id"], "11111111-1111-4111-8111-111111111111");
+  assert.equal(calls[0].headers["x-user-agent"], "UZ/2 Web/1 User/guest");
+  assert.equal(selectApiStations([{ id: 1, name: "Львів" }], ["Київ-Пасажирський"]).length, 0);
 });

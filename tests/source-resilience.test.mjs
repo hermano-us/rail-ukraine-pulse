@@ -12,8 +12,7 @@ test("dashboard direct TLS failure is reported as degraded when the fresh mirror
   assert.match(worker, /mirrorAge<=20\?"online":"stale"/);
   assert.match(worker, /usableSources\s*>\s*0/);
   assert.match(worker, /freshSources\s*>\s*0\?"success":"degraded"/);
-  assert.match(workflow, /cron: "\*\/5 \* \* \* \*"/);
-  assert.match(workflow, /cron: "7,27,47 \* \* \* \*"/);
-  assert.match(workflow, /BOARD_CONCURRENCY: "3"/);
-  assert.match(workflow, /SKIP_BROWSER_SOURCE/);
+  assert.match(workflow, /cron: "\*\/10 \* \* \* \*"/);
+  assert.match(workflow, /BOARD_CONCURRENCY: "2"/);
+  assert.doesNotMatch(workflow, /playwright install|xvfb-run|SKIP_BROWSER_SOURCE/);
 });

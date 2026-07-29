@@ -1,5 +1,6 @@
 import { normalizeTrainNumber, parseDelayMinutes, splitRoute } from "./html.mjs";
 import { BOARD_STATIONS, classifyBoardWindow, distributeStations, stationBoardPlan } from "./station-board-coverage.mjs";
+import { fetchOfficialBoardRecords } from "./official-board-api.mjs";
 
 export const BOARD_URL = "https://booking.uz.gov.ua/schedule";
 export { BOARD_STATIONS } from "./station-board-coverage.mjs";
@@ -66,7 +67,7 @@ async function readStation(page, station, observedAt) {
   }, { station, observedAt });
 }
 
-export async function collectOfficialBoard({ stations = BOARD_STATIONS } = {}) {
+async function collectOfficialBoardViaUi({ stations = BOARD_STATIONS } = {}) {
   const { chromium } = await import("playwright");
   const browser = await chromium.launch({ headless: process.env.BOARD_HEADLESS !== "false" });
   const checkedAt = new Date().toISOString(), records = [], failures = [];
@@ -115,4 +116,26 @@ export async function collectOfficialBoard({ stations = BOARD_STATIONS } = {}) {
     status: { status: failures.length && successfulStations < plannedStations.length * .7 ? "degraded" : "online", checkedAt, lastSuccessfulAt: checkedAt, label: `Табло УЗ: ${records.length} строк, ${successfulStations}/${plannedStations.length} станций, ${coverage.stationFacts} актуальных окон`, capabilities: ["station-board", "platform", "schedule", "delay", "mass-node-coverage"], coverage },
     records, failures, updates, coverage,
   };
+}
+
+export async function collectOfficialBoard(options = {}) {
+  try {
+    const result = await fetchOfficialBoardRecords({
+      stations: Array.isArray(options.stations) ? options.stations : null,
+      concurrency: options.concurrency || process.env.BOARD_CONCURRENCY || 2,
+      fetchImpl: options.fetchImpl || fetch,
+      sessionId: options.sessionId,
+    });
+    const updates = boardRowsToUpdates(result.records);
+    const successfulStations = new Set(result.records.map((item) => item.station)).size;
+    const plannedStations = result.plannedStations.length;
+    const coverage = { plannedStations, successfulStations, failedStations: result.failures.length, records: result.records.length, stationFacts: updates.filter((item) => item.reportedStation).length, scheduleRows: updates.filter((item) => !item.reportedStation).length, transport: result.transport };
+    return {
+      status: { status: result.failures.length && successfulStations < plannedStations * .7 ? "degraded" : "online", checkedAt: result.checkedAt, lastSuccessfulAt: result.checkedAt, label: `Табло УЗ API: ${result.records.length} строк, ${successfulStations}/${plannedStations} станций, ${coverage.stationFacts} актуальных окон`, capabilities: ["official-json-api", "station-board", "platform", "schedule", "delay", "mass-node-coverage"], coverage },
+      records: result.records, failures: result.failures, updates, coverage,
+    };
+  } catch (error) {
+    if (process.env.BOARD_UI_FALLBACK === "1") return collectOfficialBoardViaUi(options);
+    throw error;
+  }
 }
