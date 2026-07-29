@@ -18,6 +18,7 @@ export function buildCollectorHeartbeat(runtime, env = process.env) {
     recordsCount: Math.max(0, Number(coverage?.records) || 0),
     board: scheduler ? {
       selectedStation: scheduler.selectedStation || null,
+      selectedStationId: scheduler.selectedStationId || scheduler.rankedStations?.[0]?.id || null,
       strategy: scheduler.strategy || null,
       requestBudget: Math.max(0, Number(scheduler.requestBudget) || 0),
     } : null,

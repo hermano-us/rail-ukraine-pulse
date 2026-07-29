@@ -198,7 +198,7 @@ test("board scheduler advances after a failed station request", async () => {
   assert.equal(failure.boardDiagnostics.scheduler.offset, 0);
   assert.equal(failure.boardDiagnostics.scheduler.nextOffset, 1);
   const recovered = recoverOfficialBoard({ records: [], scheduler: { nextOffset: 0 } }, failure);
-  assert.equal(recovered.scheduler.strategy, "information-gain-v2");
+  assert.equal(recovered.scheduler.strategy, "information-gain-v3");
   assert.equal(recovered.scheduler.nextOffset, 1);
   assert.equal(recovered.failures.length, 1);
 });

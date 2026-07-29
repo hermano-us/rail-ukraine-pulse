@@ -50,15 +50,15 @@ function runScript(script, extraEnv = {}) {
 }
 
 async function loadBoardPriorities(){
-  if(!apiEndpoint||ingestToken.length<24)return [];
+  if(!apiEndpoint||ingestToken.length<24)return {stations:[],requestBudget:1};
   const response=await fetch(`${apiEndpoint}/api/v1/collector/board-priorities`,{headers:{Authorization:`Bearer ${ingestToken}`,Accept:"application/json"},signal:AbortSignal.timeout(15_000)});
   if(!response.ok)throw new Error(`collector priorities HTTP ${response.status}`);
-  const payload=await response.json();return Array.isArray(payload?.stations)?payload.stations:[];
+  const payload=await response.json();return {stations:Array.isArray(payload?.stations)?payload.stations:[],requestBudget:Math.max(1,Math.min(6,Number(payload?.recommendedRequestBudget)||1))};
 }
 async function runCycle() {
-  const priorities=await loadBoardPriorities().catch((error)=>{state.lastPriorityError=String(error?.message||error).slice(0,300);return [];});
+  const priorityPlan=await loadBoardPriorities().catch((error)=>{state.lastPriorityError=String(error?.message||error).slice(0,300);return {stations:[],requestBudget:1};}),priorities=priorityPlan.stations;
   state.lastPriorityCount=priorities.length;if(priorities.length)state.lastPriorityError=null;
-  await runScript("scripts/update-transport-data.mjs", { BOARD_HEADLESS: process.env.BOARD_HEADLESS || "true", BOARD_COVERAGE_PRIORITIES_JSON:JSON.stringify(priorities) });
+  await runScript("scripts/update-transport-data.mjs", { BOARD_HEADLESS: process.env.BOARD_HEADLESS || "true", BOARD_COVERAGE_PRIORITIES_JSON:JSON.stringify(priorities), BOARD_REQUEST_BUDGET:String(priorityPlan.requestBudget) });
   await runScript("scripts/push-backend-snapshot.mjs");
 }
 async function sendHeartbeat() {
@@ -82,6 +82,7 @@ async function sendHeartbeat() {
       recordsCount: Number(board?.coverage?.records || 0),
       board: board?.scheduler ? {
         selectedStation: board.scheduler.selectedStation,
+        selectedStationId: board.scheduler.selectedStationId || board.scheduler.rankedStations?.[0]?.id || null,
         strategy: board.scheduler.strategy,
         requestBudget: board.scheduler.requestBudget,
       } : null,

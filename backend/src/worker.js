@@ -12,9 +12,10 @@ import { runIntelligenceCycle } from "./intelligence/service.js";
 import { ingestExpectedRuns } from "./intelligence/expected-registry.js";
 import { handlePublicObservationRequest } from "./intelligence/observation-submissions.js";
 import { collectOfficialBoardEdge } from "./edge-board-collector.js";
+import { dynamicRequestBudget } from "./intelligence/data-reliability.js";
 
 const SNAPSHOT_KEY = "public:v1:snapshot";
-const WORKER_VERSION = "intelligence-v8-platform-suite";
+const WORKER_VERSION = "intelligence-v9-reliability-fusion";
 const FRESH_MINUTES = 20;
 const DEGRADED_MINUTES = 60;
 const STREAM_RETRY_MS = 10_000;
@@ -98,9 +99,15 @@ async function storeSourceHealth(env, sourceStatus, recordsCount) {
 }
 async function handleCollectorBoardPriorities(request,env){
   if(!authorized(request,env))return json({error:"unauthorized"},{status:401},request,env);
-  const result=await env.DB.prepare("SELECT station_id,station_name,priority_score,expected_runs,silent_runs,ambiguous_twins,overdue_twins,minutes_since_fact,reason_json,calculated_at FROM station_coverage_priorities ORDER BY priority_score DESC LIMIT 100").all();
-  const stations=(result?.results||[]).map((item)=>{let reasons=[];try{reasons=JSON.parse(item.reason_json||"[]");}catch{}return {stationId:item.station_id,stationName:item.station_name,priorityScore:Number(item.priority_score)||0,expectedRuns:Number(item.expected_runs)||0,silentRuns:Number(item.silent_runs)||0,ambiguousTwins:Number(item.ambiguous_twins)||0,overdueTwins:Number(item.overdue_twins)||0,minutesSinceFact:item.minutes_since_fact==null?null:Number(item.minutes_since_fact),reasons,calculatedAt:item.calculated_at};});
-  return json({generatedAt:new Date().toISOString(),strategy:"information-gain-v2",stations},{headers:{"Cache-Control":"no-store"}},request,env);
+  const [result,collectorsResult]=await Promise.all([
+    env.DB.prepare("SELECT station_id,station_name,priority_score,expected_runs,silent_runs,ambiguous_twins,overdue_twins,minutes_since_fact,reason_json,calculated_at,priority_tier,collector_failures,next_eligible_at FROM station_coverage_priorities ORDER BY CASE priority_tier WHEN 'critical' THEN 0 WHEN 'corridor' THEN 1 ELSE 2 END,priority_score DESC LIMIT 100").all(),
+    env.DB.prepare("SELECT status,COUNT(*) total FROM trusted_collector_registry WHERE last_heartbeat_at>=datetime('now','-20 minutes') GROUP BY status").all(),
+  ]);
+  const stations=(result?.results||[]).map((item)=>{let reasons=[];try{reasons=JSON.parse(item.reason_json||"[]");}catch{}return {stationId:item.station_id,stationName:item.station_name,priorityScore:Number(item.priority_score)||0,priorityTier:item.priority_tier||"background",expectedRuns:Number(item.expected_runs)||0,silentRuns:Number(item.silent_runs)||0,ambiguousTwins:Number(item.ambiguous_twins)||0,overdueTwins:Number(item.overdue_twins)||0,minutesSinceFact:item.minutes_since_fact==null?null:Number(item.minutes_since_fact),collectorFailures:Number(item.collector_failures)||0,nextEligibleAt:item.next_eligible_at||null,reasons,calculatedAt:item.calculated_at};});
+  const collectorCounts=Object.fromEntries((collectorsResult?.results||[]).map((item)=>[item.status,Number(item.total)||0]));
+  const activeCollectors=(collectorCounts.healthy||0)+(collectorCounts.starting||0),degradedCollectors=collectorCounts.degraded||0,urgentStations=stations.filter((item)=>item.priorityTier==="critical").length;
+  const recommendedRequestBudget=dynamicRequestBudget({urgentStations,activeCollectors,degradedCollectors,upstreamHealthy:degradedCollectors===0||activeCollectors>0});
+  return json({generatedAt:new Date().toISOString(),strategy:"information-gain-v3",recommendedRequestBudget,fleet:{activeCollectors,degradedCollectors},stations},{headers:{"Cache-Control":"no-store"}},request,env);
 }
 async function handleCollectorHeartbeat(request, env) {
   if (!authorized(request, env)) return json({ error: "unauthorized" }, { status: 401 }, request, env);
@@ -117,11 +124,16 @@ async function handleCollectorHeartbeat(request, env) {
     runs: Math.max(0, Number(body?.runs) || 0),
     board: body?.board && typeof body.board === "object" ? {
       selectedStation: String(body.board.selectedStation || "").slice(0, 120) || null,
+      selectedStationId: String(body.board.selectedStationId || "").slice(0, 120) || null,
       strategy: String(body.board.strategy || "").slice(0, 80) || null,
       requestBudget: Math.max(0, Number(body.board.requestBudget) || 0),
     } : null,
   };
   if (env.SNAPSHOT) await env.SNAPSHOT.put("collector:heartbeat", JSON.stringify(heartbeat), { expirationTtl: 900 });
+  const stationName=heartbeat.board?.selectedStation,stationKey=heartbeat.board?.selectedStationId||String(stationName||"").normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu,"-").replace(/^-|-$/g,"").slice(0,120);
+  const registryStatements=[env.DB.prepare(`INSERT INTO trusted_collector_registry(collector_id,version,status,request_budget,consecutive_failures,last_station_id,last_station_name,last_heartbeat_at,last_success_at,metadata_json) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10) ON CONFLICT(collector_id) DO UPDATE SET version=excluded.version,status=excluded.status,request_budget=excluded.request_budget,consecutive_failures=excluded.consecutive_failures,last_station_id=excluded.last_station_id,last_station_name=excluded.last_station_name,last_heartbeat_at=excluded.last_heartbeat_at,last_success_at=excluded.last_success_at,metadata_json=excluded.metadata_json`).bind(collectorId,heartbeat.version,status,heartbeat.board?.requestBudget||1,heartbeat.consecutiveFailures,stationKey||null,stationName,checkedAt,heartbeat.lastSucceededAt,JSON.stringify({runs:heartbeat.runs,strategy:heartbeat.board?.strategy||null}))];
+  if(stationKey)registryStatements.push(env.DB.prepare(`INSERT INTO station_poll_health(collector_id,station_id,station_name,attempts,successes,consecutive_failures,records_total,last_attempt_at,last_success_at,cooldown_until,last_error,updated_at) VALUES(?1,?2,?3,1,?4,?5,?6,?7,?8,?9,?10,?7) ON CONFLICT(collector_id,station_id) DO UPDATE SET station_name=excluded.station_name,attempts=station_poll_health.attempts+1,successes=station_poll_health.successes+excluded.successes,consecutive_failures=excluded.consecutive_failures,records_total=station_poll_health.records_total+excluded.records_total,last_attempt_at=excluded.last_attempt_at,last_success_at=COALESCE(excluded.last_success_at,station_poll_health.last_success_at),cooldown_until=excluded.cooldown_until,last_error=excluded.last_error,updated_at=excluded.updated_at`).bind(collectorId,stationKey,stationName,status==="healthy"?1:0,heartbeat.consecutiveFailures,Math.max(0,Number(body?.recordsCount)||0),checkedAt,status==="healthy"?checkedAt:null,status==="healthy"?null:new Date(Date.parse(checkedAt)+Math.min(60,5*Math.max(1,heartbeat.consecutiveFailures))*60000).toISOString(),status==="healthy"?null:`collector ${status}`));
+  await env.DB.batch(registryStatements);
   await storeSourceHealth(env, {
     sourceId: `trusted-collector:${collectorId}`, status: status === "healthy" ? "online" : status,
     checkedAt, error: status === "healthy" ? null : `collector ${status}`,

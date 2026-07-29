@@ -146,9 +146,9 @@ export async function fetchOfficialBoardRecords({
   const count = Math.max(1, Math.min(3, Number(concurrency) || 1, planned.length));
   await Promise.all(Array.from({ length: count }, worker));
   const scheduler = {
-    strategy: "information-gain-v2", requestBudget: budget, attempted, offset,
+    strategy: "information-gain-v3", requestBudget: budget, attempted, offset,
     nextOffset: (offset + Math.max(1, attempted)) % ranked.length,
-    selectedStation: records[0]?.station || planned[0]?.name || null,
+    selectedStation: records[0]?.station || planned[0]?.name || null, selectedStationId: planned[0]?.id || null,
     selectedReason: planned[0]?.reasons || [], selectedScore: planned[0]?.score || 0,
     rankedStations: planned.slice(0, 5).map(({ id, name, score, expectedTrains, reasons }) => ({ id, name, score, expectedTrains, reasons })),
   };

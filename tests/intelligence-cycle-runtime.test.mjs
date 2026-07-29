@@ -20,7 +20,7 @@ class D1Adapter {
 
 test("autonomous intelligence cycle persists graph, twin, operations and analytics", async () => {
   const database=new DatabaseSync(":memory:");
-  for(const file of ["0001_initial.sql","0004_model_observability.sql","0011_intelligence_platform.sql","0013_rail_intelligence_v2.sql","0014_rail_graph_registry.sql","0015_rail_intelligence_routing.sql","0016_rail_foundation_fusion.sql","0017_rail_intelligence_v3.sql","0018_observation_fusion_v2.sql","0020_observation_fusion_v3.sql","0021_operations_hub_v2.sql"]){
+  for(const file of ["0001_initial.sql","0004_model_observability.sql","0011_intelligence_platform.sql","0013_rail_intelligence_v2.sql","0014_rail_graph_registry.sql","0015_rail_intelligence_routing.sql","0016_rail_foundation_fusion.sql","0017_rail_intelligence_v3.sql","0018_observation_fusion_v2.sql","0020_observation_fusion_v3.sql","0021_operations_hub_v2.sql","0022_reliability_fusion_calibration_v4.sql"]){
     database.exec(await readFile(new URL(`../backend/migrations/${file}`,import.meta.url),"utf8"));
   }
   const now=new Date(),observedAt=new Date(now.getTime()-5*60_000).toISOString(),nowIso=now.toISOString();
@@ -59,7 +59,7 @@ test("autonomous intelligence cycle persists graph, twin, operations and analyti
 
 test("historical station pairs warm calibration while stale positions lose coordinates", async () => {
   const database=new DatabaseSync(":memory:");
-  for(const file of ["0001_initial.sql","0004_model_observability.sql","0011_intelligence_platform.sql","0013_rail_intelligence_v2.sql","0014_rail_graph_registry.sql","0015_rail_intelligence_routing.sql","0016_rail_foundation_fusion.sql","0017_rail_intelligence_v3.sql","0018_observation_fusion_v2.sql","0020_observation_fusion_v3.sql","0021_operations_hub_v2.sql"]){database.exec(await readFile(new URL(`../backend/migrations/${file}`,import.meta.url),"utf8"));}
+  for(const file of ["0001_initial.sql","0004_model_observability.sql","0011_intelligence_platform.sql","0013_rail_intelligence_v2.sql","0014_rail_graph_registry.sql","0015_rail_intelligence_routing.sql","0016_rail_foundation_fusion.sql","0017_rail_intelligence_v3.sql","0018_observation_fusion_v2.sql","0020_observation_fusion_v3.sql","0021_operations_hub_v2.sql","0022_reliability_fusion_calibration_v4.sql"]){database.exec(await readFile(new URL(`../backend/migrations/${file}`,import.meta.url),"utf8"));}
   const now=new Date(),firstAt=new Date(now.getTime()-6*60*60_000).toISOString(),lastAt=new Date(now.getTime()-5*60*60_000).toISOString(),nowIso=now.toISOString();
   database.prepare(`INSERT INTO runs(run_id,train_number,service_date,route,origin,destination,current_update_json,first_observed_at,last_observed_at) VALUES(?,?,?,?,?,?,?,?,?)`).run("run-replay","2417","2026-07-27","Kyiv - Fastiv","Kyiv","Fastiv",JSON.stringify({latitude:50.45,longitude:30.52,confidence:.9,reportedStation:"Fastiv"}),firstAt,lastAt);
   const event=database.prepare(`INSERT INTO events(event_id,run_id,event_type,station,occurred_at,observed_at,source_id,authority,reliability,position_evidence,raw_update_json) VALUES(?,?,?,?,?,?,?,?,?,?,?)`);
@@ -74,7 +74,7 @@ test("historical station pairs warm calibration while stale positions lose coord
 
 test("next station fact resolves a prospective v4 prediction exactly once", async()=>{
   const database=new DatabaseSync(":memory:");
-  for(const file of ["0001_initial.sql","0004_model_observability.sql","0011_intelligence_platform.sql","0013_rail_intelligence_v2.sql","0014_rail_graph_registry.sql","0015_rail_intelligence_routing.sql","0016_rail_foundation_fusion.sql","0017_rail_intelligence_v3.sql","0018_observation_fusion_v2.sql","0020_observation_fusion_v3.sql","0021_operations_hub_v2.sql"]){database.exec(await readFile(new URL(`../backend/migrations/${file}`,import.meta.url),"utf8"));}
+  for(const file of ["0001_initial.sql","0004_model_observability.sql","0011_intelligence_platform.sql","0013_rail_intelligence_v2.sql","0014_rail_graph_registry.sql","0015_rail_intelligence_routing.sql","0016_rail_foundation_fusion.sql","0017_rail_intelligence_v3.sql","0018_observation_fusion_v2.sql","0020_observation_fusion_v3.sql","0021_operations_hub_v2.sql","0022_reliability_fusion_calibration_v4.sql"]){database.exec(await readFile(new URL(`../backend/migrations/${file}`,import.meta.url),"utf8"));}
   const started=new Date(),anchorAt=new Date(started.getTime()-10*60_000).toISOString(),factAt=new Date(started.getTime()+50*60_000).toISOString();
   database.prepare(`INSERT INTO runs(run_id,train_number,service_date,route,origin,destination,current_update_json,first_observed_at,last_observed_at) VALUES(?,?,?,?,?,?,?,?,?)`).run("run-live","091",started.toISOString().slice(0,10),"Kyiv - Fastiv","Kyiv","Fastiv","{}",anchorAt,anchorAt);
   database.prepare(`INSERT INTO events(event_id,run_id,event_type,station,occurred_at,observed_at,source_id,authority,reliability,position_evidence,raw_update_json) VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run("live-a","run-live","station_report","Kyiv",anchorAt,anchorAt,"uz-live","public",.9,"station","{}");

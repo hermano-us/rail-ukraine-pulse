@@ -25,21 +25,21 @@ async function atomicJson(path, value) {
 async function loadCoveragePriorities() {
   try {
     const configured = JSON.parse(process.env.BOARD_COVERAGE_PRIORITIES_JSON || "[]");
-    if (Array.isArray(configured) && configured.length) return configured.slice(0, 100);
+    if (Array.isArray(configured) && configured.length) return { stations: configured.slice(0, 100), requestBudget: Math.max(1, Number(process.env.BOARD_REQUEST_BUDGET) || 1) };
   } catch {}
   const api = String(process.env.RAIL_API_URL || "").replace(/\/$/, "");
   const token = String(process.env.RAIL_INGEST_TOKEN || "");
-  if (!api || token.length < 24) return [];
+  if (!api || token.length < 24) return { stations: [], requestBudget: 1 };
   try {
     const response = await fetch(`${api}/api/v1/collector/board-priorities`, {
       headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const payload = await response.json();
-    return (Array.isArray(payload?.priorities) ? payload.priorities : []).slice(0, 100);
+    return { stations: (Array.isArray(payload?.stations) ? payload.stations : []).slice(0, 100), requestBudget: Math.max(1, Math.min(6, Number(payload?.recommendedRequestBudget) || 1)) };
   } catch (error) {
     console.warn(`Board priority API unavailable: ${String(error?.message || error).slice(0, 160)}`);
-    return [];
+    return { stations: [], requestBudget: 1 };
   }
 }
 
@@ -83,7 +83,8 @@ function mergeUpdates(groups) {
 }
 
 async function main() {
-  const coveragePriorities = await loadCoveragePriorities();
+  const coveragePlan = await loadCoveragePriorities();
+  const coveragePriorities = coveragePlan.stations;
   const previousLive = await readJson(liveTarget, { updates: [] });
   const previousRuntime = await readJson(runtimeTarget, { sources: {} });
   const delayPromise = collectDelay(previousLive.updates || []);
@@ -96,7 +97,7 @@ async function main() {
   });
   const boardPromise = process.env.SKIP_BROWSER_SOURCE === "1"
     ? Promise.resolve({ status: { status: "unavailable", checkedAt: new Date().toISOString(), label: "Табло УЗ: browser-adapter отключён" }, records: [], updates: [] })
-    : collectOfficialBoard({ previous: previousRuntime.sources?.["uz-public-board"], updates: previousLive.updates || [], coveragePriorities, stationOffset: previousRuntime.sources?.["uz-public-board"]?.scheduler?.nextOffset || 0 }).catch((error) => recoverOfficialBoard(previousRuntime.sources?.["uz-public-board"], error));
+    : collectOfficialBoard({ previous: previousRuntime.sources?.["uz-public-board"], updates: previousLive.updates || [], coveragePriorities, requestBudget: coveragePlan.requestBudget, stationOffset: previousRuntime.sources?.["uz-public-board"]?.scheduler?.nextOffset || 0 }).catch((error) => recoverOfficialBoard(previousRuntime.sources?.["uz-public-board"], error));
   const referencePromise = checkReferences();
   const internationalPromise = collectInternationalRailSources();
 
