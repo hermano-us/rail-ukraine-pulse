@@ -162,5 +162,7 @@ test("official JSON collector uses a fresh anonymous session contract", async ()
   assert.equal(calls.length, 2);
   assert.equal(calls[0].headers["x-session-id"], "11111111-1111-4111-8111-111111111111");
   assert.equal(calls[0].headers["x-user-agent"], "UZ/2 Web/1 User/guest");
+  assert.notEqual(calls[1].headers["x-session-id"], calls[0].headers["x-session-id"]);
+  assert.match(calls[1].headers["x-session-id"], /^[0-9a-f-]{36}$/i);
   assert.equal(selectApiStations([{ id: 1, name: "Львів" }], ["Київ-Пасажирський"]).length, 0);
 });

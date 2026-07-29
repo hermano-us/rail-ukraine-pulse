@@ -67,7 +67,8 @@ async function fetchJson(url, headers, fetchImpl, attempts = 2) {
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      const response = await fetchImpl(url, { headers, signal: AbortSignal.timeout(20_000) });
+      const requestHeaders = typeof headers === "function" ? headers() : headers;
+      const response = await fetchImpl(url, { headers: requestHeaders, signal: AbortSignal.timeout(20_000) });
       if (!response.ok) {
         const error = new Error(`official board API HTTP ${response.status}`);
         const retryAfter = Number(response.headers.get("retry-after"));
@@ -110,7 +111,7 @@ export async function fetchOfficialBoardRecords({
     while (cursor < planned.length) {
       const station = planned[cursor++];
       try {
-        const payload = await fetchJson(`${BOARD_API_BASE}/${encodeURIComponent(station.id)}`, headers, fetchImpl);
+        const payload = await fetchJson(`${BOARD_API_BASE}/${encodeURIComponent(station.id)}`, () => ({ ...headers, "x-session-id": randomUUID() }), fetchImpl);
         records.push(...apiBoardToRecords(payload, new Date().toISOString()));
       } catch (error) {
         failures.push({ station: station.name, stationId: station.id, error: String(error?.message || error).slice(0, 240) });
