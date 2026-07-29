@@ -330,9 +330,13 @@ async function getHealth(request, env) {
     version: WORKER_VERSION,
     runs: Number(database?.runs || 0),
     snapshot: { generatedAt: snapshot?.generatedAt || null, ageMinutes: freshness.ageMinutes, updates: snapshot?.updates?.length || 0 },
-    sources: sources.results || [],
+    sources: visibleSourceHealth(sources.results, env),
     positioning: { learnedSegments: segmentStats.length, model: "rail-posterior-v3", quality: modelQuality },
   }, { headers: { "Cache-Control": "no-store" } }, request, env);
+}
+function visibleSourceHealth(rows, env) {
+  const edgeDisabled = String(env.BOARD_EDGE_MODE || "disabled") === "disabled";
+  return (rows || []).filter((row) => !edgeDisabled || row.source_id !== "uz-public-board-edge");
 }
 async function getAdminOverview(request, env) {
   const [runs, events, sources, recentEvents, snapshot, segmentStats, modelQuality, trustedCollector] = await Promise.all([
@@ -382,7 +386,7 @@ async function getAdminOverview(request, env) {
       learnedSegments: segmentStats.length,
       modelQuality,
     },
-    sources: sources.results || [],
+    sources: visibleSourceHealth(sources.results, env),
     recentEvents: (recentEvents.results || []).map((event) => ({
       runId: event.run_id,
       trainNumber: event.train_number || null,
