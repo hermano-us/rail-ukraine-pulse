@@ -71,6 +71,7 @@ async function fetchJson(url, headers, fetchImpl, attempts = 2) {
       const response = await fetchImpl(url, { headers: requestHeaders, signal: AbortSignal.timeout(20_000) });
       if (!response.ok) {
         const error = new Error(`official board API HTTP ${response.status}`);
+        error.status = response.status;
         const retryAfter = Number(response.headers.get("retry-after"));
         error.retryDelayMs = Number.isFinite(retryAfter) && retryAfter > 0
           ? retryAfter * 1000
@@ -94,6 +95,7 @@ export async function fetchOfficialBoardRecords({
   fetchImpl = fetch,
   sessionId = randomUUID(),
   requestDelayMs = process.env.BOARD_REQUEST_DELAY_MS || 1_500,
+  stationOffset = null,
 } = {}) {
   const checkedAt = new Date().toISOString();
   const headers = {
@@ -103,7 +105,10 @@ export async function fetchOfficialBoardRecords({
     "x-user-agent": BOARD_API_USER_AGENT,
   };
   const catalog = await fetchJson(BOARD_API_BASE, headers, fetchImpl);
-  const planned = selectApiStations(catalog, stations);
+  const available = selectApiStations(catalog, stations);
+  const rawOffset = stationOffset == null ? Math.floor(Date.parse(checkedAt) / 600_000) : Number(stationOffset);
+  const offset = ((Number.isFinite(rawOffset) ? rawOffset : 0) % available.length + available.length) % available.length;
+  const planned = [...available.slice(offset), ...available.slice(0, offset)];
   if (!planned.length) throw new Error("official board API returned no matching stations");
   const records = [], failures = [];
   let cursor = 0;
@@ -115,6 +120,11 @@ export async function fetchOfficialBoardRecords({
         records.push(...apiBoardToRecords(payload, new Date().toISOString()));
       } catch (error) {
         failures.push({ station: station.name, stationId: station.id, error: String(error?.message || error).slice(0, 240) });
+        if ([429, 441].includes(error?.status)) {
+          const deferred = planned.slice(cursor);
+          failures.push(...deferred.map((item) => ({ station: item.name, stationId: item.id, error: `deferred after upstream HTTP ${error.status}` })));
+          cursor = planned.length;
+        }
       }
       await wait(Math.max(0, Number(requestDelayMs) || 0));
     }
