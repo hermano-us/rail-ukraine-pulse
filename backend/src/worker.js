@@ -11,6 +11,7 @@ import { handleIntelligencePlatformRequest } from "./intelligence/api.js";
 import { runIntelligenceCycle } from "./intelligence/service.js";
 import { ingestExpectedRuns } from "./intelligence/expected-registry.js";
 import { handlePublicObservationRequest } from "./intelligence/observation-submissions.js";
+import { collectOfficialBoardEdge } from "./edge-board-collector.js";
 
 const SNAPSHOT_KEY = "public:v1:snapshot";
 const WORKER_VERSION = "intelligence-v8-platform-suite";
@@ -537,8 +538,8 @@ async function fetchWithRetry(url, attempts = 3) {
 }
 
 async function finishCycle(env, cycleId, startedMs, result, status="success", error=null) {
-  await env.DB.prepare("UPDATE collection_cycles SET finished_at=?1,status=?2,duration_ms=?3,new_events=?4,accepted_updates=?5,quarantined_updates=?6,sources_online=?7,sources_total=2,error=?8 WHERE cycle_id=?9")
-    .bind(new Date().toISOString(),status,Date.now()-startedMs,Number(result?.accepted||0),Number(result?.snapshot?.updates?.length||0),Number(result?.quarantined||0),Number(result?.freshSources||0),error,cycleId).run();
+  await env.DB.prepare("UPDATE collection_cycles SET finished_at=?1,status=?2,duration_ms=?3,new_events=?4,accepted_updates=?5,quarantined_updates=?6,sources_online=?7,sources_total=?8,error=?9 WHERE cycle_id=?10")
+    .bind(new Date().toISOString(),status,Date.now()-startedMs,Number(result?.accepted||0),Number(result?.snapshot?.updates?.length||0),Number(result?.quarantined||0),Number(result?.freshSources||0),Number(result?.sourcesTotal||2),error,cycleId).run();
   return result;
 }
 export async function scheduledRefresh(env) {
@@ -577,18 +578,51 @@ export async function scheduledRefresh(env) {
     await storeSourceHealth(env, { sourceId: "uz-telegram-edge", status: "unavailable", checkedAt, error: String(error?.message || error) }, 0);
   }
 
+  let collectorDiagnostics = previous?.collectorDiagnostics || null;
+  const boardEdgeConfigured = Boolean(env.BOARD_EDGE_MODE && env.BOARD_EDGE_MODE !== "disabled");
+  if (boardEdgeConfigured) {
+    const board = await collectOfficialBoardEdge(env, { updates: merged, now: checkedAt });
+    collectorDiagnostics = {
+      ...(collectorDiagnostics || {}),
+      board: {
+        status: board.status,
+        checkedAt,
+        scheduler: board.diagnostics?.scheduler || null,
+        coverage: board.diagnostics?.coverage || null,
+        cooldownUntil: board.diagnostics?.cooldownUntil || board.diagnostics?.state?.cooldownUntil || null,
+      },
+    };
+    if (board.status === "online") {
+      const edgeCutoff = Date.parse(checkedAt) - 20 * 60_000;
+      merged = [
+        ...merged.filter((update) => update.sourceId !== "uz-public-board-edge" || Date.parse(update.updatedAt || "") >= edgeCutoff),
+        ...(board.updates || []),
+      ];
+      freshSources += 1;
+      usableSources += 1;
+      await storeSourceHealth(env, { sourceId: "uz-public-board-edge", status: "online", checkedAt }, board.updates?.length || 0);
+    } else if (board.status === "degraded") {
+      errors.push(`board-edge: ${board.error || "collector degraded"}`);
+      await storeSourceHealth(env, { sourceId: "uz-public-board-edge", status: "degraded", checkedAt, error: board.error || "collector degraded" }, 0);
+    } else if (board.status === "cooldown") {
+      await storeSourceHealth(env, { sourceId: "uz-public-board-edge", status: "stale", checkedAt, error: `cooldown until ${board.diagnostics?.cooldownUntil}` }, 0);
+    }
+  }
+
   if (usableSources > 0) {
+    const sourcesTotal = boardEdgeConfigured ? 3 : 2;
     const result = await ingestPayload(env, {
       generatedAt: checkedAt,
+      collectorDiagnostics,
       sourceStatus: {
         sourceId: "uz-public-fusion", status: "online", checkedAt,
-        label: `UZ edge fusion: ${merged.length} событий · ${freshSources}/2 edge-источников`,
+        label: `UZ edge fusion: ${merged.length} событий · ${freshSources}/${sourcesTotal} edge-источников`,
         capabilities: { officialStatus: true, forecast: true, stationPassage: true, gps: false, scope: "public-passenger-and-commuter-events" },
       },
       updates: merged,
     }, checkedAt);
     await storeSourceHealth(env, { sourceId: "pipeline-monitor", status: "online", checkedAt }, merged.length);
-    return finishCycle(env,cycleId,cycleStarted,{ edge: true, freshSources, usableSources, errors, ...result },freshSources>0?"success":"degraded",freshSources>0?null:errors.join("; ").slice(0,500));
+    return finishCycle(env,cycleId,cycleStarted,{ edge: true, freshSources, usableSources, sourcesTotal, errors, ...result },freshSources>0?"success":"degraded",freshSources>0?null:errors.join("; ").slice(0,500));
   }
 
   if (env.UPSTREAM_SNAPSHOT_URL) {
