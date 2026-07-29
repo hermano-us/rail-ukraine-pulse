@@ -140,7 +140,7 @@ test("official JSON board preserves exact schedule time and delay", () => {
   assert.equal(classifyBoardWindow(records[0]).isStationFact, true);
 });
 
-test("official JSON collector uses a fresh anonymous session contract", async () => {
+test("official JSON collector keeps one anonymous session within a collection cycle", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {
     calls.push({ url, headers: options.headers });
@@ -162,9 +162,23 @@ test("official JSON collector uses a fresh anonymous session contract", async ()
   assert.equal(calls.length, 2);
   assert.equal(calls[0].headers["x-session-id"], "11111111-1111-4111-8111-111111111111");
   assert.equal(calls[0].headers["x-user-agent"], "UZ/2 Web/1 User/guest");
-  assert.notEqual(calls[1].headers["x-session-id"], calls[0].headers["x-session-id"]);
-  assert.match(calls[1].headers["x-session-id"], /^[0-9a-f-]{36}$/i);
+  assert.equal(calls[1].headers["x-session-id"], calls[0].headers["x-session-id"]);
   assert.equal(selectApiStations([{ id: 1, name: "Львів" }], ["Київ-Пасажирський"]).length, 0);
+});
+test("official JSON collector never retries an upstream throttle response", async () => {
+  let calls = 0;
+  const fetchImpl = async (url) => {
+    calls += 1;
+    if (url.endsWith("/station-boards")) return new Response(JSON.stringify([
+      { id: 2218000, name: "\u041b\u044c\u0432\u0456\u0432" },
+    ]), { status: 200, headers: { "content-type": "application/json" } });
+    return new Response("limited", { status: 441 });
+  };
+  await assert.rejects(
+    fetchOfficialBoardRecords({ stations: ["\u041b\u044c\u0432\u0456\u0432"], concurrency: 1, requestBudget: 1, fetchImpl }),
+    /returned no records/,
+  );
+  assert.equal(calls, 2);
 });
 test("board scheduler prioritizes uncertain traffic and explains the choice", () => {
   const ranked = rankBoardStations([

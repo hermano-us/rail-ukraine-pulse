@@ -84,6 +84,7 @@ async function fetchJson(url, headers, fetchImpl, attempts = 2) {
       return await response.json();
     } catch (error) {
       lastError = error;
+      if ([429, 441].includes(error?.status)) break;
       if (attempt < attempts) await wait(error?.retryDelayMs || 750 * attempt);
     }
   }
@@ -128,13 +129,13 @@ export async function fetchOfficialBoardRecords({
       }
       attempted += 1;
       try {
-        const payload = await fetchJson(`${BOARD_API_BASE}/${encodeURIComponent(station.id)}`, () => ({ ...headers, "x-session-id": randomUUID() }), fetchImpl);
+        const payload = await fetchJson(`${BOARD_API_BASE}/${encodeURIComponent(station.id)}`, headers, fetchImpl);
         records.push(...apiBoardToRecords(payload, new Date().toISOString()));
       } catch (error) {
         failures.push({ station: station.name, stationId: station.id, error: String(error?.message || error).slice(0, 240) });
         if ([429, 441].includes(error?.status)) {
           const deferred = planned.slice(cursor);
-          failures.push(...deferred.map((item) => ({ station: item.name, stationId: item.id, error: `deferred after upstream HTTP ${error.status}` })));
+          deferredStations.push(...deferred.map((item) => ({ station: item.name, stationId: item.id, reason: `upstream-http-${error.status}` })));
           cursor = planned.length;
         }
       }
