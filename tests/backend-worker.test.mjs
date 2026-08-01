@@ -55,6 +55,16 @@ test("backend ingests runs and events and publishes a compatible snapshot", asyn
   assert.equal(response.headers.get("Access-Control-Allow-Origin"), "https://hermano-us.github.io");
 });
 
+test("backend persists health for every bounded collector source", async () => {
+  const env = environment();
+  await ingestPayload(env, {
+    ...payload, updates: [],
+    sourceStatuses: [{ sourceId: "anytrain-uz-public", status: "online", checkedAt: "2026-07-20T10:01:00Z", recordsCount: 34 }],
+  }, "2026-07-20T10:01:00Z");
+  const statements = env.DB.batches.flat();
+  assert.ok(statements.some((statement) => statement.values.includes("anytrain-uz-public")));
+  assert.ok(statements.some((statement) => statement.values.includes(34)));
+});
 test("admin overview is private and serves aggregate diagnostics", async () => {
   const env = environment();
   env.ADMIN_TOKEN = "a-secure-admin-token-1234567";

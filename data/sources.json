@@ -148,6 +148,65 @@
         "station-calls"
       ],
       "note": "Статическое расписание без видимой метки обновления и первичного источника; используется только для сверки."
+    },
+    {
+      "id": "anytrain-uz-public",
+      "name": "AnyTrain / UZ public boards",
+      "authority": "aggregator",
+      "kind": "operational-secondary",
+      "state": "connected",
+      "priority": 3,
+      "url": "https://anytrain.com.ua/tablo-zatrymok",
+      "capabilities": [
+        "derived-uz-delay",
+        "station-board",
+        "forecast",
+        "reason"
+      ],
+      "note": "Licensed UZ agent. Used as a correlated fallback, never as GPS or as an independent confirmation of the same UZ fact."
+    },
+    {
+      "id": "swrailway-commuter-schedule",
+      "name": "South-Western Railway commuter timetable",
+      "authority": "official",
+      "kind": "planned-schedule",
+      "state": "connected",
+      "priority": 4,
+      "url": "https://swrailway.gov.ua/timetable/eltrain/?sid=5001",
+      "capabilities": [
+        "planned-commuter-schedule",
+        "station-calls",
+        "validity-window"
+      ],
+      "note": "Official planned schedule only; it never creates a live station-passage fact."
+    },
+    {
+      "id": "poizdato-station-reference",
+      "name": "Poizdato station reference",
+      "authority": "aggregator",
+      "kind": "station-reference",
+      "state": "connected",
+      "priority": 8,
+      "url": "https://poizdato.net/search/get-part-stations",
+      "capabilities": [
+        "station-alias",
+        "station-coordinate"
+      ],
+      "note": "Bounded reference lookup for aliases and coordinates; not operational evidence."
+    },
+    {
+      "id": "koleo-station-catalog",
+      "name": "KOLEO public station catalog",
+      "authority": "aggregator",
+      "kind": "cross-border-reference",
+      "state": "connected",
+      "priority": 8,
+      "url": "https://api.koleo.pl/v2/main/stations",
+      "capabilities": [
+        "cross-border-station-id",
+        "station-coordinate"
+      ],
+      "note": "Public catalog is cached for seven days. Realtime endpoints remain disabled without authorized access."
     }
   ]
 }

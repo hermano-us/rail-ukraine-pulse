@@ -216,6 +216,10 @@ export async function ingestPayload(env, payload, observedAt = new Date().toISOS
   await env.DB.prepare("DELETE FROM run_snapshots WHERE captured_at < datetime('now', ?1)").bind(`-${HISTORY_RETENTION_DAYS} days`).run();
   await env.DB.prepare("DELETE FROM source_health_checks WHERE checked_at < datetime('now', '-30 days')").run();
   await storeSourceHealth(env, payload?.sourceStatus, updates.length);
+  for (const sourceStatus of Array.isArray(payload?.sourceStatuses) ? payload.sourceStatuses : []) {
+    if (!sourceStatus?.sourceId || sourceStatus.sourceId === payload?.sourceStatus?.sourceId) continue;
+    await storeSourceHealth(env, sourceStatus, sourceStatus.recordsCount);
+  }
   for (const [sourceId, source] of Object.entries(payload?.externalSources || {})) {
     await env.DB.prepare(`UPDATE external_rail_sources SET status=?1,last_checked_at=?2,last_success_at=CASE WHEN ?1='online' THEN ?2 ELSE last_success_at END,last_error=?3,records_count=?4,updated_at=?2 WHERE source_id=?5`)
       .bind(source?.status?.status || source?.status || "unknown", source?.status?.checkedAt || observedAt, source?.status?.error || null, Number(source?.recordsCount || 0), sourceId).run();

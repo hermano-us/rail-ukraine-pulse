@@ -8,6 +8,7 @@ const authorityWeight = (authority) => authority === "official" ? 1 : authority 
 const sourceDomain = (sourceId = "") => {
   const value = normalize(sourceId);
   if (value.includes("uz-public") || value.includes("official-board")) return "uz-official";
+  if (value.includes("anytrain-uz")) return "uz-official";
   if (value.includes("trusted-collector") || value.includes("station-edge")) return "trusted-board";
   if (value.includes("telegram") || value.includes("freight-tg") || value.startsWith("tg-")) return "telegram";
   if (value.includes("operator") || value.includes("operations-hub")) return "operator";
