@@ -3,6 +3,7 @@ import { estimatePosterior } from "../shared/rail-posterior.js";
 import { buildGeometricWaypoints, buildOfficialEvents, buildUncertaintyCorridor, hydrateSourceRegistry, sourceRegistrySummary } from "./evidence-engine.js";
 import { evaluateFreshness, freshnessConfidenceFactor, freshnessReasons, sourceAgeMinutes as ageOf } from "./freshness-policy.js";
 import { loadLiveSnapshot } from "./live-data-client.js";
+import { canonicalServiceKey, fuseServiceUpdates, groupStationQueues, positionAdmission, stationQueueForUpdate } from "./service-registry.js";
 
 async function readJson(url, optional = false) {
   const response = await fetch(url, { cache: "no-store" });
@@ -69,7 +70,7 @@ export function serviceDateFor(now = new Date()) {
 export function buildRunIdentity(update, now = new Date()) {
   const serviceDate=serviceDateFor(update.updatedAt?new Date(update.updatedAt):now);
   const directionId=`${slug(update.origin)}--${slug(update.destination)}`;
-  return { serviceDate, directionId, runId:`uz:${serviceDate}:${update.trainNumber}:${directionId}` };
+  return { serviceDate, directionId, runId:update.canonicalServiceId||canonicalServiceKey(update,now) };
 }
 
 export function buildRailGraph(features) {
@@ -337,15 +338,16 @@ export function deriveStationLifecycle(update, now = new Date(), previous = null
 }
 function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,sourceAgeMinutes,stations,stationLookup,segmentCalibration){
   const identity=buildRunIdentity(update,now), origin=stationCoordinates(update.origin,stationLookup);
-  const reportedAnchor=stationCoordinates(update.reportedStation,stationLookup)||origin;
+  const reportedAnchor=stationCoordinates(update.reportedStation,stationLookup);
   const freshness=evaluateFreshness(sourceAgeMinutes);
   const stationPresence=deriveStationPresence(update,now);
   const stationLifecycle=deriveStationLifecycle(update,now);
   const isStationReport=Boolean(update.reportedStation&&["reported-station-passage","station-board-window"].includes(update.positionEvidence));
-  const estimated=estimatePosition(update,routeResult,now,sourceAgeMinutes,isStationReport?reportedAnchor:null,segmentCalibration);
+  const admission=positionAdmission(update,{hasRoute:Boolean(routeResult),sourceAgeMinutes});
+  const estimated=admission.allowCalculated?estimatePosition(update,routeResult,now,sourceAgeMinutes,isStationReport?reportedAnchor:null,segmentCalibration):null;
   const reportConfidence=update.positionEvidence==="reported-station-passage"?0.82:update.positionEvidence==="station-board-window"?0.66:0.58;
   const reportErrorKm=update.positionEvidence==="reported-station-passage"?2:update.positionEvidence==="station-board-window"?5:3;
-  const reportableAnchor=freshness.canPosition&&reportedAnchor;
+  const reportableAnchor=admission.allowReported&&freshness.canPosition&&reportedAnchor;
   const retainedStationAnchor=stationPresence?.holdsPosition&&reportedAnchor;
   const reported=(reportableAnchor||retainedStationAnchor)&&(update.operationalStatus!=="moving"||isStationReport||stationPresence?.holdsPosition)?{
     status:freshness.frozen||stationPresence?.fresh===false?"stale":"reported",coordinates:reportedAnchor,updatedAt:update.updatedAt,
@@ -356,9 +358,10 @@ function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,so
   }:null;
   const position=(stationPresence?.holdsPosition?reported||estimated:estimated||reported)||{
     status:"unknown",coordinates:null,updatedAt:update.updatedAt,sourceUpdatedAt:update.updatedAt,calculatedAt:now.toISOString(),confidence:0,errorKm:null,
-    method:!freshness.canPosition?"source-snapshot-expired":routeResult?"forecast-arrival-unavailable":"rail-route-unavailable",lastConfirmedAt:update.updatedAt,
+    method:admission.reasonCode==="source_expired"?"source-snapshot-expired":admission.reasonCode,lastConfirmedAt:update.reportedStation?update.updatedAt:null,
     freshness,sources:["UZ official public status"],
     confidenceReasons:freshnessReasons({freshness,hasRoute:Boolean(routeResult),hasForecast:Boolean(update.forecastArrival),anchorErrorKm:routeResult?.anchorErrorKm}),
+    reasonCode:admission.reasonCode,reason:admission.reason,
   };
   const quality=calculateQuality({
     hasRoute:Boolean(routeResult),hasForecast:Boolean(update.forecastArrival),sourceAgeMinutes,
@@ -377,13 +380,15 @@ function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,so
     waypointData.next?{kind:"model-next",label:waypointData.next.name,evidence:"geometry",caption:"СЛЕДУЮЩИЙ ГЕОМЕТРИЧЕСКИЙ ОРИЕНТИР",timestamp:null}:null,
     {kind:"destination",label:update.destination||"Пункт назначения",evidence:"route",timestamp:forecastArrivalAt},
   ].filter(Boolean);
+  const queue=stationQueueForUpdate(update,now),queueCoordinates=queue?stationCoordinates(queue.station,stationLookup):null;
   return {
     id:identity.runId,runId:identity.runId,serviceDate:identity.serviceDate,directionId:identity.directionId,
     trainNumber:update.trainNumber,transport:"train",type:"passenger",name:`Поезд №${update.trainNumber}`,
     route:update.route,origin:update.origin,destination:update.destination,routeId,regions,routeCoordinates:routeResult?.coordinates||[],
     description:`Публичный рейс Укрзалізниці ${update.route}. Официальный статус: ${update.publicStatus}; задержка ${update.delayLabel||"не указана"}.`,
     rollingStock:"Тип состава не опубликован в источнике",operationalStatus:stationPresence?.holdsPosition?(stationPresence.kind==="depot"?"depot":"station"):update.operationalStatus,
-    stationPresence,stationLifecycle,
+    stationPresence,stationLifecycle,registryState:update.registryState||"unobserved",positionAdmission:admission,
+    stationQueue:queue&&queueCoordinates?{...queue,coordinates:queueCoordinates}:null,
     liveUpdate:update,telemetry:{speedKph:null},position,quality,
     evidence:evidenceFor(update,position,sourceStatus),events,corridor,routeTimeline,
     waypoints:waypointData.waypoints,stationPlan,
@@ -437,30 +442,38 @@ export async function loadTransportData(now=new Date()){
     });
     return {objects:materialized,routes:{type:"FeatureCollection",features},routeMap:new Map(features.map(feature=>[feature.properties.id,feature]))};
   };
-  const currentMaterialized=materializeUpdates(liveData?.updates||[],now);
+  const fusedUpdates=fuseServiceUpdates(liveData?.updates||[],now);
+  const currentMaterialized=materializeUpdates(fusedUpdates,now);
   const {objects,routes,routeMap}=currentMaterialized,dynamicFeatures=routes.features;  const regionList=[...new Map(regions.features.map((feature)=>[feature.properties.id,{id:feature.properties.id,name:feature.properties.name}])).values()].sort((a,b)=>a.name.localeCompare(b.name,"ru"));
   const positioned=objects.filter((object)=>object.position.coordinates).length;
   const forecastCoverage=objects.filter((object)=>object.liveUpdate.forecastArrival||object.liveUpdate.forecastDeparture).length;
+  const stationQueues=groupStationQueues(objects);
   const diagnostics={
     sourceAgeMinutes:Number(sourceAgeMinutes.toFixed(1)),totalRuns:objects.length,positionedRuns:positioned,
     unknownRuns:objects.length-positioned,forecastCoverage,routeCoverage:dynamicFeatures.length,
     averageQuality:objects.length?Number((objects.reduce((sum,item)=>sum+item.quality,0)/objects.length).toFixed(2)):0,
     waypointCoverage:objects.filter((object)=>object.journey.nextWaypoint||object.journey.previousWaypoint).length,
+    noRouteRuns:objects.filter((object)=>!object.routeCoordinates.length).length,
+    rawObservations:(liveData?.updates||[]).length,canonicalRuns:objects.length,
+    observedRuns:objects.filter((object)=>object.liveUpdate?.hasOperationalObservation).length,
+    plannedOnlyRuns:objects.filter((object)=>object.positionAdmission?.reasonCode==="planned_only").length,
+    stationQueueRuns:stationQueues.reduce((sum,group)=>sum+group.entries.length,0),stationQueueGroups:stationQueues.length,
+    exclusionReasons:objects.filter((object)=>!object.position.coordinates).reduce((result,object)=>{const key=object.positionAdmission?.reasonCode||"unknown";result[key]=(result[key]||0)+1;return result;},{}),
     sourcesConnected:sourceSummary.connected,sourcesTotal:sourceSummary.total,
     freshness:evaluateFreshness(sourceAgeMinutes),
     freshRuns:objects.filter((object)=>object.position.freshness?.key==="fresh").length,
     frozenRuns:objects.filter((object)=>object.position.freshness?.frozen&&object.position.coordinates).length,
-    learnedSegments:(liveData?.segmentStats||[]).length,modelQuality:liveData?.modelQuality||{evaluations:0,maeMinutes:null,p80Coverage:null},algorithmVersion:"rail-posterior-v3+rail-corridor-v6",snapshotSchema:liveData?.schemaVersion||null,
+    learnedSegments:(liveData?.segmentStats||[]).length,modelQuality:liveData?.modelQuality||{evaluations:0,maeMinutes:null,p80Coverage:null},algorithmVersion:"service-registry-v1+rail-posterior-v3+rail-corridor-v6",snapshotSchema:liveData?.schemaVersion||null,
   };
   const eventFeed=objects.flatMap((object)=>object.events.map((event)=>({...event,objectId:object.id,trainNumber:object.trainNumber,route:object.route,positionStatus:object.position.status})))
     .sort((a,b)=>Date.parse(b.occurredAt)-Date.parse(a.occurredAt));
   return {
-    generatedAt,calculatedAt:now.toISOString(),dataMode:"UZ-public-event-fusion-v5",safetyNote:"Only public passenger status data is displayed.",
+    generatedAt,calculatedAt:now.toISOString(),dataMode:"UZ-public-event-fusion-v6",safetyNote:"Only public passenger status data is displayed.",
     sourceStatus,sourceRegistry,sourceSummary,diagnostics,
     marineStatus:vesselData?.sourceStatus||{status:"unavailable",label:"AIS-провайдер не подключён; суда не отображаются"},
     freightStatus:freightData?.sourceStatus||{status:"unavailable",label:"Грузовые позиции не отображаются"},
-    liveFeed:(liveData?.updates||[]).map((update,index)=>({...update,objectId:objects[index]?.id||null})),eventFeed,
-    objects,routes,routeMap,regions,regionList,
-    buildTimelineObjects:(updates,at)=>materializeUpdates(updates,new Date(at),"uz-history-route"),
+    liveFeed:fusedUpdates.map((update,index)=>({...update,objectId:objects[index]?.id||null})),eventFeed,
+    objects,routes,routeMap,regions,regionList,stationQueues,
+    buildTimelineObjects:(updates,at)=>materializeUpdates(fuseServiceUpdates(updates,new Date(at)),new Date(at),"uz-history-route"),
   };
 }

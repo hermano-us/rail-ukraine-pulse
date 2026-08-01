@@ -16,6 +16,7 @@ export class MapView{
     this.uncertaintyLayer=L.layerGroup().addTo(this.map);
     this.selectedLayer=L.layerGroup().addTo(this.map);
     this.markerLayer=L.layerGroup().addTo(this.map);
+    this.stationQueueLayer=L.layerGroup().addTo(this.map);
     this.historyLayer=L.layerGroup().addTo(this.map);
     this.markers=new Map();
     this.objects=new Map();
@@ -48,14 +49,16 @@ export class MapView{
     this.routeLayer.addData(routes);
   }
 
-  render(objects,routeMap,focusedObject=null){
-    this.currentRouteMap=routeMap;this.routeIntensity=new Map();for(const item of objects)this.routeIntensity.set(item.routeId,(this.routeIntensity.get(item.routeId)||0)+1);this.markerLayer.clearLayers();this.uncertaintyLayer.clearLayers();this.selectedLayer.clearLayers();
+  render(objects,routeMap,focusedObject=null,stationQueues=[]){
+    this.currentRouteMap=routeMap;this.routeIntensity=new Map();for(const item of objects)this.routeIntensity.set(item.routeId,(this.routeIntensity.get(item.routeId)||0)+1);this.markerLayer.clearLayers();this.uncertaintyLayer.clearLayers();this.selectedLayer.clearLayers();this.stationQueueLayer.clearLayers();
     this.routeLayer.clearLayers();
     if(!focusedObject&&this.routes){
       const visibleRouteIds=new Set(objects.filter((object)=>Array.isArray(object.position.coordinates)).map((object)=>object.routeId));
       this.routeLayer.addData({type:"FeatureCollection",features:(this.routes.features||[]).filter((feature)=>visibleRouteIds.has(feature.properties?.id))});
     }
     this.markers.clear();this.objects=new Map(objects.map((object)=>[object.id,object]));
+    const visibleStationQueues=focusedObject?[]:(stationQueues||[]).map((group)=>({...group,entries:(group.entries||[]).filter((entry)=>this.objects.has(entry.objectId))})).filter((group)=>group.entries.length);
+    const queuedObjectIds=new Set(visibleStationQueues.flatMap((group)=>group.entries.map((entry)=>entry.objectId)));
     const bounds=[];
     if(this.viewMode==="density"&&!focusedObject){
       const cells=new Map();
@@ -74,6 +77,7 @@ export class MapView{
     }
     objects.forEach((object)=>{
       const [lon,lat]=object.position.coordinates||[];
+      if(queuedObjectIds.has(object.id))return;
       if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
       const status=object.position.status,operation=object.operationalStatus||"moving";
       const color=["stale","unknown"].includes(status)?POSITION_STATUSES[status].color:(OPERATION_COLORS[operation]||POSITION_STATUSES[status].color);
@@ -98,8 +102,29 @@ export class MapView{
       }
     });
     this.currentBounds=bounds;
+    this.renderStationQueues(visibleStationQueues,bounds);
   }
 
+
+  renderStationQueues(groups,bounds=[]){
+    for(const group of groups){
+      const [lon,lat]=group.coordinates||[];
+      if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;
+      const confirmed=group.entries.filter((entry)=>["depot","standing"].includes(entry.state)).length;
+      const icon=L.divIcon({className:"station-queue-shell",html:`<div class="station-queue-marker ${confirmed?"confirmed":"expected"}"><b>${group.entries.length}</b><span>&#9636;</span></div>`,iconSize:[40,40],iconAnchor:[20,20]});
+      const marker=L.marker([lat,lon],{icon,keyboard:true,title:`${group.station}: ${group.entries.length} \u043f\u043e\u0435\u0437\u0434\u043e\u0432`}).addTo(this.stationQueueLayer);
+      const popup=document.createElement("section");popup.className="station-queue-popup";
+      const header=document.createElement("header"),title=document.createElement("strong"),meta=document.createElement("small");
+      title.textContent=group.station;meta.textContent=`${group.entries.length} \u043f\u043e\u0435\u0437\u0434\u043e\u0432 \u00b7 \u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043d\u043e ${confirmed}`;header.append(title,meta);popup.append(header);
+      for(const entry of group.entries){
+        const button=document.createElement("button"),number=document.createElement("b"),description=document.createElement("span"),state=document.createElement("em");
+        number.textContent=`\u2116${entry.trainNumber}`;description.textContent=entry.route||"\u041c\u0430\u0440\u0448\u0440\u0443\u0442 \u0443\u0442\u043e\u0447\u043d\u044f\u0435\u0442\u0441\u044f";state.textContent=entry.label;button.className=`station-queue-entry state-${entry.state}`;
+        button.append(number,description,state);button.addEventListener("click",()=>{marker.closePopup();const object=this.objects.get(entry.objectId);if(object)this.onSelect(object);});popup.append(button);
+      }
+      marker.bindPopup(popup,{minWidth:280,maxWidth:360,maxHeight:360});
+      bounds.push([lat,lon]);
+    }
+  }
   focusObject(object){
     const marker=this.markers.get(object.id);
     this.selectedLayer.clearLayers();

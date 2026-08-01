@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="css/leaflet.css" />
     <link rel="stylesheet" href="css/styles.css" />
     <link rel="stylesheet" href="css/ukraine.css" />
-    <link rel="stylesheet" href="css/enhancements.css?v=20260729-station-ops" />
+    <link rel="stylesheet" href="css/enhancements.css?v=20260801-service-registry" />
   </head>
   <body>
     <a class="skip-link" href="#map">К карте</a>
@@ -40,6 +40,7 @@
           <button class="quick-chip" data-quick="fresh">Свежие ≤30м</button>
           <button class="quick-chip" data-quick="stale">Устаревшие</button>
           <button class="quick-chip" data-quick="unknown">Без координат</button>
+          <button class="quick-chip" data-quick="planned">&#1046;&#1076;&#1091;&#1090; &#1092;&#1072;&#1082;&#1090;&#1072;</button>
           <button class="quick-chip" data-quick="favorites">Избранные</button>
         </section>
 
@@ -87,9 +88,13 @@
         <section class="source-diagnostics" id="source-diagnostics">
           <header><strong>Диагностика данных</strong><span id="diagnostic-health">—</span></header>
           <div class="diagnostic-grid">
+            <div><small>&#1053;&#1072;&#1073;&#1083;&#1102;&#1076;&#1077;&#1085;&#1080;&#1081;</small><b id="diagnostic-observations">&mdash;</b></div>
             <div><small>Рейсов</small><b id="diagnostic-total">—</b></div>
             <div><small>С координатой</small><b id="diagnostic-positioned">—</b></div>
             <div><small>Прогнозов</small><b id="diagnostic-forecast">—</b></div>
+            <div><small>&#1046;&#1076;&#1091;&#1090; &#1092;&#1072;&#1082;&#1090;&#1072;</small><b id="diagnostic-planned">&mdash;</b></div>
+            <div><small>&#1041;&#1077;&#1079; &#1087;&#1091;&#1090;&#1080;</small><b id="diagnostic-no-route">&mdash;</b></div>
+            <div><small>&#1053;&#1072; &#1089;&#1090;&#1072;&#1085;&#1094;&#1080;&#1103;&#1093;</small><b id="diagnostic-station-queues">&mdash;</b></div>
             <div><small>Качество</small><b id="diagnostic-quality">—</b></div>
           </div>
           <p id="diagnostic-note">Проверяем актуальность источника и покрытие маршрутов.</p>
@@ -181,6 +186,6 @@
     </main>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="js/vendor-leaflet.js"></script>
-    <script type="module" src="js/app-ukraine.js?v=20260729-station-ops"></script>
+    <script type="module" src="js/app-ukraine.js?v=20260801-service-registry"></script>
   </body>
 </html>

@@ -113,6 +113,7 @@ function matchesQuick(object){
   if(state.quick==="fresh")return object.position.freshness?.key==="fresh";
   if(state.quick==="stale")return ["stale","unknown"].includes(object.position.status);
   if(state.quick==="unknown")return object.position.status==="unknown";
+  if(state.quick==="planned")return object.positionAdmission?.reasonCode==="planned_only";
   if(state.quick==="favorites")return state.favorites.has(object.runId);
   return true;
 }
@@ -164,6 +165,7 @@ function renderFleet(objects){
     return `<button class="fleet-card${selected}" data-object-id="${escapeHtml(object.id)}">
       <span class="fleet-status" style="--fleet-color:${position.color}"></span>
       <span class="fleet-main"><strong>№${escapeHtml(object.trainNumber)} <i>${escapeHtml(object.liveUpdate?.publicStatus||"")}</i></strong><b>${escapeHtml(object.origin)} <em>→</em> ${escapeHtml(object.destination)}</b><small>Обновлено ${formatRelative(object.liveUpdate?.updatedAt)} · ${position.label}</small></span>
+      ${!object.position.coordinates&&object.positionAdmission?.reason?`<span class="fleet-admission">${escapeHtml(object.positionAdmission.reason)}</span>`:""}
       <span class="fleet-meta"><strong>${escapeHtml(object.liveUpdate?.delayLabel||"—")}</strong><small class="quality-${qualityClass(object.quality)}">Q ${Math.round(object.quality*100)}</small></span>
     </button>`;
   }).join("");
@@ -180,8 +182,12 @@ function renderRegionSummary(objects){
 function renderDiagnostics(){
   const d=state.data.diagnostics;
   $("#diagnostic-total").textContent=d.totalRuns;
+  $("#diagnostic-observations").textContent=d.rawObservations;
   $("#diagnostic-positioned").textContent=`${d.positionedRuns}/${d.totalRuns}`;
   $("#diagnostic-forecast").textContent=`${d.forecastCoverage}/${d.totalRuns}`;
+  $("#diagnostic-planned").textContent=d.plannedOnlyRuns;
+  $("#diagnostic-no-route").textContent=d.noRouteRuns;
+  $("#diagnostic-station-queues").textContent=`${d.stationQueueRuns}/${d.stationQueueGroups}`;
   $("#diagnostic-quality").textContent=`${Math.round(d.averageQuality*100)}%`;
   const health=d.freshness.key==="fresh"?"Свежие":d.freshness.key==="expired"?"Устарели":"С задержкой";
   $("#diagnostic-health").textContent=health;
@@ -279,11 +285,12 @@ function scheduleMapTimeline(minutes){clearTimeout(timelineDebounce);timelineDeb
   if(!state.data)return;
   const visible=filteredObjects();
   const focused=state.selected&&visible.find((object)=>object.id===state.selected.id);
-  mapView.render(focused?[focused]:visible,state.timelineRouteMap||state.data.routeMap,focused||null);mapView.updateRegionSelection(state.regions);
+  mapView.render(focused?[focused]:visible,state.timelineRouteMap||state.data.routeMap,focused||null,state.data.stationQueues);mapView.updateRegionSelection(state.regions);
   renderLiveFeed();renderFleet(visible);renderRegionSummary(visible);renderDiagnostics();renderSourceRegistry();renderFreshnessPulse();renderStationBoard();renderTimelineMeta();
   elements.visibleCount.textContent=`${visible.length} объектов`;$("#mobile-total").textContent=visible.length;
   $("#running-count").textContent=visible.filter((object)=>object.operationalStatus==="moving").length;
-  $("#depot-count").textContent=visible.filter((object)=>object.operationalStatus==="station").length;
+  const visibleIds=new Set(visible.map((object)=>object.id)),stationQueueCount=(state.data.stationQueues||[]).flatMap((group)=>group.entries).filter((entry)=>visibleIds.has(entry.objectId)).length;
+  $("#depot-count").textContent=stationQueueCount;
   $("#unavailable-count").textContent=visible.filter((object)=>object.position.status==="unknown").length;
 }
 
