@@ -1,12 +1,12 @@
 {
   "schemaVersion": 7,
   "provider": "Ukrzaliznytsia public source fusion",
-  "generatedAt": "2026-08-04T06:22:01.680Z",
+  "generatedAt": "2026-08-04T06:37:03.979Z",
   "sourceStatus": {
     "sourceId": "uz-public-fusion",
     "status": "online",
-    "label": "UZ fusion: 276 событий · 5/14 источников доступны",
-    "checkedAt": "2026-08-04T06:22:01.680Z",
+    "label": "UZ fusion: 276 событий · 4/14 источников доступны",
+    "checkedAt": "2026-08-04T06:37:03.979Z",
     "capabilities": {
       "officialStatus": true,
       "forecast": true,
@@ -18,20 +18,16 @@
   "sourceStatuses": [
     {
       "sourceId": "uz-delay-dashboard",
-      "status": "online",
-      "checkedAt": "2026-08-04T06:21:24.628Z",
-      "label": "Задержки УЗ: 44 поездов",
-      "capabilities": [
-        "movement-status",
-        "delay",
-        "forecast"
-      ],
+      "status": "stale",
+      "checkedAt": "2026-08-04T06:36:29.811Z",
+      "label": "Задержки УЗ: последний снимок",
+      "error": "Delay table returned no parseable trains",
       "recordsCount": 44
     },
     {
       "sourceId": "uz-public-board",
       "status": "stale",
-      "checkedAt": "2026-08-04T06:21:27.201Z",
+      "checkedAt": "2026-08-04T06:36:29.383Z",
       "lastSuccessfulAt": "2026-08-03T18:22:10.422Z",
       "label": "Табло УЗ: последний успешный снимок",
       "error": "official board API returned no records; 1/36 station failures",
@@ -56,24 +52,15 @@
         "strategy": "information-gain-v3",
         "requestBudget": 1,
         "attempted": 1,
-        "offset": 31,
-        "nextOffset": 32,
-        "selectedStation": "Олександрія",
-        "selectedStationId": "2208380",
+        "offset": 32,
+        "nextOffset": 33,
+        "selectedStation": "Полтава-Київська",
+        "selectedStationId": "2204580",
         "selectedReason": [
           "нет свежего снимка"
         ],
         "selectedScore": 14,
         "rankedStations": [
-          {
-            "id": "2208380",
-            "name": "Олександрія",
-            "score": 14,
-            "expectedTrains": 0,
-            "reasons": [
-              "нет свежего снимка"
-            ]
-          },
           {
             "id": "2204580",
             "name": "Полтава-Київська",
@@ -109,6 +96,17 @@
             "reasons": [
               "нет свежего снимка"
             ]
+          },
+          {
+            "id": "2200001",
+            "name": "Київ-Пасажирський",
+            "score": 336,
+            "expectedTrains": 75,
+            "reasons": [
+              "75 ожидаемых рейсов",
+              "ключевой узел",
+              "тишина 734 мин"
+            ]
           }
         ]
       },
@@ -117,7 +115,7 @@
     {
       "sourceId": "uz-suburban-telegram",
       "status": "online",
-      "checkedAt": "2026-08-04T06:21:24.630Z",
+      "checkedAt": "2026-08-04T06:36:26.674Z",
       "label": "УЗ Пригород: 19 событий",
       "capabilities": [
         "service-alerts",
@@ -129,7 +127,7 @@
     {
       "sourceId": "pkp-plk-realtime",
       "status": "unavailable",
-      "checkedAt": "2026-08-04T06:21:26.080Z",
+      "checkedAt": "2026-08-04T06:36:28.503Z",
       "error": "HTTP 401",
       "label": "pkp-plk-realtime: unavailable",
       "recordsCount": 0
@@ -137,7 +135,7 @@
     {
       "sourceId": "zsr-realtime",
       "status": "requires_configuration",
-      "checkedAt": "2026-08-04T06:21:26.080Z",
+      "checkedAt": "2026-08-04T06:36:28.503Z",
       "error": null,
       "label": "zsr-realtime: requires_configuration",
       "recordsCount": 0
@@ -145,7 +143,7 @@
     {
       "sourceId": "mav-emma",
       "status": "requires_configuration",
-      "checkedAt": "2026-08-04T06:21:26.080Z",
+      "checkedAt": "2026-08-04T06:36:28.504Z",
       "error": null,
       "label": "mav-emma: requires_configuration",
       "recordsCount": 0
@@ -153,7 +151,7 @@
     {
       "sourceId": "rne-tis",
       "status": "requires_configuration",
-      "checkedAt": "2026-08-04T06:21:26.080Z",
+      "checkedAt": "2026-08-04T06:36:28.504Z",
       "error": null,
       "label": "rne-tis: requires_configuration",
       "recordsCount": 0
@@ -161,7 +159,7 @@
     {
       "sourceId": "contract-rail-feed",
       "status": "requires_configuration",
-      "checkedAt": "2026-08-04T06:21:26.080Z",
+      "checkedAt": "2026-08-04T06:36:28.504Z",
       "error": null,
       "label": "contract-rail-feed: requires_configuration",
       "recordsCount": 0
@@ -169,11 +167,11 @@
     {
       "sourceId": "anytrain-uz-public",
       "status": "degraded",
-      "checkedAt": "2026-08-04T06:21:24.632Z",
+      "checkedAt": "2026-08-04T06:36:26.677Z",
       "sourceUpdatedAt": null,
-      "lastSuccessfulAt": "2026-08-04T06:21:24.632Z",
+      "lastSuccessfulAt": "2026-08-04T06:36:26.677Z",
       "label": "AnyTrain: 44 задержек · 0 строк табло",
-      "error": "station:2204001: This operation was aborted; station:2208001: This operation was aborted",
+      "error": "station:2210700: This operation was aborted; station:2210800: This operation was aborted",
       "capabilities": [
         "derived-uz-delay",
         "station-board",
@@ -183,18 +181,18 @@
       "scheduler": {
         "strategy": "rotating-station-budget-v1",
         "selectedStations": [
-          "Харків-Пас.",
-          "Одеса-Головна"
+          "Дніпро-Головний",
+          "Запоріжжя-1"
         ],
         "requestBudget": 3,
-        "nextOffset": 4
+        "nextOffset": 0
       },
       "recordsCount": 290
     },
     {
       "sourceId": "swrailway-commuter-schedule",
       "status": "unavailable",
-      "checkedAt": "2026-08-04T06:21:24.633Z",
+      "checkedAt": "2026-08-04T06:36:26.678Z",
       "lastSuccessfulAt": "2026-08-01T09:48:12.216Z",
       "label": "ЮЗЖД: недоступно",
       "error": "fetch failed",
@@ -203,7 +201,7 @@
     {
       "sourceId": "poizdato-station-reference",
       "status": "snapshot",
-      "checkedAt": "2026-08-04T06:21:24.634Z",
+      "checkedAt": "2026-08-04T06:36:26.680Z",
       "lastSuccessfulAt": "2026-08-03T10:01:30.228Z",
       "label": "Poizdato: кэш 38 станций",
       "error": null,
@@ -227,7 +225,7 @@
     {
       "sourceId": "koleo-station-catalog",
       "status": "snapshot",
-      "checkedAt": "2026-08-04T06:21:24.634Z",
+      "checkedAt": "2026-08-04T06:36:26.680Z",
       "lastSuccessfulAt": "2026-08-01T09:48:12.218Z",
       "label": "KOLEO: кэш 10956 станций",
       "capabilities": [
@@ -267,6 +265,26 @@
     }
   ],
   "updates": [
+    {
+      "trainNumber": "6001",
+      "origin": "Тростянець-Смородине",
+      "destination": "Вири",
+      "delayMinutes": 185,
+      "delayLabel": "+3:05",
+      "publicStatus": "№6001 Тростянець-Смородине – Вири відправився з початкової із затримкою 3 години 5 хвилин через пізнє прибуття попереднього рейсу, спричинене безпековими обставинами.\n✅️ Вже прямуємо за маршрутом.\nПросимо уважно слухати оголошення на місцях",
+      "operationalStatus": "moving",
+      "forecastDeparture": null,
+      "forecastArrival": null,
+      "reliability": "Официальный публичный канал",
+      "reason": null,
+      "updatedAt": "2026-08-04T06:27:27+00:00",
+      "source": "https://t.me/s/UZprymisky",
+      "sourceId": "uz-suburban-telegram",
+      "sourceEvidence": "official-public-channel",
+      "positionEvidence": "none",
+      "reportedStation": null,
+      "sourceEventUrl": "https://t.me/UZprymisky/4348"
+    },
     {
       "trainNumber": "1/2",
       "route": "Рахів → Харків-Пас.",
@@ -6682,26 +6700,6 @@
       "positionEvidence": "none",
       "reportedStation": null,
       "sourceEventUrl": "https://t.me/UZprymisky/4329"
-    },
-    {
-      "trainNumber": "6004",
-      "origin": "Фастів",
-      "destination": "Київ",
-      "delayMinutes": 27,
-      "delayLabel": "+0:27",
-      "publicStatus": "№6004 Фастів – Київ курсує із затримкою 27 хвилин.\nПерепрошуємо за затримку та впевнено прямуємо до кінцевої 🛤\n#Київщина",
-      "operationalStatus": "moving",
-      "forecastDeparture": null,
-      "forecastArrival": null,
-      "reliability": "Официальный публичный канал",
-      "reason": null,
-      "updatedAt": "2026-08-03T03:47:33+00:00",
-      "source": "https://t.me/s/UZprymisky",
-      "sourceId": "uz-suburban-telegram",
-      "sourceEvidence": "official-public-channel",
-      "positionEvidence": "none",
-      "reportedStation": null,
-      "sourceEventUrl": "https://t.me/UZprymisky/4328"
     }
   ],
   "expectedRuns": [
@@ -14036,6 +14034,26 @@
       }
     },
     {
+      "expectedId": "expected:uz:2026-08-04:6001:тростянець-смородине-вири",
+      "runId": "uz:2026-08-04:6001:тростянець-смородине-вири",
+      "serviceDate": "2026-08-04",
+      "trainNumber": "6001",
+      "origin": "Тростянець-Смородине",
+      "destination": "Вири",
+      "route": null,
+      "scheduledDeparture": null,
+      "scheduledArrival": null,
+      "sourceIds": [
+        "uz-suburban-telegram"
+      ],
+      "discoveryCount": 1,
+      "metadata": {
+        "stations": [],
+        "stationCalls": [],
+        "boardObservationCount": 0
+      }
+    },
+    {
       "expectedId": "expected:uz:2026-08-04:6003:київ-фастів-вирушив",
       "runId": "uz:2026-08-04:6003:київ-фастів-вирушив",
       "serviceDate": "2026-08-04",
@@ -14049,26 +14067,6 @@
         "uz-suburban-telegram"
       ],
       "discoveryCount": 2,
-      "metadata": {
-        "stations": [],
-        "stationCalls": [],
-        "boardObservationCount": 0
-      }
-    },
-    {
-      "expectedId": "expected:uz:2026-08-03:6004:фастів-київ",
-      "runId": "uz:2026-08-03:6004:фастів-київ",
-      "serviceDate": "2026-08-03",
-      "trainNumber": "6004",
-      "origin": "Фастів",
-      "destination": "Київ",
-      "route": null,
-      "scheduledDeparture": null,
-      "scheduledArrival": null,
-      "sourceIds": [
-        "uz-suburban-telegram"
-      ],
-      "discoveryCount": 1,
       "metadata": {
         "stations": [],
         "stationCalls": [],
@@ -14800,7 +14798,7 @@
     "pkp-plk-realtime": {
       "status": {
         "status": "unavailable",
-        "checkedAt": "2026-08-04T06:21:26.080Z",
+        "checkedAt": "2026-08-04T06:36:28.503Z",
         "error": "HTTP 401",
         "label": "pkp-plk-realtime: unavailable"
       },
@@ -14810,7 +14808,7 @@
     "zsr-realtime": {
       "status": {
         "status": "requires_configuration",
-        "checkedAt": "2026-08-04T06:21:26.080Z",
+        "checkedAt": "2026-08-04T06:36:28.503Z",
         "error": null,
         "label": "zsr-realtime: requires_configuration"
       },
@@ -14820,7 +14818,7 @@
     "mav-emma": {
       "status": {
         "status": "requires_configuration",
-        "checkedAt": "2026-08-04T06:21:26.080Z",
+        "checkedAt": "2026-08-04T06:36:28.504Z",
         "error": null,
         "label": "mav-emma: requires_configuration"
       },
@@ -14830,7 +14828,7 @@
     "rne-tis": {
       "status": {
         "status": "requires_configuration",
-        "checkedAt": "2026-08-04T06:21:26.080Z",
+        "checkedAt": "2026-08-04T06:36:28.504Z",
         "error": null,
         "label": "rne-tis: requires_configuration"
       },
@@ -14840,7 +14838,7 @@
     "contract-rail-feed": {
       "status": {
         "status": "requires_configuration",
-        "checkedAt": "2026-08-04T06:21:26.080Z",
+        "checkedAt": "2026-08-04T06:36:28.504Z",
         "error": null,
         "label": "contract-rail-feed: requires_configuration"
       },
@@ -14851,29 +14849,20 @@
   "collectorDiagnostics": {
     "board": {
       "status": "stale",
-      "checkedAt": "2026-08-04T06:21:27.201Z",
+      "checkedAt": "2026-08-04T06:36:29.383Z",
       "scheduler": {
         "strategy": "information-gain-v3",
         "requestBudget": 1,
         "attempted": 1,
-        "offset": 31,
-        "nextOffset": 32,
-        "selectedStation": "Олександрія",
-        "selectedStationId": "2208380",
+        "offset": 32,
+        "nextOffset": 33,
+        "selectedStation": "Полтава-Київська",
+        "selectedStationId": "2204580",
         "selectedReason": [
           "нет свежего снимка"
         ],
         "selectedScore": 14,
         "rankedStations": [
-          {
-            "id": "2208380",
-            "name": "Олександрія",
-            "score": 14,
-            "expectedTrains": 0,
-            "reasons": [
-              "нет свежего снимка"
-            ]
-          },
           {
             "id": "2204580",
             "name": "Полтава-Київська",
@@ -14909,6 +14898,17 @@
             "reasons": [
               "нет свежего снимка"
             ]
+          },
+          {
+            "id": "2200001",
+            "name": "Київ-Пасажирський",
+            "score": 336,
+            "expectedTrains": 75,
+            "reasons": [
+              "75 ожидаемых рейсов",
+              "ключевой узел",
+              "тишина 734 мин"
+            ]
           }
         ]
       },
@@ -14931,11 +14931,11 @@
       "scheduler": {
         "strategy": "rotating-station-budget-v1",
         "selectedStations": [
-          "Харків-Пас.",
-          "Одеса-Головна"
+          "Дніпро-Головний",
+          "Запоріжжя-1"
         ],
         "requestBudget": 3,
-        "nextOffset": 4
+        "nextOffset": 0
       }
     }
   }
