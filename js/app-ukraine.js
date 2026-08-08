@@ -1,8 +1,8 @@
-import { buildHistoricalPosition, deriveStationPresence, loadTransportData } from "./data-store-ukraine.js?v=20260729-station-ops";
-import { loadMapTimeline, loadRunHistory, loadRuntimeConfig, subscribeToLiveUpdates } from "./live-data-client.js";
-import { MapView } from "./map-view-ukraine.js";
+import { buildHistoricalPosition, deriveStationPresence, loadTransportData } from "./data-store-ukraine.js?v=20260808-freight-v2";
+import { loadMapTimeline, loadRunHistory, loadRuntimeConfig, subscribeToLiveUpdates } from "./live-data-client.js?v=20260808-freight-v2";
+import { MapView } from "./map-view-ukraine.js?v=20260808-freight-v2";
 import { POSITION_STATUSES } from "./positioning.js";
-import { OPERATION_COLORS, OPERATION_LABELS, TRANSPORT_LABELS, TYPE_LABELS, escapeHtml, formatDateTime, formatRelative } from "./formatters-ukraine.js";
+import { OPERATION_COLORS, OPERATION_LABELS, TRANSPORT_LABELS, TYPE_LABELS, escapeHtml, formatDateTime, formatRelative } from "./formatters-ukraine.js?v=20260808-freight-v2";
 
 const HISTORY_KEY="rail-ukraine-pulse:run-history:v2";
 const FAVORITES_KEY="rail-ukraine-pulse:favorites:v1";
@@ -124,7 +124,7 @@ function filteredObjects(){
   const query=state.query.trim().toLocaleLowerCase("uk");
   const allRegions=state.regions.size===state.data.regionList.length;
   return objectsForView().filter((object)=>{
-    const matchesTransport=state.transport==="all"||object.transport===state.transport;
+    const matchesTransport=state.transport==="all"||(state.transport==="freight"?object.type==="freight":state.transport==="train"?object.transport==="train"&&object.type!=="freight":object.transport===state.transport);
     const matchesRegion=state.regions.size>0&&((object.regions||[]).some((id)=>state.regions.has(id))||(allRegions&&!(object.regions||[]).length));
     const haystack=`${object.name} ${object.trainNumber} ${object.route} ${object.origin} ${object.destination} ${object.description}`.toLocaleLowerCase("uk");
     return matchesTransport&&matchesRegion&&(!query||haystack.includes(query))&&matchesQuick(object)
@@ -154,7 +154,7 @@ function renderLiveFeed(){
 function qualityClass(value){return value>=.72?"high":value>=.5?"medium":"low";}
 
 function renderFleet(objects){
-  objects=state.registryScope==="mapped"?objects.filter(object=>object.position.coordinates):objects;
+  objects=state.registryScope==="mapped"?objects.filter(object=>object.position.coordinates||object.type==="freight"):objects;
   const sorted=sortedObjects(objects);
   elements.fleetCount.textContent=`${sorted.length} рейсов`;
   $("#fleet-source-age").textContent=`снимок ${formatRelative(state.data.generatedAt)}`;
@@ -162,6 +162,12 @@ function renderFleet(objects){
   elements.fleetList.innerHTML=sorted.map((object)=>{
     const position=POSITION_STATUSES[object.position.status],delay=object.liveUpdate?.delayMinutes;
     const selected=state.selected?.id===object.id?" selected":"";
+    if(object.type==="freight")return `<button class="fleet-card freight-fleet-card${selected}" data-object-id="${escapeHtml(object.id)}">
+      <span class="fleet-status" style="--fleet-color:#d99a45"></span>
+      <span class="fleet-main"><strong>${escapeHtml(object.name)}</strong><b>${escapeHtml(object.route)}</b><small>Агрегировано ${formatRelative(object.liveUpdate?.updatedAt)} · коридор, не точная позиция</small></span>
+      <span class="fleet-admission">${escapeHtml(object.positionAdmission.reason)}</span>
+      <span class="fleet-meta"><strong>≥24 ч</strong><small class="quality-${qualityClass(object.quality)}">Q ${Math.round(object.quality*100)}</small></span>
+    </button>`;
     return `<button class="fleet-card${selected}" data-object-id="${escapeHtml(object.id)}">
       <span class="fleet-status" style="--fleet-color:${position.color}"></span>
       <span class="fleet-main"><strong>№${escapeHtml(object.trainNumber)} <i>${escapeHtml(object.liveUpdate?.publicStatus||"")}</i></strong><b>${escapeHtml(object.origin)} <em>→</em> ${escapeHtml(object.destination)}</b><small>Обновлено ${formatRelative(object.liveUpdate?.updatedAt)} · ${position.label}</small></span>
@@ -175,8 +181,9 @@ function renderRegionSummary(objects){
   const names=state.data.regionList.filter((region)=>state.regions.has(region.id)).map((region)=>region.name);
   const delayed=objects.filter((object)=>Number(object.liveUpdate?.delayMinutes||0)>=60).length;
   const positioned=objects.filter((object)=>object.position.coordinates).length;
+  const freight=new Set(objects.filter((object)=>object.type==="freight").map((object)=>object.freight?.corridorCode||object.routeId)).size;
   const title=names.length===state.data.regionList.length?"Все выбранные области":names.length===1?names[0]:`${names.length} областей выбрано`;
-  elements.regionSummary.innerHTML=`<span class="region-summary-icon">⌖</span><div><strong>${escapeHtml(title)}</strong><p>${objects.length} рейсов · ${positioned} с координатой · ${delayed} с задержкой 1ч+</p></div>`;
+  elements.regionSummary.innerHTML=`<span class="region-summary-icon">⌖</span><div><strong>${escapeHtml(title)}</strong><p>${objects.length} объектов · ${positioned} с координатой · ${freight} грузовых коридоров · ${delayed} с задержкой 1ч+</p></div>`;
 }
 
 function renderDiagnostics(){
@@ -188,6 +195,7 @@ function renderDiagnostics(){
   $("#diagnostic-planned").textContent=d.plannedOnlyRuns;
   $("#diagnostic-no-route").textContent=d.noRouteRuns;
   $("#diagnostic-station-queues").textContent=`${d.stationQueueRuns}/${d.stationQueueGroups}`;
+  $("#diagnostic-freight").textContent=`${d.freightRuns||0}/${d.freightCorridors||0}`;
   $("#diagnostic-quality").textContent=`${Math.round(d.averageQuality*100)}%`;
   const health=d.freshness.key==="fresh"?"Свежие":d.freshness.key==="expired"?"Устарели":"С задержкой";
   $("#diagnostic-health").textContent=health;
@@ -331,7 +339,19 @@ function stationPlanTemplate(object){
   const labels={confirmed:"Факт", "model-passed":"Пройдена моделью", "model-next":"Вероятно следующая", planned:"Впереди"};
   return `<section class="station-plan"><header><strong>Цифровой станционный план</strong><span>${items.length} ориентиров</span></header>${items.map(item=>`<div class="station-plan-row ${item.status}"><b>${item.sequence}. ${escapeHtml(item.station)}</b><span>${labels[item.status]} · ${formatDateTime(item.actualAt||item.plannedAt)}</span><small>${item.distanceKm} км</small></div>`).join("")}</section>`;
 }
+function freightDetailTemplate(object){
+  const confidence=Math.round((object.position.confidence||0)*100),freight=object.freight||{};
+  return `<p class="detail-focus-note freight-focus-note">ГРУЗОВОЙ СЛОЙ · ВЕРОЯТНОСТНЫЙ КОРИДОР, НЕ GPS-ПОЗИЦИЯ</p><p class="detail-kicker">${TRANSPORT_LABELS[object.transport]} · ${TYPE_LABELS[object.type]}</p>
+    <h2>${escapeHtml(object.name)}</h2><p class="detail-route">${escapeHtml(object.route)}</p>
+    <section class="freight-safety-card"><strong>Публичная проекция с задержкой ≥24 часов</strong><p>Номера состава и локомотива, точная станция, исходный текст и координата не публикуются. Линия показывает агрегат коридора, прошедший независимую корреляцию либо операторскую проверку.</p></section>
+    <div class="truth-grid"><section><small>НАБЛЮДЕНИЯ</small><strong>${freight.observationCount||0}</strong><span>${escapeHtml(freight.corroborationLabel||`${freight.independentSources||0} независимых источника`)}</span></section><section><small>МЕТОД</small><strong>Агрегация коридора</strong><span>${escapeHtml(object.position.method)}</span></section></div>
+    <div class="confidence-block"><div class="confidence-head"><span>Уверенность в наличии активности</span><strong>${confidence}%</strong></div><div class="confidence-bar"><i style="width:${confidence}%"></i></div></div>
+    <div class="data-grid"><div><small>Ширина неопределённости</small><strong>± ${Math.round(object.position.errorKm||0)} км</strong></div><div><small>Последний допустимый факт</small><strong>${formatDateTime(object.position.updatedAt)}</strong></div><div><small>Публикация</small><strong>не ранее 24 часов</strong></div><div><small>Точная позиция</small><strong>не раскрывается</strong></div></div>
+    <h3 class="detail-section-title">Вероятностный коридор</h3>${routeTimelineTemplate(object)}<h3 class="detail-section-title">Основание</h3>${eventLedgerTemplate(object.events)}
+    <button class="detail-action" id="favorite-button">${state.favorites.has(object.runId)?"Удалить из избранного":"Добавить в избранное"}</button><button class="detail-action" id="share-button">Скопировать ссылку на агрегат</button>`;
+}
 function detailTemplate(object){
+  if(object.type==="freight")return freightDetailTemplate(object);
   const position=object.position,status=POSITION_STATUSES[position.status],operation=object.operationalStatus;
   const confidence=Math.round((position.confidence??0)*100),progress=object.journey?.progress==null?null:Math.round(object.journey.progress*100);
   const forecast=object.forecast?.arrivalAt?formatDateTime(object.forecast.arrivalAt):"Не опубликован";
@@ -424,7 +444,7 @@ function selectObject(object){
     event.currentTarget.textContent=state.followedId===object.id?"Отменить слежение":"Следить за рейсом";
     showToast(state.followedId===object.id?`Слежение за ${object.name} включено`:"Слежение отключено");
   });
-  if(!object.serverHistoryRequested){
+  if(object.type!=="freight"&&!object.serverHistoryRequested){
     object.serverHistoryRequested=true;
     loadRunHistory(object.runId).then((result)=>{
       const serverPoints=(result.snapshots||[]).map(snapshot=>buildHistoricalPosition(snapshot.update,object.routeCoordinates,snapshot.capturedAt,object.waypoints)).filter(Boolean);

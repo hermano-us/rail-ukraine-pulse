@@ -39,7 +39,10 @@ test("freight entity extraction keeps a directional report probabilistic", () =>
 
 test("freight ingest repeats the sensitive-content guard before D1", async () => {
   const batches = [];
-  const env = { DB: { prepare(sql) { return { bind(...values) { return { sql, values }; } }; }, async batch(statements) { batches.push(statements); } } };
+  const env = { DB: { prepare(sql) { return { bind(...values) {
+    if (sql.startsWith("SELECT evidence_id")) return { all: async () => ({ results: [] }) };
+    return { sql, values };
+  } }; }, async batch(statements) { batches.push(statements); } } };
   const base = { observationId: "freight-tg-test:1", sourceId: "freight-tg-test", sourceUrl: "https://t.me/test/1", occurredAt: "2026-07-27T10:00:00Z", corridor: "test", freightType: "bulk", confidence: 0.4, contentFingerprint: "abc", publicEligible: false };
   const request = new Request("https://example.test/api/v1/freight/ingest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ observations: [
     { ...base, evidenceExcerpt: "Вантажний поїзд із зерновозами" },
@@ -50,7 +53,11 @@ test("freight ingest repeats the sensitive-content guard before D1", async () =>
   const result = await response.json();
   assert.equal(response.status, 202); assert.equal(result.received, 3); assert.equal(result.accepted, 1); assert.equal(result.publicObjects, 0);
   assert.equal(batches.flat().length, 2);
+  assert.match(batches.flat()[0].sql, /^INSERT OR IGNORE INTO freight_observations/);
   assert.match(batches.flat()[1].sql, /restricted_evidence/);
+  assert.match(batches.flat()[1].sql, /^INSERT OR IGNORE INTO restricted_evidence/);
+  assert.doesNotMatch(batches.flat()[0].sql, /DO UPDATE/);
+  assert.doesNotMatch(batches.flat()[1].sql, /DO UPDATE/);
 });
 test("freight entity extraction separates station facts, directions and stable identities", () => {
   const passed=extractFreightEntities("Вантажний поїзд ВЛ80Т-1445 прослідував станцію Фастів, слідує на Київ");
@@ -61,8 +68,20 @@ test("freight entity extraction separates station facts, directions and stable i
   assert.equal(vague.entityKey,null);
 });
 test("freight ingest infers a known corridor from an explicit station", async () => {
-  const batches=[]; const env={DB:{prepare(sql){return{bind(...values){return{sql,values};}};},async batch(statements){batches.push(statements);}}};
+  const batches=[]; const env={DB:{prepare(sql){return{bind(...values){
+    if(sql.startsWith("SELECT evidence_id"))return{all:async()=>({results:[]})};
+    return{sql,values};
+  }};},async batch(statements){batches.push(statements);}}};
   const observation={observationId:"freight-tg-test:station",sourceId:"freight-tg-test",sourceUrl:"https://t.me/test/2",occurredAt:"2026-07-27T10:00:00Z",corridor:"unresolved",freightType:"bulk",confidence:.4,contentFingerprint:"station",evidenceExcerpt:"Вантажний поїзд ВЛ80Т-1445 пройшов станцію Коростень",publicEligible:false};
   const response=await handleFreightRequest(new Request("https://example.test/api/v1/freight/ingest",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({observations:[observation],sources:[]})}),env,{authorized:()=>true,authorizedAdmin:()=>false});
   assert.equal(response.status,202); assert.equal(batches[0][0].values[5],"kyiv-korosten"); assert.equal(batches[0][1].values[8],"kyiv-korosten");
+});
+test("freight ingest skips observations already present in the immutable journal", async () => {
+  const batches=[]; const env={DB:{prepare(sql){return{bind(){
+    if(sql.startsWith("SELECT evidence_id"))return{all:async()=>({results:[{evidence_id:"freight-tg-test:existing"}]})};
+    throw new Error("duplicate must not be prepared for insert");
+  }};},async batch(statements){batches.push(statements);}}};
+  const observation={observationId:"freight-tg-test:existing",sourceId:"freight-tg-test",sourceUrl:"https://t.me/test/3",occurredAt:"2026-07-27T10:00:00Z",corridor:"kyiv-korosten",freightType:"bulk",confidence:.4,contentFingerprint:"existing",evidenceExcerpt:"Вантажний поїзд із зерновозами",publicEligible:false};
+  const response=await handleFreightRequest(new Request("https://example.test/api/v1/freight/ingest",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({observations:[observation],sources:[]})}),env,{authorized:()=>true,authorizedAdmin:()=>false});
+  const result=await response.json(); assert.equal(response.status,202); assert.equal(result.accepted,0); assert.equal(batches.length,0);
 });

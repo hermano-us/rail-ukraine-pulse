@@ -21,7 +21,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: npm test
+      - name: Verify freight ingestion and public-safety invariants
+        run: node --test tests/*freight*.test.mjs tests/product-safety.test.mjs
       - name: Collect public freight evidence for private moderation
         run: npm run update-freight-intelligence
         env:

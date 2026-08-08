@@ -1,5 +1,5 @@
 import { POSITION_STATUSES } from "./positioning.js";
-import { OPERATION_COLORS, OPERATION_LABELS, escapeHtml } from "./formatters-ukraine.js";
+import { OPERATION_COLORS, OPERATION_LABELS, escapeHtml } from "./formatters-ukraine.js?v=20260808-freight-v2";
 
 const GLYPHS={moving:"↗",station:"■",depot:"D","source-unavailable":"?"};
 
@@ -16,6 +16,7 @@ export class MapView{
     this.uncertaintyLayer=L.layerGroup().addTo(this.map);
     this.selectedLayer=L.layerGroup().addTo(this.map);
     this.markerLayer=L.layerGroup().addTo(this.map);
+    this.freightLayer=L.layerGroup().addTo(this.map);
     this.stationQueueLayer=L.layerGroup().addTo(this.map);
     this.historyLayer=L.layerGroup().addTo(this.map);
     this.markers=new Map();
@@ -50,7 +51,7 @@ export class MapView{
   }
 
   render(objects,routeMap,focusedObject=null,stationQueues=[]){
-    this.currentRouteMap=routeMap;this.routeIntensity=new Map();for(const item of objects)this.routeIntensity.set(item.routeId,(this.routeIntensity.get(item.routeId)||0)+1);this.markerLayer.clearLayers();this.uncertaintyLayer.clearLayers();this.selectedLayer.clearLayers();this.stationQueueLayer.clearLayers();
+    this.currentRouteMap=routeMap;this.routeIntensity=new Map();for(const item of objects)this.routeIntensity.set(item.routeId,(this.routeIntensity.get(item.routeId)||0)+1);this.markerLayer.clearLayers();this.freightLayer.clearLayers();this.uncertaintyLayer.clearLayers();this.selectedLayer.clearLayers();this.stationQueueLayer.clearLayers();
     this.routeLayer.clearLayers();
     if(!focusedObject&&this.routes){
       const visibleRouteIds=new Set(objects.filter((object)=>Array.isArray(object.position.coordinates)).map((object)=>object.routeId));
@@ -60,6 +61,7 @@ export class MapView{
     const visibleStationQueues=focusedObject?[]:(stationQueues||[]).map((group)=>({...group,entries:(group.entries||[]).filter((entry)=>this.objects.has(entry.objectId))})).filter((group)=>group.entries.length);
     const queuedObjectIds=new Set(visibleStationQueues.flatMap((group)=>group.entries.map((entry)=>entry.objectId)));
     const bounds=[];
+    this.renderFreightCorridors(objects.filter((object)=>object.type==="freight"),bounds);
     if(this.viewMode==="density"&&!focusedObject){
       const cells=new Map();
       for(const object of objects){const [lon,lat]=object.position.coordinates||[];if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;const key=`${Math.round(lat/.65)}:${Math.round(lon/.8)}`,cell=cells.get(key)||{lat:0,lon:0,count:0};cell.lat+=lat;cell.lon+=lon;cell.count+=1;cells.set(key,cell);}
@@ -76,6 +78,7 @@ export class MapView{
       this.currentBounds=bounds;return;
     }
     objects.forEach((object)=>{
+      if(object.type==="freight")return;
       const [lon,lat]=object.position.coordinates||[];
       if(queuedObjectIds.has(object.id))return;
       if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
@@ -103,6 +106,22 @@ export class MapView{
     });
     this.currentBounds=bounds;
     this.renderStationQueues(visibleStationQueues,bounds);
+  }
+
+  renderFreightCorridors(objects,bounds=[]){
+    const groups=new Map();
+    for(const object of objects){const key=object.freight?.corridorCode||object.routeId,group=groups.get(key)||[];group.push(object);groups.set(key,group);}
+    for(const group of groups.values()){
+      const object=group[0],coordinates=(object.routeCoordinates||[]).map(([lon,lat])=>[lat,lon]).filter(([lat,lon])=>Number.isFinite(lat)&&Number.isFinite(lon));if(coordinates.length<2)continue;
+      const area=object.freight?.corridorKind==="area",confidence=Math.round((Math.max(...group.map((item)=>item.position.confidence||0)))*100);
+      const shape=area?L.polygon(coordinates,{className:"freight-public-corridor",color:"#d99a45",weight:2,opacity:.76,fillColor:"#d99a45",fillOpacity:.07,dashArray:"7 9"}):L.polyline(coordinates,{className:"freight-public-corridor",color:"#d99a45",weight:5,opacity:.7,dashArray:"5 10",lineCap:"round"});shape.addTo(this.freightLayer);
+      const anchor=area?shape.getBounds().getCenter():coordinates[Math.floor((coordinates.length-1)/2)],icon=L.divIcon({className:"freight-corridor-anchor-shell",html:`<div class="freight-corridor-anchor"><b>${group.length}</b></div>`,iconSize:[42,42],iconAnchor:[21,21]});
+      const marker=L.marker(anchor,{icon,keyboard:true,title:`${object.route}: агрегированная грузовая активность, не точная позиция`}).addTo(this.freightLayer),popup=document.createElement("section");popup.className="freight-corridor-popup";
+      const header=document.createElement("header"),title=document.createElement("strong"),meta=document.createElement("small");title.textContent=object.route;meta.textContent=`${group.length} вероятностных объектов · confidence до ${confidence}%`;header.append(title,meta);popup.append(header);
+      const warning=document.createElement("p");warning.textContent="Публичная агрегация с задержкой не менее 24 часов. Линия показывает коридор, а не координату состава.";popup.append(warning);
+      for(const item of group){const button=document.createElement("button"),name=document.createElement("b"),description=document.createElement("span"),state=document.createElement("em");name.textContent=item.name;description.textContent=`${item.freight?.observationCount||0} наблюдений · ${item.freight?.independentSources||0} источника`;state.textContent=`±${Math.round(item.position.errorKm||0)} км`;button.append(name,description,state);button.addEventListener("click",()=>{marker.closePopup();this.onSelect(item);});popup.append(button);}
+      marker.bindPopup(popup,{minWidth:300,maxWidth:380,maxHeight:360});shape.on("click",()=>marker.openPopup());bounds.push(...coordinates);
+    }
   }
 
 

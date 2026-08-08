@@ -4,7 +4,9 @@ const DEFAULT_CONFIG = Object.freeze({
   historyPath: "/api/v1/history",
   timelinePath: "/api/v1/timeline",
   streamPath: "/api/v1/stream",
+  freightPath: "/api/v1/freight/public",
   fallbackUrl: "data/live.json",
+  freightFallbackUrl: "data/freight-aggregates.json",
   requestTimeoutMs: 4500,
   refreshIntervalMs: 30_000,
 });
@@ -52,6 +54,24 @@ export async function loadLiveSnapshot() {
     transport: "static-fallback",
     endpoint: config.fallbackUrl,
   };
+}
+
+export async function loadFreightSnapshot() {
+  const config = await loadRuntimeConfig();
+  if (config.apiBase) {
+    const endpoint = new URL(config.freightPath, `${config.apiBase.replace(/\/$/, "")}/`).toString();
+    try {
+      const snapshot = await readJson(endpoint, { timeoutMs: config.requestTimeoutMs });
+      return { snapshot, transport: "api", endpoint };
+    } catch (error) {
+      console.warn("Public freight projection unavailable; using safe static fallback", error);
+    }
+  }
+  try {
+    return { snapshot: await readJson(config.freightFallbackUrl, { timeoutMs: config.requestTimeoutMs }), transport: "static-fallback", endpoint: config.freightFallbackUrl };
+  } catch {
+    return { snapshot: { schemaVersion: 2, objects: [], corridors: [], sourceStatus: { status: "unavailable", label: "Грузовой слой временно недоступен" } }, transport: "unavailable", endpoint: null };
+  }
 }
 
 export async function loadRunHistory(runId, options = {}) {

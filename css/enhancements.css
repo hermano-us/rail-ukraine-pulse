@@ -238,3 +238,22 @@ button.feed-item:hover { border-color:rgba(72,217,230,.34); background:rgba(72,2
 .fleet-admission{grid-column:2/4;margin:-5px 0 5px;padding:5px 7px;color:#cda96c;border-left:2px solid #d89a4b;background:rgba(216,154,75,.055);font-size:7px}
 .diagnostic-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:520px){.diagnostic-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.station-queue-popup{max-height:260px}}
+
+/* Public freight intelligence: delayed, aggregated corridors only. */
+.filter-section .segmented{grid-template-columns:repeat(4,minmax(0,1fr))}
+.freight-segment{color:#e8b56e}.freight-segment.active{border-color:#d99a45!important;background:rgba(217,154,69,.14)!important;color:#ffe2b6!important}
+.legend-marker.freight{border:1px dashed #d99a45;background:rgba(217,154,69,.22)}
+.freight-public-corridor{stroke-linecap:round;stroke-linejoin:round;pointer-events:auto}
+.freight-corridor-anchor{position:relative;display:grid;place-items:center;width:34px;height:34px;border:1px dashed #e0a95b;border-radius:50%;background:rgba(25,20,14,.94);box-shadow:0 0 22px rgba(217,154,69,.25);color:#ffd69d;font:800 10px/1 ui-monospace,monospace}
+.freight-corridor-anchor::before{content:"F";position:absolute;left:5px;top:4px;color:#9d7543;font-size:6px}
+.freight-corridor-anchor::after{content:"≥24h";position:absolute;left:50%;bottom:-11px;transform:translateX(-50%);padding:2px 3px;border-radius:3px;background:rgba(10,17,20,.92);color:#d99a45;font-size:6px;white-space:nowrap}
+.freight-corridor-anchor b{font-size:10px}
+.freight-corridor-popup{display:grid;gap:7px;min-width:230px;max-width:320px;color:#cbdce1}
+.freight-corridor-popup header{display:grid;gap:3px;padding-bottom:7px;border-bottom:1px solid #263943}.freight-corridor-popup header small{color:#d99a45;font-size:8px;letter-spacing:.1em}.freight-corridor-popup header strong{font-size:12px}
+.freight-corridor-popup p{margin:0;color:#8398a1;font-size:9px;line-height:1.45}.freight-corridor-popup button{padding:7px;border:1px solid rgba(217,154,69,.34);border-radius:5px;background:rgba(217,154,69,.1);color:#f5c98c;cursor:pointer}
+.freight-fleet-card{border-color:rgba(217,154,69,.18)!important;background:linear-gradient(90deg,rgba(217,154,69,.06),transparent 55%)}
+.freight-fleet-card:hover,.freight-fleet-card.selected{border-color:rgba(217,154,69,.5)!important;background:rgba(217,154,69,.09)!important}
+.freight-focus-note{border-color:rgba(217,154,69,.35);background:rgba(217,154,69,.09);color:#f5c98c}
+.freight-safety-card{margin:10px 0;padding:11px;border:1px solid rgba(217,154,69,.24);border-radius:7px;background:rgba(217,154,69,.055)}
+.freight-safety-card strong{color:#f1c07b;font-size:10px}.freight-safety-card p{margin:5px 0 0;color:#8499a2;font-size:8px;line-height:1.55}
+@media(max-width:860px){.freight-corridor-anchor{width:30px;height:30px;font-size:8px}}

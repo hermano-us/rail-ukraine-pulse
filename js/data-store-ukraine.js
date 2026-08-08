@@ -2,8 +2,9 @@ import { buildRouteMeasure, haversineKm, interpolateAlongRoute, projectDistanceO
 import { estimatePosterior } from "../shared/rail-posterior.js";
 import { buildGeometricWaypoints, buildOfficialEvents, buildUncertaintyCorridor, hydrateSourceRegistry, sourceRegistrySummary } from "./evidence-engine.js";
 import { evaluateFreshness, freshnessConfidenceFactor, freshnessReasons, sourceAgeMinutes as ageOf } from "./freshness-policy.js";
-import { loadLiveSnapshot } from "./live-data-client.js";
+import { loadFreightSnapshot, loadLiveSnapshot } from "./live-data-client.js?v=20260808-freight-v2";
 import { canonicalServiceKey, fuseServiceUpdates, groupStationQueues, positionAdmission, stationQueueForUpdate } from "./service-registry.js";
+import { materializePublicFreight } from "./freight-public-layer.js?v=20260808-freight-v2";
 
 async function readJson(url, optional = false) {
   const response = await fetch(url, { cache: "no-store" });
@@ -408,7 +409,7 @@ function segmentCalibrationFor(stats=[],trainNumber=""){
 export async function loadTransportData(now=new Date()){
   const [baseRoutes,regions,liveData,freightData,vesselData,sourceData,stationData,sourceRuntime]=await Promise.all([
     readJson("data/railways.geojson"),readJson("data/regions.geojson"),
-    loadLiveSnapshot().then((result)=>result.snapshot).catch(()=>null),readJson("data/freight-aggregates.json",true).catch(()=>null),
+    loadLiveSnapshot().then((result)=>result.snapshot).catch(()=>null),loadFreightSnapshot().then((result)=>result.snapshot).catch(()=>null),
     readJson("data/vessels.json",true).catch(()=>null),readJson("data/sources.json",true).catch(()=>null),
     readJson("data/stations.json",true).catch(()=>null),readJson("data/source-runtime.json",true).catch(()=>null),
   ]);
@@ -444,7 +445,12 @@ export async function loadTransportData(now=new Date()){
   };
   const fusedUpdates=fuseServiceUpdates(liveData?.updates||[],now);
   const currentMaterialized=materializeUpdates(fusedUpdates,now);
-  const {objects,routes,routeMap}=currentMaterialized,dynamicFeatures=routes.features;  const regionList=[...new Map(regions.features.map((feature)=>[feature.properties.id,{id:feature.properties.id,name:feature.properties.name}])).values()].sort((a,b)=>a.name.localeCompare(b.name,"ru"));
+  const freightMaterialized=materializePublicFreight(freightData,(coordinates)=>regionsForPoints(coordinates,regions.features),now);
+  const objects=[...currentMaterialized.objects,...freightMaterialized.objects];
+  const dynamicFeatures=[...currentMaterialized.routes.features,...freightMaterialized.features];
+  const routes={type:"FeatureCollection",features:dynamicFeatures};
+  const routeMap=new Map(dynamicFeatures.map((feature)=>[feature.properties.id,feature]));
+  const regionList=[...new Map(regions.features.map((feature)=>[feature.properties.id,{id:feature.properties.id,name:feature.properties.name}])).values()].sort((a,b)=>a.name.localeCompare(b.name,"ru"));
   const positioned=objects.filter((object)=>object.position.coordinates).length;
   const forecastCoverage=objects.filter((object)=>object.liveUpdate.forecastArrival||object.liveUpdate.forecastDeparture).length;
   const stationQueues=groupStationQueues(objects);
@@ -458,6 +464,8 @@ export async function loadTransportData(now=new Date()){
     observedRuns:objects.filter((object)=>object.liveUpdate?.hasOperationalObservation).length,
     plannedOnlyRuns:objects.filter((object)=>object.positionAdmission?.reasonCode==="planned_only").length,
     stationQueueRuns:stationQueues.reduce((sum,group)=>sum+group.entries.length,0),stationQueueGroups:stationQueues.length,
+    freightRuns:freightMaterialized.objects.length,freightCorridors:new Set(freightMaterialized.objects.map((object)=>object.freight?.corridorCode)).size,
+    freightEligibleEvidence:Number(freightData?.diagnostics?.eligibleEvidence||0),
     exclusionReasons:objects.filter((object)=>!object.position.coordinates).reduce((result,object)=>{const key=object.positionAdmission?.reasonCode||"unknown";result[key]=(result[key]||0)+1;return result;},{}),
     sourcesConnected:sourceSummary.connected,sourcesTotal:sourceSummary.total,
     freshness:evaluateFreshness(sourceAgeMinutes),
@@ -468,10 +476,10 @@ export async function loadTransportData(now=new Date()){
   const eventFeed=objects.flatMap((object)=>object.events.map((event)=>({...event,objectId:object.id,trainNumber:object.trainNumber,route:object.route,positionStatus:object.position.status})))
     .sort((a,b)=>Date.parse(b.occurredAt)-Date.parse(a.occurredAt));
   return {
-    generatedAt,calculatedAt:now.toISOString(),dataMode:"UZ-public-event-fusion-v6",safetyNote:"Only public passenger status data is displayed.",
+    generatedAt,calculatedAt:now.toISOString(),dataMode:"UZ-public-event-fusion-v6+delayed-freight-v2",safetyNote:"Public passenger status and delayed aggregate freight corridors only; no exact freight position is exposed.",
     sourceStatus,sourceRegistry,sourceSummary,diagnostics,
     marineStatus:vesselData?.sourceStatus||{status:"unavailable",label:"AIS-провайдер не подключён; суда не отображаются"},
-    freightStatus:freightData?.sourceStatus||{status:"unavailable",label:"Грузовые позиции не отображаются"},
+    freightStatus:freightData?.sourceStatus||{status:"unavailable",label:"Грузовой агрегированный слой недоступен"},
     liveFeed:fusedUpdates.map((update,index)=>({...update,objectId:objects[index]?.id||null})),eventFeed,
     objects,routes,routeMap,regions,regionList,stationQueues,
     buildTimelineObjects:(updates,at)=>materializeUpdates(fuseServiceUpdates(updates,new Date(at)),new Date(at),"uz-history-route"),

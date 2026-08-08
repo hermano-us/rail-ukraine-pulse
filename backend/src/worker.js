@@ -520,7 +520,7 @@ export async function handleRequest(request, env) {
       const response = await handleIntelligencePlatformRequest(request, env, principal, (value, status = 200) => json(value, { status, headers: { "Cache-Control": "no-store" } }, request, env));
       if (response) return response;
     }
-    if (url.pathname === "/api/v1/freight/ingest" || url.pathname === "/api/admin/freight") {
+    if (["/api/v1/freight/ingest", "/api/v1/freight/public", "/api/admin/freight"].includes(url.pathname)) {
       const principal = url.pathname === "/api/admin/freight" ? await resolvePrincipal(request, env) : null;
       const response = await handleFreightRequest(request, env, {
         authorized: () => authorized(request, env),
