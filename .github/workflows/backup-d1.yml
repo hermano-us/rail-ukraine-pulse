@@ -1,64 +1,118 @@
 name: Backup Cloudflare D1
+
 on:
   schedule:
-    - cron: "17 3 * * *"
+    - cron: "17 */6 * * *"
   workflow_dispatch:
+
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: d1-backup-vault
+  cancel-in-progress: false
+
 jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 24 }
+        with:
+          node-version: 24
       - run: npm install --no-audit --no-fund
-      - run: npx wrangler d1 export rail-ukraine-pulse --remote --output rail-ukraine-pulse.sql --config backend/wrangler.production.jsonc
+      - name: Capture safe backup watermark
+        id: watermark
+        shell: bash
+        run: echo "captured_through=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+      - name: Export production D1
+        run: npx wrangler d1 export rail-ukraine-pulse --remote --output rail-ukraine-pulse.sql --config backend/wrangler.production.jsonc
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - name: Package backup
+      - name: Encrypt and checksum backup
         id: backup
         shell: bash
+        env:
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
         run: |
           set -euo pipefail
-          gzip -9 --keep rail-ukraine-pulse.sql
-          sha256sum rail-ukraine-pulse.sql.gz > rail-ukraine-pulse.sql.gz.sha256
-          archive_date="$(date -u +%Y/%m/%d)"
-          archive_key="full-d1/${archive_date}/rail-ukraine-pulse-${GITHUB_RUN_ID}.sql.gz"
-          echo "archive_key=${archive_key}" >> "${GITHUB_OUTPUT}"
-      - name: Ensure R2 history archive
+          test -n "$BACKUP_ENCRYPTION_KEY"
+          gzip -9 rail-ukraine-pulse.sql
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          asset="rail-ukraine-pulse-${stamp}-${GITHUB_RUN_ID}.sql.gz.enc"
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 250000 -md sha256 \
+            -in rail-ukraine-pulse.sql.gz -out "$asset" -pass env:BACKUP_ENCRYPTION_KEY
+          rm rail-ukraine-pulse.sql.gz
+          sha256sum "$asset" > "$asset.sha256"
+          echo "asset=$asset" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(cut -d ' ' -f 1 "$asset.sha256")" >> "$GITHUB_OUTPUT"
+          echo "bytes=$(stat -c %s "$asset")" >> "$GITHUB_OUTPUT"
+          echo "vault_tag=d1-vault-$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+      - name: Store in private draft release
+        id: vault
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSET: ${{ steps.backup.outputs.asset }}
+          VAULT_TAG: ${{ steps.backup.outputs.vault_tag }}
         run: |
           set -euo pipefail
-          if npx wrangler r2 bucket list | grep -Fq 'rail-ukraine-pulse-archive'; then
-            echo "R2 archive bucket is ready"
-          else
-            npx wrangler r2 bucket create rail-ukraine-pulse-archive
+          release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --jq "map(select(.draft == true and .tag_name == \"${VAULT_TAG}\"))[0].id // empty")"
+          if [ -z "$release_id" ]; then
+            release_id="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" \
+              -f tag_name="$VAULT_TAG" -f target_commitish="$GITHUB_SHA" \
+              -f name="Private D1 backup vault ${VAULT_TAG#d1-vault-}" \
+              -f body="Encrypted automated backups. Keep this release in draft state." \
+              -F draft=true --jq '.id')"
           fi
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - name: Upload and verify R2 backup
+          gh api --method POST -H "Content-Type: application/octet-stream" \
+            --input "$ASSET" \
+            "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets?name=${ASSET}" >/dev/null
+          gh api --method POST -H "Content-Type: text/plain" \
+            --input "$ASSET.sha256" \
+            "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets?name=${ASSET}.sha256" >/dev/null
+          asset_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets" \
+            --jq ".[] | select(.name == \"${ASSET}\") | .id")"
+          test -n "$asset_id"
+          gh api -H "Accept: application/octet-stream" \
+            "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" > "$ASSET.verify"
+          expected="$(cut -d ' ' -f 1 "$ASSET.sha256")"
+          actual="$(sha256sum "$ASSET.verify" | cut -d ' ' -f 1)"
+          test "$expected" = "$actual"
+          rm "$ASSET.verify"
+          echo "archive_id=github-draft://${GITHUB_REPOSITORY}/${VAULT_TAG}/${ASSET}" >> "$GITHUB_OUTPUT"
+      - name: Confirm protected history to production
         shell: bash
+        env:
+          RAIL_API_URL: ${{ secrets.RAIL_API_URL }}
+          RAIL_INGEST_TOKEN: ${{ secrets.RAIL_INGEST_TOKEN }}
+          CAPTURED_THROUGH: ${{ steps.watermark.outputs.captured_through }}
+          ARCHIVE_ID: ${{ steps.vault.outputs.archive_id }}
+          SHA256: ${{ steps.backup.outputs.sha256 }}
+          BYTES: ${{ steps.backup.outputs.bytes }}
         run: |
           set -euo pipefail
-          object_path="rail-ukraine-pulse-archive/${{ steps.backup.outputs.archive_key }}"
-          npx wrangler r2 object put "${object_path}" --remote --file rail-ukraine-pulse.sql.gz --content-type application/gzip --content-encoding gzip
-          npx wrangler r2 object put "${object_path}.sha256" --remote --file rail-ukraine-pulse.sql.gz.sha256 --content-type text/plain
-          npx wrangler r2 object get "${object_path}" --remote --file rail-ukraine-pulse.verify.sql.gz
-          expected="$(cut -d ' ' -f 1 rail-ukraine-pulse.sql.gz.sha256)"
-          actual="$(sha256sum rail-ukraine-pulse.verify.sql.gz | cut -d ' ' -f 1)"
-          test "${expected}" = "${actual}"
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          test -n "$RAIL_API_URL"
+          payload="$(jq -n \
+            --arg status verified \
+            --arg capturedThrough "$CAPTURED_THROUGH" \
+            --arg archiveId "$ARCHIVE_ID" \
+            --arg sha256 "$SHA256" \
+            --argjson bytes "$BYTES" \
+            '{status:$status,capturedThrough:$capturedThrough,archiveId:$archiveId,sha256:$sha256,bytes:$bytes}')"
+          curl --fail-with-body --silent --show-error \
+            -X POST "${RAIL_API_URL%/}/api/v1/storage/backup-checkpoint" \
+            -H "Authorization: Bearer ${RAIL_INGEST_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data "$payload"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: d1-backup-${{ github.run_id }}
+          name: encrypted-d1-backup-${{ github.run_id }}
           path: |
-            rail-ukraine-pulse.sql
-            rail-ukraine-pulse.sql.gz
-            rail-ukraine-pulse.sql.gz.sha256
+            *.sql.gz.enc
+            *.sql.gz.enc.sha256
+          if-no-files-found: ignore
           retention-days: 30

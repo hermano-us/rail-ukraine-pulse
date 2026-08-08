@@ -13,7 +13,7 @@ import { ingestExpectedRuns } from "./intelligence/expected-registry.js";
 import { handlePublicObservationRequest } from "./intelligence/observation-submissions.js";
 import { collectOfficialBoardEdge } from "./edge-board-collector.js";
 import { dynamicRequestBudget } from "./intelligence/data-reliability.js";
-import { pruneOperationalStorage, STORAGE_RETENTION } from "./storage-retention.js";
+import { pruneOperationalStorage, recordBackupCheckpoint, STORAGE_RETENTION } from "./storage-retention.js";
 
 const SNAPSHOT_KEY = "public:v1:snapshot";
 const WORKER_VERSION = "intelligence-v9-reliability-fusion";
@@ -393,7 +393,7 @@ async function getHealth(request, env) {
     readSnapshot(env),
     readSegmentStats(env),
     readModelQuality(env),
-    env.SNAPSHOT?.get("storage:archive:last", "json").catch(() => null) || Promise.resolve(null),
+    env.SNAPSHOT?.get("storage:backup:last", "json").catch(() => null) || Promise.resolve(null),
   ]);
   const freshness = snapshotFreshness(snapshot);
   return json({
@@ -404,7 +404,8 @@ async function getHealth(request, env) {
     snapshot: { generatedAt: snapshot?.generatedAt || null, ageMinutes: freshness.ageMinutes, updates: snapshot?.updates?.length || 0 },
     sources: visibleSourceHealth(sources.results, env),
     positioning: { learnedSegments: segmentStats.length, model: "rail-posterior-v3", quality: modelQuality },
-    storageArchive: archiveStatus || { status: env.ARCHIVE ? "waiting" : "archive_unavailable" },
+    storageArchive: archiveStatus || { status: "backup_unavailable", provider: "github-draft-release" },
+    storageBackup: archiveStatus || { status: "backup_unavailable", provider: "github-draft-release" },
   }, { headers: { "Cache-Control": "no-store" } }, request, env);
 }
 function visibleSourceHealth(rows, env) {
@@ -571,6 +572,17 @@ export async function handleRequest(request, env) {
     if (request.method === "GET" && url.pathname === "/api/v1/collector/board-priorities") return handleCollectorBoardPriorities(request,env);
     if (request.method === "POST" && url.pathname === "/api/v1/collector/heartbeat") return handleCollectorHeartbeat(request, env);
     if (["GET","POST"].includes(request.method) && url.pathname === "/api/v1/rail-observations") return handlePublicObservationRequest(request,env,(value,status=200)=>json(value,{status,headers:{"Cache-Control":"no-store"}},request,env));
+    if (request.method === "POST" && url.pathname === "/api/v1/storage/backup-checkpoint") {
+      if (!authorized(request, env)) return json({ error: "unauthorized" }, { status: 401 }, request, env);
+      try {
+        const checkpoint = await recordBackupCheckpoint(env, await request.json());
+        return json({ ok: true, checkpoint }, { status: 202, headers: { "Cache-Control": "no-store" } }, request, env);
+      } catch (error) {
+        const code = String(error?.message || error);
+        const status = code === "backup_checkpoint_regression" ? 409 : 400;
+        return json({ error: code }, { status, headers: { "Cache-Control": "no-store" } }, request, env);
+      }
+    }
     if (request.method === "GET" && url.pathname === "/api/health") return getHealth(request, env);
     if (request.method === "GET" && url.pathname === "/api/v1/stream") return getSnapshotStream(request, env);
     if (request.method === "GET" && url.pathname === "/api/v1/segment-stats") return json({ segments: await readSegmentStats(env), aggregateOnly: true }, { headers: { "Cache-Control": "public, max-age=300" } }, request, env);

@@ -200,3 +200,33 @@ test("timeline API returns a bounded 24-hour map view", async () => {
   const cached = await (await handleRequest(new Request("https://api.example/api/v1/timeline?at=2026-07-20T09:00:00Z"), env)).json();
   assert.equal(cached.cache, "hit");
 });
+
+test("backup checkpoint requires ingest credentials and advances monotonically", async () => {
+  const env = environment();
+  const payload = {
+    status: "verified",
+    capturedThrough: "2026-08-08T10:00:00Z",
+    archiveId: "github-draft://hermano-us/rail-ukraine-pulse/d1-vault-2026-08/backup.enc",
+    sha256: "b".repeat(64),
+    bytes: 2048,
+  };
+  const denied = await handleRequest(new Request("https://api.example/api/v1/storage/backup-checkpoint", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+  }), env);
+  assert.equal(denied.status, 401);
+
+  const accepted = await handleRequest(new Request("https://api.example/api/v1/storage/backup-checkpoint", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + env.INGEST_TOKEN, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }), env);
+  assert.equal(accepted.status, 202);
+  assert.equal(Date.parse((await env.SNAPSHOT.get("storage:backup:checkpoint", "json")).capturedThrough), Date.parse(payload.capturedThrough));
+
+  const regressed = await handleRequest(new Request("https://api.example/api/v1/storage/backup-checkpoint", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + env.INGEST_TOKEN, "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, capturedThrough: "2026-08-07T10:00:00Z" }),
+  }), env);
+  assert.equal(regressed.status, 409);
+});
