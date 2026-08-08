@@ -12,7 +12,10 @@ class Statement {
     if (this.sql.includes("FROM restricted_evidence")) return { results: [{ evidence_id: "evidence-1", review_status: "pending" }] };
     return { results: [] };
   }
-  async first() { return null; }
+  async first() {
+    if (this.sql.includes("FROM restricted_evidence")) return { evidence_id: "evidence-1", domain: "rail_freight", sensitivity_level: "restricted" };
+    return null;
+  }
 }
 
 function environment() {
@@ -70,4 +73,20 @@ test("feature flags are private and manageable through the compatibility princip
   assert.equal((await handleRequest(new Request("https://api.example/api/admin/feature-flags"), env)).status, 401);
   const response = await handleRequest(adminRequest("https://api.example/api/admin/feature-flags"), env);
   assert.equal(response.status, 200); assert.equal((await response.json()).flags[0].enabled, 1);
+});
+
+test("safety quarantine cannot be promoted or linked into rail intelligence", async () => {
+  const env = environment();
+  const originalPrepare = env.DB.prepare.bind(env.DB);
+  env.DB.prepare = (sql) => {
+    const statement = originalPrepare(sql);
+    if (sql.includes("SELECT domain,sensitivity_level FROM restricted_evidence")) statement.first = async () => ({ domain: "rail_freight_safety", sensitivity_level: "highly_restricted" });
+    return statement;
+  };
+  const response = await handleRequest(adminRequest("https://api.example/api/restricted/evidence/review", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ evidenceId: "safety-1", status: "corroborated", linkedRunId: "run-1" }),
+  }), env);
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).error, "safety_quarantine_cannot_be_promoted");
+  assert.equal(env.DB.runs.some((item) => item.sql.includes("UPDATE restricted_evidence")), false);
 });

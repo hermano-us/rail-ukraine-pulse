@@ -387,12 +387,13 @@ async function getMapTimeline(request,env){
   return json(payload,{headers:{"Cache-Control":"public, max-age=30"}},request,env);
 }
 async function getHealth(request, env) {
-  const [database, sources, snapshot, segmentStats, modelQuality] = await Promise.all([
+  const [database, sources, snapshot, segmentStats, modelQuality, archiveStatus] = await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS runs FROM runs").first(),
     env.DB.prepare("SELECT * FROM source_health ORDER BY checked_at DESC").all(),
     readSnapshot(env),
     readSegmentStats(env),
     readModelQuality(env),
+    env.SNAPSHOT?.get("storage:archive:last", "json").catch(() => null) || Promise.resolve(null),
   ]);
   const freshness = snapshotFreshness(snapshot);
   return json({
@@ -403,6 +404,7 @@ async function getHealth(request, env) {
     snapshot: { generatedAt: snapshot?.generatedAt || null, ageMinutes: freshness.ageMinutes, updates: snapshot?.updates?.length || 0 },
     sources: visibleSourceHealth(sources.results, env),
     positioning: { learnedSegments: segmentStats.length, model: "rail-posterior-v3", quality: modelQuality },
+    storageArchive: archiveStatus || { status: env.ARCHIVE ? "waiting" : "archive_unavailable" },
   }, { headers: { "Cache-Control": "no-store" } }, request, env);
 }
 function visibleSourceHealth(rows, env) {

@@ -17,6 +17,18 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm test
       - run: npm run build:web
+      - name: Ensure R2 history archive
+        shell: bash
+        run: |
+          set -o pipefail
+          if npx wrangler r2 bucket list | grep -Fq 'rail-ukraine-pulse-archive'; then
+            echo "R2 archive bucket is ready"
+          else
+            npx wrangler r2 bucket create rail-ukraine-pulse-archive
+          fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Configure backend secrets
         run: |
           printf '%s' "$RAIL_INGEST_TOKEN" | npx wrangler secret put INGEST_TOKEN --config backend/wrangler.production.jsonc

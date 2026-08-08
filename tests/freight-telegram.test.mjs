@@ -85,3 +85,26 @@ test("freight ingest skips observations already present in the immutable journal
   const response=await handleFreightRequest(new Request("https://example.test/api/v1/freight/ingest",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({observations:[observation],sources:[]})}),env,{authorized:()=>true,authorizedAdmin:()=>false});
   const result=await response.json(); assert.equal(response.status,202); assert.equal(result.accepted,0); assert.equal(batches.length,0);
 });
+
+test("sensitive matches become redacted closed-contour review tasks", async () => {
+  const html = `<div class="tgme_widget_message_wrap"><div data-post="demo/99"><div class="tgme_widget_message_text">Військовий ешелон з технікою на станції</div><time datetime="2026-08-08T10:00:00Z"></time></div></div>`;
+  const parsed = parseFreightPreview(html, { id: "freight-tg-demo", reliability: 0.4 }, "2026-08-08T10:01:00Z");
+  assert.equal(parsed.observations.length, 0); assert.equal(parsed.quarantined.length, 1);
+  assert.equal(parsed.quarantined[0].evidenceExcerpt, "[redacted: safety review required]");
+  assert.doesNotMatch(JSON.stringify(parsed.quarantined[0]), /Військовий|ешелон|технікою/iu);
+  assert.equal("latitude" in parsed.quarantined[0], false); assert.equal("entities" in parsed.quarantined[0], false);
+
+  const batches = [];
+  const env = { DB: { prepare(sql) { return { bind(...values) {
+    if (sql.startsWith("SELECT evidence_id")) return { all: async () => ({ results: [] }) };
+    return { sql, values };
+  } }; }, async batch(statements) { batches.push(statements); } } };
+  const response = await handleFreightRequest(new Request("https://example.test/api/v1/freight/ingest", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ observations: [], safetyQuarantine: parsed.quarantined, sources: [] }),
+  }), env, { authorized: () => true, authorizedAdmin: () => false });
+  const result = await response.json(); const inserted = batches.flat();
+  assert.equal(response.status, 202); assert.equal(result.quarantined, 1); assert.equal(result.accepted, 0);
+  assert.equal(inserted.length, 1); assert.match(inserted[0].sql, /'rail_freight_safety'/);
+  assert.match(inserted[0].sql, /'highly_restricted'/); assert.match(String(inserted[0].values[6]), /"mappingAllowed":false/);
+  assert.doesNotMatch(JSON.stringify(inserted[0].values), /Військовий|ешелон|технікою/iu);
+});

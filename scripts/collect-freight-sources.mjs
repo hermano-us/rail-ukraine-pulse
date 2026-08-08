@@ -21,16 +21,19 @@ async function ingest(payload) {
   }
   throw lastError;
 }
-const registry = JSON.parse(await readFile(new URL("../data/freight-telegram-sources.json", import.meta.url), "utf8")); const observations = []; const sources = [];
+const registry = JSON.parse(await readFile(new URL("../data/freight-telegram-sources.json", import.meta.url), "utf8")); const observations = []; const safetyQuarantine = []; const sources = [];
 for (const source of registry.sources) {
   if (!source.enabled || source.access !== "public-preview") { sources.push({ sourceId: source.id, status: source.access === "requires-membership" ? "requires_membership" : "disabled", checkedAt: new Date().toISOString() }); continue; }
   try {
-    const result = await collectFreightTelegram(source); observations.push(...result.observations); sources.push({ sourceId: source.id, status: result.status, checkedAt: result.checkedAt, previewMessages: result.previewMessages, acceptedObservations: result.observations.length, restricted: result.restricted, rejected: result.rejected });
+    const result = await collectFreightTelegram(source); observations.push(...result.observations); safetyQuarantine.push(...(result.quarantined || [])); sources.push({ sourceId: source.id, status: result.status, checkedAt: result.checkedAt, previewMessages: result.previewMessages, acceptedObservations: result.observations.length, restricted: result.restricted, rejected: result.rejected });
   } catch (error) { sources.push({ sourceId: source.id, status: "unavailable", checkedAt: new Date().toISOString(), error: String(error?.message || error) }); }
 }
-let accepted = 0;
-for (let index = 0; index < observations.length; index += CHUNK_SIZE) {
-  const result = await ingest({ observations: observations.slice(index, index + CHUNK_SIZE), sources: [] }); accepted += Number(result.accepted || 0);
+let accepted = 0; let quarantined = 0;
+const batches = Math.ceil(Math.max(observations.length, safetyQuarantine.length) / CHUNK_SIZE);
+for (let index = 0; index < batches; index += 1) {
+  const offset = index * CHUNK_SIZE;
+  const result = await ingest({ observations: observations.slice(offset, offset + CHUNK_SIZE), safetyQuarantine: safetyQuarantine.slice(offset, offset + CHUNK_SIZE), sources: [] });
+  accepted += Number(result.accepted || 0); quarantined += Number(result.quarantined || 0);
 }
-await ingest({ observations: [], sources });
-console.log(JSON.stringify({ received: observations.length, accepted, chunks: Math.ceil(observations.length / CHUNK_SIZE), sources: sources.length, online: sources.filter((item) => item.status === "online").length, unavailable: sources.filter((item) => item.status === "unavailable").length }));
+await ingest({ observations: [], safetyQuarantine: [], sources });
+console.log(JSON.stringify({ received: observations.length, accepted, safetyMatches: safetyQuarantine.length, quarantined, chunks: batches, sources: sources.length, online: sources.filter((item) => item.status === "online").length, unavailable: sources.filter((item) => item.status === "unavailable").length }));

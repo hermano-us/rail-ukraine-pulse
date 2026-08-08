@@ -42,13 +42,23 @@ export function classifyFreightText(text) {
 }
 
 export function parseFreightPreview(html, source, checkedAt = new Date().toISOString()) {
-  const observations = []; const starts = [...String(html || "").matchAll(/<div class="tgme_widget_message_wrap[^"]*"/gi)].map((match) => match.index);
+  const observations = []; const quarantined = []; const starts = [...String(html || "").matchAll(/<div class="tgme_widget_message_wrap[^"]*"/gi)].map((match) => match.index);
   let restricted = 0; let rejected = 0;
   for (let index = 0; index < starts.length; index += 1) {
-    const body = html.slice(starts[index], starts[index + 1] ?? html.length); const messageHtml = body.match(/<div class="tgme_widget_message_text[^>]*>([\s\S]*?)<\/div>/i)?.[1];
-    if (!messageHtml) continue; const text = decodeHtml(messageHtml); const classification = classifyFreightText(text);
-    if (!classification.accepted) { if (classification.restricted) restricted += 1; else rejected += 1; continue; }
+    const body = html.slice(starts[index], starts[index + 1] ?? html.length); const messageHtml = body.match(/<div class="tgme_widget_message_text[^>]*>([\s\S]*?)<\/div>/i)?.[1]; if (!messageHtml) continue;
     const occurredAt = body.match(/<time[^>]+datetime="([^"]+)"/i)?.[1] || checkedAt; const postId = body.match(/data-post="([^"]+)"/i)?.[1]; if (!postId) continue;
+    const text = decodeHtml(messageHtml); const classification = classifyFreightText(text);
+    if (!classification.accepted) {
+      if (classification.restricted) {
+        restricted += 1;
+        quarantined.push({
+          quarantineId: `${source.id}:safety:${fingerprint(`${postId}:${text}`)}`, sourceId: source.id, sourceUrl: `https://t.me/${postId}`,
+          occurredAt, checkedAt, reason: classification.reason || "sensitive_content", contentFingerprint: fingerprint(text),
+          evidenceExcerpt: "[redacted: safety review required]", publicEligible: false,
+        });
+      } else rejected += 1;
+      continue;
+    }
     observations.push({
       observationId: `${source.id}:${fingerprint(`${postId}:${text}`)}`, sourceId: source.id, sourceUrl: `https://t.me/${postId}`,
       occurredAt, checkedAt, corridor: source.corridor || "unresolved", freightType: classification.freightType,
@@ -56,12 +66,12 @@ export function parseFreightPreview(html, source, checkedAt = new Date().toISOSt
       evidenceExcerpt: text.replace(/\s+/g, " ").slice(0, 360), entities:classification.entities, publicEligible: false,
     });
   }
-  return { observations, restricted, rejected, previewMessages: starts.length };
+  return { observations, quarantined, restricted, rejected, previewMessages: starts.length };
 }
 
 export async function collectFreightTelegram(source) {
   const checkedAt = new Date().toISOString();
-  if (!source.enabled || source.access !== "public-preview") return { sourceId: source.id, status: source.access === "requires-membership" ? "requires_membership" : "disabled", checkedAt, observations: [], restricted: 0, rejected: 0 };
+  if (!source.enabled || source.access !== "public-preview") return { sourceId: source.id, status: source.access === "requires_membership" ? "requires_membership" : "disabled", checkedAt, observations: [], quarantined: [], restricted: 0, rejected: 0 };
   const parsed = parseFreightPreview(await fetchText(`https://t.me/s/${source.handle}`), source, checkedAt);
   return { sourceId: source.id, status: "online", checkedAt, ...parsed };
 }

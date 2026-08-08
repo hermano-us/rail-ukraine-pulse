@@ -19,6 +19,10 @@ export async function handleEvidenceRequest(request, env, principal) {
     if (!hasPermission(principal, "evidence.review")) return json({ error: "forbidden" }, 403);
     const body = await request.json(); const evidenceId = String(body.evidenceId || ""); const status = String(body.status || "");
     if (!evidenceId || !STATUSES.has(status)) return json({ error: "invalid_review" }, 400);
+    const evidence = await env.DB.prepare("SELECT domain,sensitivity_level FROM restricted_evidence WHERE evidence_id=?1").bind(evidenceId).first();
+    if (!evidence) return json({ error: "evidence_not_found" }, 404);
+    const safetyQuarantine = evidence.domain === "rail_freight_safety" || evidence.sensitivity_level === "highly_restricted";
+    if (safetyQuarantine && (status === "corroborated" || body.linkedRunId)) return json({ error: "safety_quarantine_cannot_be_promoted" }, 409);
     const now = new Date().toISOString();
     await env.DB.prepare("UPDATE restricted_evidence SET review_status=?1,reviewed_by=?2,reviewed_at=?3,resolution_note=?4,linked_run_id=COALESCE(?5,linked_run_id),updated_at=?3 WHERE evidence_id=?6")
       .bind(status, principal.id, now, String(body.note || "").slice(0, 1000), body.linkedRunId || null, evidenceId).run();

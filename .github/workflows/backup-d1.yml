@@ -17,8 +17,48 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Package backup
+        id: backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          gzip -9 --keep rail-ukraine-pulse.sql
+          sha256sum rail-ukraine-pulse.sql.gz > rail-ukraine-pulse.sql.gz.sha256
+          archive_date="$(date -u +%Y/%m/%d)"
+          archive_key="full-d1/${archive_date}/rail-ukraine-pulse-${GITHUB_RUN_ID}.sql.gz"
+          echo "archive_key=${archive_key}" >> "${GITHUB_OUTPUT}"
+      - name: Ensure R2 history archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          if npx wrangler r2 bucket list | grep -Fq 'rail-ukraine-pulse-archive'; then
+            echo "R2 archive bucket is ready"
+          else
+            npx wrangler r2 bucket create rail-ukraine-pulse-archive
+          fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Upload and verify R2 backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          object_path="rail-ukraine-pulse-archive/${{ steps.backup.outputs.archive_key }}"
+          npx wrangler r2 object put "${object_path}" --remote --file rail-ukraine-pulse.sql.gz --content-type application/gzip --content-encoding gzip
+          npx wrangler r2 object put "${object_path}.sha256" --remote --file rail-ukraine-pulse.sql.gz.sha256 --content-type text/plain
+          npx wrangler r2 object get "${object_path}" --remote --file rail-ukraine-pulse.verify.sql.gz
+          expected="$(cut -d ' ' -f 1 rail-ukraine-pulse.sql.gz.sha256)"
+          actual="$(sha256sum rail-ukraine-pulse.verify.sql.gz | cut -d ' ' -f 1)"
+          test "${expected}" = "${actual}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: d1-backup-${{ github.run_id }}
-          path: rail-ukraine-pulse.sql
+          path: |
+            rail-ukraine-pulse.sql
+            rail-ukraine-pulse.sql.gz
+            rail-ukraine-pulse.sql.gz.sha256
           retention-days: 30
