@@ -13,6 +13,7 @@ function validCheckpoint(value) {
   const capturedThrough = Date.parse(value?.capturedThrough || "");
   return value?.status === "verified"
     && Number.isFinite(capturedThrough)
+    && value?.restoreVerified === true
     && /^[a-f0-9]{64}$/i.test(String(value?.sha256 || ""))
     && String(value?.archiveId || "").startsWith("github-draft://");
 }
@@ -37,6 +38,9 @@ export async function recordBackupCheckpoint(env, value) {
     archiveId: String(value.archiveId).slice(0, 500),
     sha256: String(value.sha256).toLowerCase(),
     bytes: Math.max(0, Number(value.bytes || 0)),
+    restoreVerified: true,
+    integrityCheck: String(value.integrityCheck || "ok").slice(0, 40),
+    tableCount: Math.max(0, Number(value.tableCount || 0)),
   };
   await env.SNAPSHOT.put(CHECKPOINT_KEY, JSON.stringify(checkpoint));
   return checkpoint;
@@ -76,8 +80,12 @@ export async function pruneOperationalStorage(env, { snapshotPasses = 1, batchSi
   }
   const health = await env.DB.prepare("DELETE FROM source_health_checks WHERE checked_at < datetime('now', ?1) LIMIT ?2")
     .bind(`-${HEALTH_RETENTION_DAYS} days`, 5_000).run();
+  const actualRpoHours = checkpoint
+    ? Math.max(0, (Date.now() - Date.parse(checkpoint.capturedThrough)) / 3_600_000)
+    : null;
+  const backupStatus = !checkpoint ? "backup_unavailable" : actualRpoHours <= 8 ? "online" : actualRpoHours <= 12 ? "stale" : "degraded";
   const summary = {
-    status: checkpoint ? "online" : "backup_unavailable",
+    status: backupStatus,
     provider: "github-draft-release",
     checkedAt: new Date().toISOString(),
     deletedRows,
@@ -85,6 +93,12 @@ export async function pruneOperationalStorage(env, { snapshotPasses = 1, batchSi
     protectedThrough: checkpoint?.capturedThrough || null,
     lastVerifiedAt: checkpoint?.verifiedAt || null,
     archiveId: checkpoint?.archiveId || null,
+    restoreStatus: checkpoint?.restoreVerified ? "verified" : "unverified",
+    integrityCheck: checkpoint?.integrityCheck || null,
+    restoredTableCount: checkpoint?.tableCount || 0,
+    actualRpoHours: actualRpoHours == null ? null : Number(actualRpoHours.toFixed(2)),
+    rpoTargetHours: 6,
+    rtoTargetMinutes: 30,
     snapshotRetentionDays: SNAPSHOT_RETENTION_DAYS,
     healthRetentionDays: HEALTH_RETENTION_DAYS,
   };

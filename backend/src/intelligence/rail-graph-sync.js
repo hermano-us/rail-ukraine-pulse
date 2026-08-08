@@ -75,7 +75,7 @@ function stationStatements(env, versionId, stations, now) {
   return statements;
 }
 
-function segmentStatements(env, versionId, segments, now) {
+function segmentStatements(env, versionId, segments, now, active = 0) {
   const statements = [];
   for (const segment of segments) {
     const directions = segment.bidirectional === false ? [[segment.fromStationId,segment.toStationId,segment.geometry]] : [
@@ -83,16 +83,16 @@ function segmentStatements(env, versionId, segments, now) {
       [segment.toStationId,segment.fromStationId,reverseGeometry(segment.geometry)],
     ];
     for (const [from,to,geometry] of directions) statements.push(env.DB.prepare(`INSERT INTO rail_segment_geometries(segment_id,version_id,from_station_id,to_station_id,geometry_json,distance_km,railway_type,usage_type,track_count,electrified,source_way_ids_json,geometry_quality,active,updated_at)
-      VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,0,?13)
-      ON CONFLICT(segment_id) DO UPDATE SET geometry_json=excluded.geometry_json,distance_km=excluded.distance_km,railway_type=excluded.railway_type,usage_type=excluded.usage_type,track_count=excluded.track_count,electrified=excluded.electrified,source_way_ids_json=excluded.source_way_ids_json,geometry_quality=excluded.geometry_quality,updated_at=excluded.updated_at`)
-      .bind(`${versionId}:${from}>${to}`,versionId,from,to,JSON.stringify(geometry),Number(segment.distanceKm)||0,segment.railwayType||"rail",segment.usageType||null,Number.isFinite(Number(segment.trackCount))?Number(segment.trackCount):null,segment.electrified||null,JSON.stringify(segment.sourceWayIds||[]),Number(segment.geometryQuality)||0,now));
+      VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)
+      ON CONFLICT(segment_id) DO UPDATE SET geometry_json=excluded.geometry_json,distance_km=excluded.distance_km,railway_type=excluded.railway_type,usage_type=excluded.usage_type,track_count=excluded.track_count,electrified=excluded.electrified,source_way_ids_json=excluded.source_way_ids_json,geometry_quality=excluded.geometry_quality,active=excluded.active,updated_at=excluded.updated_at`)
+      .bind(`${versionId}:${from}>${to}`,versionId,from,to,JSON.stringify(geometry),Number(segment.distanceKm)||0,segment.railwayType||"rail",segment.usageType||null,Number.isFinite(Number(segment.trackCount))?Number(segment.trackCount):null,segment.electrified||null,JSON.stringify(segment.sourceWayIds||[]),Number(segment.geometryQuality)||0,active?1:0,now));
   }
   return statements;
 }
 
 export async function syncRailGraphReference(env, now = new Date().toISOString(), limits = {}) {
   if (!env.ASSETS?.fetch) return { status:"disabled", reason:"assets-binding-unavailable" };
-  const stationChunksPerCycle = Math.max(1, Number(limits.stationChunks)||2);
+  const stationChunksPerCycle = Math.max(1, Number(limits.stationChunks)||12);
   const segmentChunksPerCycle = Math.max(1, Number(limits.segmentChunks)||4);
   const manifest = await fetchAssetJson(env, "manifest.json");
   if (!manifest?.versionId || !Array.isArray(manifest.stationChunks) || !Array.isArray(manifest.segmentChunks)) throw new Error("invalid rail graph manifest");
@@ -104,6 +104,8 @@ export async function syncRailGraphReference(env, now = new Date().toISOString()
   ]);
   let state = await env.DB.prepare("SELECT * FROM rail_graph_import_state WHERE version_id=?1").bind(manifest.versionId).first();
   if (state?.finished_at) return { status:"active", versionId:manifest.versionId, ...graphImportTelemetry(state,manifest,now) };
+  const activeVersion = await env.DB.prepare("SELECT version_id FROM rail_graph_versions WHERE status='active' ORDER BY activated_at DESC LIMIT 1").first();
+  const progressiveActive = !activeVersion || activeVersion.version_id === manifest.versionId;
 
   const before = graphImportTelemetry(state,manifest,now); const recovered = before.stalled;
   await env.DB.prepare(`UPDATE rail_graph_import_state SET last_attempt_at=?1,first_attempt_at=COALESCE(first_attempt_at,?1),attempt_count=attempt_count+1,
@@ -121,10 +123,15 @@ export async function syncRailGraphReference(env, now = new Date().toISOString()
         env.DB.prepare("UPDATE rail_graph_versions SET imported_stations=MIN(station_count,?1),error=NULL WHERE version_id=?2").bind(nextStation*Number(manifest.stationChunkSize||125),manifest.versionId),
       ]);
     }
-    if (nextStation >= manifest.stationChunks.length) for (let count=0; count<segmentChunksPerCycle && nextSegment<manifest.segmentChunks.length; count+=1) {
+    const knownStations = new Set(rows(await env.DB.prepare("SELECT station_id FROM station_registry WHERE source_version=?1").bind(manifest.versionId).all()).map((item) => item.station_id));
+    for (let count=0; count<segmentChunksPerCycle && nextSegment<manifest.segmentChunks.length; count+=1) {
       const chunk = await fetchAssetJson(env, manifest.segmentChunks[nextSegment]);
       if (chunk?.versionId !== manifest.versionId) throw new Error("rail segment chunk version mismatch");
-      await batch(env, segmentStatements(env,manifest.versionId,chunk.segments||[],now)); nextSegment += 1;
+      const chunkSegments = chunk.segments || [];
+      const importableSegments = chunkSegments.filter((segment) => knownStations.has(segment.fromStationId) && knownStations.has(segment.toStationId));
+      if (importableSegments.length) await batch(env, segmentStatements(env,manifest.versionId,importableSegments,now,progressiveActive));
+      if (importableSegments.length < chunkSegments.length) break;
+      nextSegment += 1;
       await env.DB.batch([
         env.DB.prepare("UPDATE rail_graph_import_state SET next_segment_chunk=?1,last_attempt_at=?2,last_progress_at=?2,consecutive_failures=0,error=NULL WHERE version_id=?3").bind(nextSegment,now,manifest.versionId),
         env.DB.prepare("UPDATE rail_graph_versions SET imported_segments=MIN(segment_count,?1),error=NULL WHERE version_id=?2").bind(nextSegment*Number(manifest.segmentChunkSize||125),manifest.versionId),

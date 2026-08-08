@@ -14,6 +14,9 @@ const checkpoint = {
   archiveId: "github-draft://hermano-us/rail-ukraine-pulse/d1-vault-2026-08/backup.enc",
   sha256: "a".repeat(64),
   bytes: 1234,
+  restoreVerified: true,
+  integrityCheck: "ok",
+  tableCount: 42,
 };
 
 function kv(initial = null) {
@@ -69,6 +72,10 @@ test("snapshots are deleted only when a verified full backup covers them", async
   assert.equal(result.provider, "github-draft-release");
   assert.equal(result.deletedRows, 2);
   assert.equal(result.protectedThrough, checkpoint.capturedThrough);
+  assert.equal(result.restoreStatus, "verified");
+  assert.equal(result.integrityCheck, "ok");
+  assert.equal(result.restoredTableCount, 42);
+  assert.equal(result.rpoTargetHours, 6);
   const selection = timeline.find((item) => item.type === "select");
   assert.match(selection.sql, /captured_at <= \?2/);
   assert.equal(selection.values[1], checkpoint.capturedThrough);

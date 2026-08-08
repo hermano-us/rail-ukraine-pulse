@@ -100,6 +100,8 @@ test("health reports snapshot freshness instead of unconditional ok", async () =
   assert.equal(body.status, "ok");
   assert.equal(body.version, "intelligence-v9-reliability-fusion");
   assert.equal(body.snapshot.updates, 1);
+  assert.equal(body.serviceLevelObjectives.snapshotFreshness.met, true);
+  assert.equal(body.serviceLevelObjectives.backupRestore.met, false);
 });
 
 test("snapshot event stream advertises reconnect and current generation", async () => {
@@ -209,6 +211,9 @@ test("backup checkpoint requires ingest credentials and advances monotonically",
     archiveId: "github-draft://hermano-us/rail-ukraine-pulse/d1-vault-2026-08/backup.enc",
     sha256: "b".repeat(64),
     bytes: 2048,
+    restoreVerified: true,
+    integrityCheck: "ok",
+    tableCount: 42,
   };
   const denied = await handleRequest(new Request("https://api.example/api/v1/storage/backup-checkpoint", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),

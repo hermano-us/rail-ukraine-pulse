@@ -56,6 +56,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ASSET: ${{ steps.backup.outputs.asset }}
           VAULT_TAG: ${{ steps.backup.outputs.vault_tag }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
         run: |
           set -euo pipefail
           release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
@@ -81,8 +82,20 @@ jobs:
           expected="$(cut -d ' ' -f 1 "$ASSET.sha256")"
           actual="$(sha256sum "$ASSET.verify" | cut -d ' ' -f 1)"
           test "$expected" = "$actual"
-          rm "$ASSET.verify"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -md sha256 \
+            -in "$ASSET.verify" -out restore-validation.sql.gz -pass env:BACKUP_ENCRYPTION_KEY
+          gzip -t restore-validation.sql.gz
+          gzip -dc restore-validation.sql.gz > restore-validation.sql
+          sqlite3 restore-validation.sqlite < restore-validation.sql
+          integrity_check="$(sqlite3 restore-validation.sqlite 'PRAGMA integrity_check;')"
+          table_count="$(sqlite3 restore-validation.sqlite "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")"
+          test "$integrity_check" = "ok"
+          test "$table_count" -ge 10
+          rm "$ASSET.verify" restore-validation.sql.gz restore-validation.sql restore-validation.sqlite
           echo "archive_id=github-draft://${GITHUB_REPOSITORY}/${VAULT_TAG}/${ASSET}" >> "$GITHUB_OUTPUT"
+          echo "restore_verified=true" >> "$GITHUB_OUTPUT"
+          echo "integrity_check=$integrity_check" >> "$GITHUB_OUTPUT"
+          echo "table_count=$table_count" >> "$GITHUB_OUTPUT"
       - name: Confirm protected history to production
         shell: bash
         env:
@@ -92,6 +105,9 @@ jobs:
           ARCHIVE_ID: ${{ steps.vault.outputs.archive_id }}
           SHA256: ${{ steps.backup.outputs.sha256 }}
           BYTES: ${{ steps.backup.outputs.bytes }}
+          RESTORE_VERIFIED: ${{ steps.vault.outputs.restore_verified }}
+          INTEGRITY_CHECK: ${{ steps.vault.outputs.integrity_check }}
+          TABLE_COUNT: ${{ steps.vault.outputs.table_count }}
         run: |
           set -euo pipefail
           test -n "$RAIL_API_URL"
@@ -101,7 +117,10 @@ jobs:
             --arg archiveId "$ARCHIVE_ID" \
             --arg sha256 "$SHA256" \
             --argjson bytes "$BYTES" \
-            '{status:$status,capturedThrough:$capturedThrough,archiveId:$archiveId,sha256:$sha256,bytes:$bytes}')"
+            --argjson restoreVerified "$RESTORE_VERIFIED" \
+            --arg integrityCheck "$INTEGRITY_CHECK" \
+            --argjson tableCount "$TABLE_COUNT" \
+            '{status:$status,capturedThrough:$capturedThrough,archiveId:$archiveId,sha256:$sha256,bytes:$bytes,restoreVerified:$restoreVerified,integrityCheck:$integrityCheck,tableCount:$tableCount}')"
           curl --fail-with-body --silent --show-error \
             -X POST "${RAIL_API_URL%/}/api/v1/storage/backup-checkpoint" \
             -H "Authorization: Bearer ${RAIL_INGEST_TOKEN}" \

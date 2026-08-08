@@ -396,16 +396,41 @@ async function getHealth(request, env) {
     env.SNAPSHOT?.get("storage:backup:last", "json").catch(() => null) || Promise.resolve(null),
   ]);
   const freshness = snapshotFreshness(snapshot);
+  const visibleSources = visibleSourceHealth(sources.results, env);
+  const onlineSources = visibleSources.filter((source) => source.status === "online").length;
+  const backup = archiveStatus || { status: "backup_unavailable", provider: "github-draft-release" };
   return json({
     status: freshness.status,
     checkedAt: new Date().toISOString(),
     version: WORKER_VERSION,
     runs: Number(database?.runs || 0),
     snapshot: { generatedAt: snapshot?.generatedAt || null, ageMinutes: freshness.ageMinutes, updates: snapshot?.updates?.length || 0 },
-    sources: visibleSourceHealth(sources.results, env),
+    sources: visibleSources,
     positioning: { learnedSegments: segmentStats.length, model: "rail-posterior-v3", quality: modelQuality },
-    storageArchive: archiveStatus || { status: "backup_unavailable", provider: "github-draft-release" },
-    storageBackup: archiveStatus || { status: "backup_unavailable", provider: "github-draft-release" },
+    storageArchive: backup,
+    storageBackup: backup,
+    serviceLevelObjectives: {
+      snapshotFreshness: {
+        targetMinutes: FRESH_MINUTES,
+        actualMinutes: freshness.ageMinutes,
+        met: freshness.status === "ok",
+      },
+      backupRecoveryPoint: {
+        targetHours: 6,
+        actualHours: backup.actualRpoHours ?? null,
+        met: backup.status === "online",
+      },
+      backupRestore: {
+        targetMinutes: 30,
+        status: backup.restoreStatus || "unverified",
+        met: backup.restoreStatus === "verified",
+      },
+      sourceAvailability: {
+        online: onlineSources,
+        total: visibleSources.length,
+        ratio: visibleSources.length ? Number((onlineSources / visibleSources.length).toFixed(3)) : null,
+      },
+    },
   }, { headers: { "Cache-Control": "no-store" } }, request, env);
 }
 function visibleSourceHealth(rows, env) {

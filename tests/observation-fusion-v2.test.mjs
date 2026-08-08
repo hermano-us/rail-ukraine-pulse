@@ -15,6 +15,17 @@ test("expected registry preserves planned and silent passenger runs", () => {
   assert.equal(classifyExpectedRun({service_date:"2026-07-28",scheduled_departure:"2026-07-28T08:00:00Z",last_observation_at:null},now).status,"unobserved");
 });
 
+test("expected registry preserves explicit station presence and completion", () => {
+  const now = "2026-07-28T12:00:00.000Z";
+  const base = {
+    service_date: "2026-07-28",
+    scheduled_departure: "2026-07-28T08:00:00Z",
+    last_observation_at: "2026-07-28T11:55:00Z",
+  };
+  assert.equal(classifyExpectedRun({ ...base, last_operational_status: "station", last_board_type: "departure" }, now).status, "at_station");
+  assert.equal(classifyExpectedRun({ ...base, last_operational_status: "completed" }, now).status, "completed");
+  assert.equal(classifyExpectedRun({ ...base, last_operational_status: "planned", last_board_type: "departure" }, now).status, "active");
+});
 test("observation fusion collapses corroborating station facts without inventing coordinates", () => {
   const groups=fuseObservationRows([
     {event_id:"a",train_number:"91",station:"Lviv",occurred_at:"2026-07-28T10:00:00Z",source_id:"board",authority:"official",reliability:.8},
