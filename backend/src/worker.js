@@ -13,13 +13,14 @@ import { ingestExpectedRuns } from "./intelligence/expected-registry.js";
 import { handlePublicObservationRequest } from "./intelligence/observation-submissions.js";
 import { collectOfficialBoardEdge } from "./edge-board-collector.js";
 import { dynamicRequestBudget } from "./intelligence/data-reliability.js";
+import { pruneOperationalStorage, STORAGE_RETENTION } from "./storage-retention.js";
 
 const SNAPSHOT_KEY = "public:v1:snapshot";
 const WORKER_VERSION = "intelligence-v9-reliability-fusion";
 const FRESH_MINUTES = 20;
 const DEGRADED_MINUTES = 60;
 const STREAM_RETRY_MS = 10_000;
-const HISTORY_RETENTION_DAYS = 90;
+const HISTORY_RETENTION_DAYS = STORAGE_RETENTION.snapshotDays;
 const HISTORY_SAMPLE_MINUTES = 15;
 
 function snapshotFreshness(snapshot, now = Date.now()) {
@@ -142,7 +143,6 @@ async function handleCollectorHeartbeat(request, env) {
 }
 
 export async function ingestPayload(env, payload, observedAt = new Date().toISOString()) {
-  const expectedRegistry = await ingestExpectedRuns(env, payload?.expectedRuns || [], observedAt);
   const quality = screenUpdates(Array.isArray(payload?.updates) ? payload.updates : [], Date.parse(observedAt));
   const updates = quality.accepted;
   const generated = updatesToEvents(updates, { observedAt });
@@ -153,6 +153,28 @@ export async function ingestPayload(env, payload, observedAt = new Date().toISOS
   for (const event of validEvents) {
     if (event.rawUpdate) updateByRun.set(event.runId, event);
   }
+
+  // Publish the validated current view before durable history writes. If D1 is
+  // temporarily full, the live map remains current while retention recovers it.
+  const continuitySnapshot = {
+    schemaVersion: 6,
+    provider: "Rail Ukraine Pulse event backend",
+    generatedAt: payload?.generatedAt || observedAt,
+    observedAt,
+    sourceStatus: payload?.sourceStatus || {
+      sourceId: "event-backend", status: validEvents.length ? "online" : "stale",
+      label: `Event backend: ${validEvents.length} events`, checkedAt: observedAt,
+    },
+    updates,
+    eventCount: validEvents.length,
+    quality: { accepted: updates.length, quarantined: quality.quarantined.length, warningCounts: quality.warningCounts, checkedAt: quality.checkedAt },
+    collectorDiagnostics: payload?.collectorDiagnostics || null,
+    persistence: "cache-first",
+  };
+  if (env.SNAPSHOT) await env.SNAPSHOT.put(SNAPSHOT_KEY, JSON.stringify(continuitySnapshot), { expirationTtl: 900 });
+
+  await pruneOperationalStorage(env, { snapshotPasses: 2 });
+  const expectedRegistry = await ingestExpectedRuns(env, payload?.expectedRuns || [], observedAt);
 
   const statements = [];
   for (const item of quality.quarantined) {
@@ -213,8 +235,6 @@ export async function ingestPayload(env, payload, observedAt = new Date().toISOS
     ));
   }
   if (statements.length) await env.DB.batch(statements);
-  await env.DB.prepare("DELETE FROM run_snapshots WHERE captured_at < datetime('now', ?1)").bind(`-${HISTORY_RETENTION_DAYS} days`).run();
-  await env.DB.prepare("DELETE FROM source_health_checks WHERE checked_at < datetime('now', '-30 days')").run();
   await storeSourceHealth(env, payload?.sourceStatus, updates.length);
   for (const sourceStatus of Array.isArray(payload?.sourceStatuses) ? payload.sourceStatuses : []) {
     if (!sourceStatus?.sourceId || sourceStatus.sourceId === payload?.sourceStatus?.sourceId) continue;
@@ -601,6 +621,8 @@ async function finishCycle(env, cycleId, startedMs, result, status="success", er
 }
 export async function scheduledRefresh(env) {
   const checkedAt = new Date().toISOString();
+  // Recovery must happen before collection_cycles or source-health writes.
+  await pruneOperationalStorage(env, { snapshotPasses: 4 });
   const cycleId=crypto.randomUUID(), cycleStarted=Date.now();
   await env.DB.prepare("INSERT INTO collection_cycles(cycle_id,started_at,status) VALUES(?1,?2,?3)").bind(cycleId,checkedAt,"running").run();
   await env.DB.prepare("UPDATE collection_cycles SET status='failed',finished_at=?1,error=COALESCE(error,'cycle watchdog timeout') WHERE status='running' AND julianday(started_at)<julianday('now','-20 minutes')").bind(checkedAt).run();

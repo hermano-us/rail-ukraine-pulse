@@ -138,11 +138,11 @@ test("scheduled edge collector refreshes the snapshot independently of GitHub cr
   }
 });
 
-test("history API advertises adaptive long-term retention", async () => {
+test("history API advertises bounded operational retention", async () => {
   const env = environment();
   const response = await handleRequest(new Request("https://api.example/api/v1/history?runId=uz:test"), env);
   const body = await response.json();
-  assert.equal(body.retentionDays, 90);
+  assert.equal(body.retentionDays, 2);
   assert.equal(body.sampleMinutes, 15);
 });
 
