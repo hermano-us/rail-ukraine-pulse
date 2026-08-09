@@ -30,7 +30,7 @@ function weightedTime(members) {
   return values.length ? new Date(values.at(-1).time).toISOString() : null;
 }
 
-export function fuseObservationRowsV4(events = [], {
+export function fuseObservationRowsV5(events = [], {
   windowMinutes = 20,
   canonicalStation = (value) => normalize(value),
 } = {}) {
@@ -75,10 +75,12 @@ export function fuseObservationRowsV4(events = [], {
     const directions = [...new Set(group.members.map((event) => event.direction).filter(Boolean))];
     const locomotives = [...new Set(group.members.map((event) => event.locomotive).filter(Boolean))];
     const boardTypes = [...new Set(group.members.map((event) => event.boardType).filter(Boolean))];
+    const runIds = [...new Set(group.members.map((event) => event.run_id).filter(Boolean))];
     const conflicts = [
       directions.length > 1 ? "direction-conflict" : null,
       locomotives.length > 1 ? "locomotive-conflict" : null,
       boardTypes.length > 1 ? "arrival-departure-conflict" : null,
+      runIds.length > 1 ? "run-identity-conflict" : null,
     ].filter(Boolean);
     const ranked = [...group.members].sort((left, right) =>
       authorityWeight(right.authority) * clamp(right.reliability)
@@ -91,22 +93,24 @@ export function fuseObservationRowsV4(events = [], {
     const evidenceGrade = conflicts.length ? "conflict"
       : sourceDomains.length >= 2 && effectiveReliability >= .8 ? "corroborated"
         : ranked[0]?.authority === "official" ? "official-single" : "single-source";
+    const agreementPenalty = Math.min(.8, conflicts.length * .18 + Math.min(1, temporalSpreadMinutes / Math.max(1, windowMinutes)) * .22);
+    const consensusScore = Number(Math.max(.05, 1 - agreementPenalty).toFixed(4));
     const canonicalOccurredAt = weightedTime(group.members);
     const bucket = Math.floor(Date.parse(canonicalOccurredAt || group.windowStart) / (windowMinutes * 60_000));
     return {
       ...group,
-      fusionId: `fusion-v4:${trainKey(group.trainNumber)}:${group.stationId}:${bucket}`,
+      fusionId: `fusion-v5:${trainKey(group.trainNumber)}:${group.stationId}:${bucket}`,
       primaryEventId: ranked[0].event_id,
       primaryRunId: ranked[0].run_id,
       sourceIds,
-      effectiveReliability: Number(Math.min(.99, effectiveReliability * (conflicts.length ? .62 : 1)).toFixed(4)),
+      effectiveReliability: Number(Math.min(.99, effectiveReliability * consensusScore).toFixed(4)),
       canonicalOccurredAt,
       evidenceGrade,
       ambiguous: conflicts.length > 0,
       explanation: {
-        method: "observation-fusion-v4", memberCount: group.members.length,
+        method: "observation-fusion-v5", memberCount: group.members.length,
         independentSources: sourceIds.length, independentDomains: sourceDomains.length, sourceDomains, canonicalStationId: group.stationId,
-        canonicalOccurredAt, temporalSpreadMinutes:Number(temporalSpreadMinutes.toFixed(1)), evidenceGrade, conflicts, directions, locomotives, negativeEvidence,
+        canonicalOccurredAt, temporalSpreadMinutes:Number(temporalSpreadMinutes.toFixed(1)), consensusScore, evidenceGrade, conflicts, directions, locomotives, runIds, negativeEvidence,
         windowMinutes,
       },
     };
@@ -117,7 +121,7 @@ async function batch(env, statements, size = 75) {
   for (let index = 0; index < statements.length; index += size) await env.DB.batch(statements.slice(index, index + size));
 }
 
-export async function fuseRecentObservationsV4(env, now = new Date().toISOString(), stationAliases = new Map()) {
+export async function fuseRecentObservationsV5(env, now = new Date().toISOString(), stationAliases = new Map()) {
   const events = rows(await env.DB.prepare(`SELECT e.event_id,e.run_id,e.station,e.occurred_at,e.source_id,e.authority,e.reliability,e.raw_update_json,
     r.train_number,r.route,r.origin,r.destination
     FROM events e JOIN runs r ON r.run_id=e.run_id
@@ -125,7 +129,7 @@ export async function fuseRecentObservationsV4(env, now = new Date().toISOString
       AND e.occurred_at>=datetime('now','-36 hours')
     ORDER BY e.occurred_at`).all());
   const canonicalStation = (value) => stationAliases.get(normalize(value)) || normalize(value);
-  const groups = fuseObservationRowsV4(events, { canonicalStation });
+  const groups = fuseObservationRowsV5(events, { canonicalStation });
   const statements = [];
   for (const group of groups) {
     statements.push(env.DB.prepare(`INSERT INTO observation_fusion_groups(
@@ -160,7 +164,7 @@ export async function fuseRecentObservationsV4(env, now = new Date().toISOString
       queued_at=excluded.queued_at,processed_at=NULL,result=NULL`)
       .bind(group.primaryRunId, group.primaryEventId, group.fusionId,
         group.ambiguous ? "fusion-conflict" : "new-canonical-station-fact",
-        group.ambiguous ? 90 : group.sourceIds.length >= 2 ? 80 : 60, now));
+        group.ambiguous ? 90 : group.explanation.independentDomains >= 2 ? 80 : 60, now));
   }
   await batch(env, statements);
   return {
@@ -172,5 +176,7 @@ export async function fuseRecentObservationsV4(env, now = new Date().toISOString
   };
 }
 
-export const fuseObservationRowsV3 = fuseObservationRowsV4;
-export const fuseRecentObservationsV3 = fuseRecentObservationsV4;
+export const fuseObservationRowsV4 = fuseObservationRowsV5;
+export const fuseRecentObservationsV4 = fuseRecentObservationsV5;
+export const fuseObservationRowsV3 = fuseObservationRowsV5;
+export const fuseRecentObservationsV3 = fuseRecentObservationsV5;

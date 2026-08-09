@@ -81,7 +81,7 @@ test("operational coordinate guard repairs swapped Ukraine coordinates and rejec
   assert.equal(rejected.latitude, null); assert.equal(rejected.longitude, null); assert.equal(rejected.coordinateQuality, "outside-ukraine-rejected"); assert.equal(rejected.rejected, true);
 });
 
-test("probabilistic twin v4 keeps alternatives, freshness and strict rail geometry", () => {
+test("probabilistic twin v5 keeps alternatives, freshness and strict rail geometry", () => {
   const geometry={type:"LineString",coordinates:[[30,50],[31,50]]};
   const midpoint=interpolateRailGeometry(geometry,.5);
   assert.ok(Math.abs(midpoint.longitude-30.5)<.01);
@@ -92,7 +92,7 @@ test("probabilistic twin v4 keeps alternatives, freshness and strict rail geomet
     {from_station_id:"київ",to_station_id:"вінниця",train_family:"generic",sample_count:18,p10_minutes:120,p50_minutes:150,p90_minutes:190,reliability:.75},
   ];
   const result=buildTwinHypotheses({event,candidates,now:"2026-07-28T10:30:00Z",routeHint:"Київ Львів"});
-  assert.equal(result.state.method,"station-graph-probabilistic-twin-v4");
+  assert.equal(result.state.method,"station-graph-probabilistic-twin-v5");
   assert.equal(result.state.positionStatus,"estimated");
   assert.equal(result.hypotheses.length,2);
   assert.ok(Math.abs(result.hypotheses.reduce((sum,item)=>sum+item.probability,0)-1)<.001);
@@ -132,4 +132,14 @@ test("Operations Center exposes persistent collapsible registries and v2 state",
   assert.match(admin,/resolveObservationLink/);
   assert.match(admin,/estimatedCompletionAt/);
   assert.match(css,/entity-resolution-actions/);
+});
+
+
+test("probabilistic twin v5 penalizes immediate reversal and exposes posterior entropy", () => {
+  const event={run_id:"run-prior",event_id:"event-prior",train_number:"91",station_id:"kyiv",occurred_at:"2026-07-29T10:00:00Z",reliability:.9};
+  const candidate=(to)=>({from_station_id:"kyiv",to_station_id:to,train_family:"91",sample_count:20,p10_minutes:45,p50_minutes:60,p90_minutes:75,reliability:.85,geometry_json:JSON.stringify({type:"LineString",coordinates:[[30.5,50.4],[30,50]]})});
+  const result=buildTwinHypotheses({event,candidates:[candidate("previous"),candidate("forward")],previousState:{previous_node_id:"previous"},now:"2026-07-29T10:20:00Z"});
+  assert.equal(result.hypotheses[0].toNodeId,"forward");
+  assert.ok(result.state.posteriorEntropy>0);
+  assert.equal(result.hypotheses.find(item=>item.toNodeId==="previous").reasons.reversalPenalty,true);
 });

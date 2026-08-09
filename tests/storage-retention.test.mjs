@@ -7,10 +7,11 @@ const snapshotRows = [
   { snapshot_id: "s-2", captured_at: "2026-08-01T10:15:00Z" },
 ];
 
+const checkpointCapturedAt = new Date(Date.now() - 60 * 60_000).toISOString();
 const checkpoint = {
   status: "verified",
-  capturedThrough: "2026-08-08T10:00:00Z",
-  verifiedAt: "2026-08-08T10:05:00Z",
+  capturedThrough: checkpointCapturedAt,
+  verifiedAt: new Date(Date.now() - 55 * 60_000).toISOString(),
   archiveId: "github-draft://hermano-us/rail-ukraine-pulse/d1-vault-2026-08/backup.enc",
   sha256: "a".repeat(64),
   bytes: 1234,
@@ -91,7 +92,7 @@ test("backup checkpoints are validated and cannot move backwards", async () => {
   assert.equal(saved.sha256, "a".repeat(64));
   await assert.rejects(() => recordBackupCheckpoint({ SNAPSHOT: store }, {
     ...checkpoint,
-    capturedThrough: "2026-08-07T10:00:00Z",
+    capturedThrough: new Date(Date.parse(checkpoint.capturedThrough) - 24 * 60 * 60_000).toISOString(),
     archiveId: "github-draft://hermano-us/rail-ukraine-pulse/d1-vault-2026-08/older.enc",
   }), /backup_checkpoint_regression/);
 });

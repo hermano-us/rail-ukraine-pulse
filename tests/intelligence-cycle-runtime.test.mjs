@@ -40,7 +40,7 @@ test("autonomous intelligence cycle persists graph, twin, operations and analyti
   assert.equal(database.prepare("SELECT COUNT(*) total FROM twin_predictions WHERE status='pending'").get().total,1);
   assert.equal(database.prepare("SELECT COUNT(*) total FROM twin_states").get().total,1);
   assert.equal(database.prepare("SELECT COUNT(*) total FROM twin_hypotheses WHERE status='active'").get().total,1);
-  assert.equal(database.prepare("SELECT method FROM twin_states WHERE run_id='run-1'").get().method,"station-graph-probabilistic-twin-v4");
+  assert.equal(database.prepare("SELECT method FROM twin_states WHERE run_id='run-1'").get().method,"station-graph-probabilistic-twin-v5");
   assert.equal(database.prepare("SELECT operational_state FROM twin_states WHERE run_id='run-1'").get().operational_state,"at_station");
   assert.equal(database.prepare("SELECT COUNT(*) total FROM twin_state_transitions WHERE run_id='run-1'").get().total,1);
   const movement=database.prepare("SELECT * FROM ops_movements WHERE run_id='run-1'").get();
@@ -72,7 +72,7 @@ test("historical station pairs warm calibration while stale positions lose coord
   database.close();
 });
 
-test("next station fact resolves a prospective v4 prediction exactly once", async()=>{
+test("next station fact resolves a prospective v5 prediction exactly once", async()=>{
   const database=new DatabaseSync(":memory:");
   for(const file of ["0001_initial.sql","0004_model_observability.sql","0011_intelligence_platform.sql","0013_rail_intelligence_v2.sql","0014_rail_graph_registry.sql","0015_rail_intelligence_routing.sql","0016_rail_foundation_fusion.sql","0017_rail_intelligence_v3.sql","0018_observation_fusion_v2.sql","0020_observation_fusion_v3.sql","0021_operations_hub_v2.sql","0022_reliability_fusion_calibration_v4.sql"]){database.exec(await readFile(new URL(`../backend/migrations/${file}`,import.meta.url),"utf8"));}
   const started=new Date(),anchorAt=new Date(started.getTime()-10*60_000).toISOString(),factAt=new Date(started.getTime()+50*60_000).toISOString();
@@ -84,6 +84,6 @@ test("next station fact resolves a prospective v4 prediction exactly once", asyn
   database.prepare(`INSERT INTO events(event_id,run_id,event_type,station,occurred_at,observed_at,source_id,authority,reliability,position_evidence,raw_update_json) VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run("live-b","run-live","station_report","Fastiv",factAt,factAt,"uz-live","public",.95,"station","{}");
   const result=await runIntelligenceCycle(env,new Date(started.getTime()+55*60_000).toISOString());
   assert.equal(result.prospectiveEvaluations,1);assert.equal(database.prepare("SELECT status FROM twin_predictions WHERE prediction_id LIKE 'run-live:%kyiv>fastiv'").get().status,"resolved");
-  const evaluation=database.prepare("SELECT * FROM model_evaluations WHERE evaluation_kind='prospective'").get();assert.ok(evaluation);assert.equal(evaluation.source_id,"uz-live");assert.equal(evaluation.model_version,"rail-intelligence-v4");
+  const evaluation=database.prepare("SELECT * FROM model_evaluations WHERE evaluation_kind='prospective'").get();assert.ok(evaluation);assert.equal(evaluation.source_id,"uz-live");assert.equal(evaluation.model_version,"rail-intelligence-v5");
   database.close();
 });

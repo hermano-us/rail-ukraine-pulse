@@ -37,12 +37,12 @@ test("adaptive coverage prioritizes silent and overdue station demand", () => {
   assert.ok(urgent.reasons.length>=4);
 });
 
-test("digital twin v4 tightens a corroborated corridor and records evidence", () => {
+test("digital twin v5 tightens a corroborated corridor and records evidence", () => {
   const candidate={to_station_id:"fastiv",p10_minutes:45,p50_minutes:60,p90_minutes:75,sample_count:30,reliability:.9,distance_km:65,train_family:"091",geometry_json:JSON.stringify({type:"LineString",coordinates:[[30.5,50.4],[29.9,50.1]]})};
   const base={run_id:"run-1",event_id:"event-1",train_number:"091",station_id:"kyiv",occurred_at:"2026-07-29T10:00:00Z",reliability:.9};
   const single=buildTwinHypotheses({event:{...base,evidence_grade:"single-source",independent_sources:1},candidates:[candidate],now:"2026-07-29T10:20:00Z"});
   const fused=buildTwinHypotheses({event:{...base,evidence_grade:"corroborated",independent_sources:2,fusion_reliability:.97,fusion_id:"fusion-1"},candidates:[candidate],now:"2026-07-29T10:20:00Z"});
-  assert.equal(fused.state.method,"station-graph-probabilistic-twin-v4");
+  assert.equal(fused.state.method,"station-graph-probabilistic-twin-v5");
   assert.ok(fused.state.confidence>single.state.confidence);
   assert.ok(fused.state.uncertaintyKm<single.state.uncertaintyKm);
   assert.equal(fused.hypotheses[0].reasons.fusionId,"fusion-1");

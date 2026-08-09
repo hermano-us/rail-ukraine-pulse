@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { collectorCircuit, dynamicRequestBudget, enrichPriorities, priorityTier } from "../backend/src/intelligence/data-reliability.js";
 import { fuseObservationRowsV4 } from "../backend/src/intelligence/observation-fusion-v3.js";
-import { applyCalibrationV4, calibrationDimensionsV4 } from "../backend/src/intelligence/calibration-v4.js";
+import { applyCalibrationV4, applyCalibrationV5, calibrationDimensionsV4 } from "../backend/src/intelligence/calibration-v4.js";
 import { scoreRunCandidateDetails } from "../backend/src/intelligence/observation-linker.js";
 
 test("data reliability tiers urgent stations and opens a bounded circuit", () => {
@@ -16,7 +16,7 @@ test("data reliability tiers urgent stations and opens a bounded circuit", () =>
   assert.ok(enriched.nextEligibleAt);
 });
 
-test("fusion v4 does not count correlated Telegram feeds as independent evidence", () => {
+test("fusion v5 does not count correlated Telegram feeds as independent evidence", () => {
   const events = [
     { event_id: "a", run_id: "r", train_number: "91", station: "Kyiv", occurred_at: "2026-07-29T10:00:00Z", source_id: "telegram-one", authority: "reference", reliability: .8 },
     { event_id: "b", run_id: "r", train_number: "91", station: "Kyiv", occurred_at: "2026-07-29T10:03:00Z", source_id: "telegram-two", authority: "reference", reliability: .8 },
@@ -25,10 +25,10 @@ test("fusion v4 does not count correlated Telegram feeds as independent evidence
   assert.equal(group.explanation.independentSources, 2);
   assert.equal(group.explanation.independentDomains, 1);
   assert.equal(group.evidenceGrade, "single-source");
-  assert.match(group.fusionId, /^fusion-v4:/);
+  assert.match(group.fusionId, /^fusion-v5:/);
 });
 
-test("fusion v4 reports excessive temporal spread instead of hiding it", () => {
+test("fusion v5 reports excessive temporal spread instead of hiding it", () => {
   const [group] = fuseObservationRowsV4([
     { event_id: "a", run_id: "r", train_number: "91", station: "Kyiv", occurred_at: "2026-07-29T10:00:00Z", source_id: "uz-public-board", authority: "official", reliability: .9 },
     { event_id: "b", run_id: "r", train_number: "91", station: "Kyiv", occurred_at: "2026-07-29T10:18:00Z", source_id: "operations-hub", authority: "operator", reliability: .9 },
@@ -55,4 +55,27 @@ test("calibration v4 prefers prospective multidimensional profiles", () => {
   assert.equal(result.p50_minutes, 55);
   assert.equal(result.calibration_profile.version, "v4");
   assert.equal(result.calibration_profile.dimension, "source-train-segment-time-horizon");
+});
+
+
+test("fusion v5 exposes run identity conflicts and consensus confidence", () => {
+  const [group] = fuseObservationRowsV4([
+    { event_id: "id-a", run_id: "run-a", train_number: "91", station: "Kyiv", occurred_at: "2026-07-29T10:00:00Z", source_id: "uz-official-board", authority: "official", reliability: .95 },
+    { event_id: "id-b", run_id: "run-b", train_number: "91", station: "Kyiv", occurred_at: "2026-07-29T10:01:00Z", source_id: "operations-hub", authority: "operator", reliability: .9 },
+  ]);
+  assert.equal(group.ambiguous, true);
+  assert.ok(group.explanation.conflicts.includes("run-identity-conflict"));
+  assert.ok(group.explanation.consensusScore > 0 && group.explanation.consensusScore < 1);
+});
+
+test("calibration v5 blends hierarchical prospective profiles and expands weak coverage", () => {
+  const context = { sourceId: "uz-live", trainFamily: "91", predictedAt: "2026-07-29T10:00:00Z" };
+  const edge = { train_family: "91", from_station_id: "kyiv", to_station_id: "fastiv", p10_minutes: 50, p50_minutes: 60, p90_minutes: 70 };
+  const dimensions = calibrationDimensionsV4({ source_id: context.sourceId, train_number: "91", from_station_id: "kyiv", to_station_id: "fastiv", evaluated_at: context.predictedAt, horizon_minutes: 60 });
+  const profiles = new Map(dimensions.slice(0,2).map((dimension,index) => [dimension.profileId, { ...dimension, prospectiveCount: 12-index*3, evaluationCount: 14, residualP10: 1, residualP50: 5, residualP90: 10, uncertaintyMultiplier: 1.1, readiness: "operational", maeMinutes: 7, p80Coverage: 55 }]));
+  const result = applyCalibrationV5(edge, profiles, context);
+  assert.equal(result.calibration_profile.version, "v5");
+  assert.equal(result.calibration_profile.blendedProfiles, 2);
+  assert.ok(result.p50_minutes > edge.p50_minutes);
+  assert.ok(result.p90_minutes-result.p10_minutes > edge.p90_minutes-edge.p10_minutes);
 });

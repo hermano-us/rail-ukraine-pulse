@@ -59,3 +59,32 @@ export function applyCalibrationV4(edge, profiles, context = {}) {
   const halfRange = Math.max(p50 - Math.max(1, rawP10 + profile.residualP10), Math.max(p50, rawP90 + profile.residualP90) - p50) * profile.uncertaintyMultiplier;
   return { ...edge, p10_minutes: Number(Math.max(1, p50 - halfRange).toFixed(2)), p50_minutes: Number(p50.toFixed(2)), p90_minutes: Number((p50 + halfRange).toFixed(2)), calibration_profile: { version: "v4", dimension: profile.type, key: profile.key, readiness: profile.readiness, evaluations: profile.evaluationCount, prospective: profile.prospectiveCount, maeMinutes: profile.maeMinutes, p80Coverage: profile.p80Coverage, biasMinutes: profile.biasMinutes, uncertaintyMultiplier: profile.uncertaintyMultiplier } };
 }
+
+
+export function applyCalibrationV5(edge, profiles, context = {}) {
+  const dimensions = calibrationDimensionsV4({ source_id: context.sourceId, train_number: context.trainFamily || edge.train_family, from_station_id: edge.from_station_id, to_station_id: edge.to_station_id, evaluated_at: context.predictedAt || new Date().toISOString(), horizon_minutes: edge.p50_minutes });
+  const candidates = dimensions.map((dimension, specificity) => ({ dimension, specificity, profile: profiles.get(dimension.profileId) }))
+    .filter((item) => item.profile && Number(item.profile.prospectiveCount) >= 3);
+  if (!candidates.length) return edge;
+  const weighted = candidates.map((item) => {
+    const samples = Math.max(0, Number(item.profile.prospectiveCount) || 0);
+    const readiness = item.profile.readiness === "operational" ? 1 : item.profile.readiness === "warming" ? .78 : .5;
+    const specificity = Math.max(.45, 1 - item.specificity * .16);
+    return { ...item, weight: Math.sqrt(samples) * readiness * specificity };
+  });
+  const weightTotal = weighted.reduce((sum, item) => sum + item.weight, 0);
+  const blend = (field, fallback = 0) => weightTotal ? weighted.reduce((sum, item) => sum + (Number(item.profile[field]) || fallback) * item.weight, 0) / weightTotal : fallback;
+  const prospective = weighted.reduce((sum, item) => sum + Number(item.profile.prospectiveCount || 0), 0);
+  const shrinkage = Math.min(.92, prospective / (prospective + 10));
+  const rawP50 = Number(edge.p50_minutes), rawP10 = Number(edge.p10_minutes ?? rawP50), rawP90 = Number(edge.p90_minutes ?? rawP50);
+  const residualP10 = blend("residualP10"), residualP50 = blend("residualP50"), residualP90 = blend("residualP90");
+  const p50 = Math.max(1, rawP50 + residualP50 * shrinkage);
+  const empiricalHalfRange = Math.max(p50 - Math.max(1, rawP10 + residualP10 * shrinkage), Math.max(p50, rawP90 + residualP90 * shrinkage) - p50);
+  const baselineHalfRange = Math.max(1, p50 - rawP10, rawP90 - p50);
+  const coverage = blend("p80Coverage", 80);
+  const coverageInflation = coverage < 75 ? Math.min(2, 75 / Math.max(35, coverage)) : 1;
+  const uncertaintyMultiplier = Math.max(1, blend("uncertaintyMultiplier", 1)) * coverageInflation;
+  const halfRange = Math.max(baselineHalfRange, empiricalHalfRange) * uncertaintyMultiplier;
+  const primary = weighted.sort((left, right) => right.weight - left.weight)[0];
+  return { ...edge, p10_minutes: Number(Math.max(1, p50 - halfRange).toFixed(2)), p50_minutes: Number(p50.toFixed(2)), p90_minutes: Number((p50 + halfRange).toFixed(2)), calibration_profile: { version: "v5", dimension: primary.dimension.type, key: primary.dimension.key, readiness: primary.profile.readiness, evaluations: weighted.reduce((sum, item) => sum + Number(item.profile.evaluationCount || 0), 0), prospective, maeMinutes: Number(blend("maeMinutes").toFixed(2)), p80Coverage: Number(coverage.toFixed(2)), biasMinutes: Number((residualP50 * shrinkage).toFixed(2)), uncertaintyMultiplier: Number(uncertaintyMultiplier.toFixed(3)), shrinkage: Number(shrinkage.toFixed(3)), blendedProfiles: weighted.length } };
+}
