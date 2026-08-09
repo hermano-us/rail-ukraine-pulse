@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { collectorCircuit, dynamicRequestBudget, enrichPriorities, priorityTier } from "../backend/src/intelligence/data-reliability.js";
+import { classifySourceState, collectorCircuit, dynamicRequestBudget, enrichPriorities, priorityTier, selectSourceFailover } from "../backend/src/intelligence/data-reliability.js";
 import { fuseObservationRowsV4 } from "../backend/src/intelligence/observation-fusion-v3.js";
-import { applyCalibrationV4, applyCalibrationV5, calibrationDimensionsV4 } from "../backend/src/intelligence/calibration-v4.js";
+import { applyCalibrationV4, applyCalibrationV5, calibrationDimensionsV4, calibrationDimensionsV5 } from "../backend/src/intelligence/calibration-v4.js";
 import { scoreRunCandidateDetails } from "../backend/src/intelligence/observation-linker.js";
 
 test("data reliability tiers urgent stations and opens a bounded circuit", () => {
@@ -14,6 +14,21 @@ test("data reliability tiers urgent stations and opens a bounded circuit", () =>
   assert.equal(enriched.priorityTier, "critical");
   assert.equal(enriched.circuitState, "open");
   assert.ok(enriched.nextEligibleAt);
+});
+
+test("source reliability distinguishes failures, empty responses and usable failover", () => {
+  const now="2026-08-09T12:00:00Z";
+  assert.equal(classifySourceState({status:"online",recordsCount:0,checkedAt:now},now).operationalState,"empty");
+  assert.equal(classifySourceState({status:"unavailable",error:"upstream HTTP 525",checkedAt:now},now).transportFailure,true);
+  const result=selectSourceFailover([
+    {sourceId:"broken",status:"unavailable",error:"HTTP 525",checkedAt:now,reliability:.95},
+    {sourceId:"mirror",status:"online",recordsCount:80,checkedAt:now,reliability:.72},
+  ],null,now);
+  assert.equal(result.selected.source.sourceId,"mirror");
+});
+
+test("calibration v5 profile identity is isolated by model version", () => {
+  assert.notEqual(calibrationDimensionsV5({model_version:"a",from_station_id:"x",to_station_id:"y"})[0].profileId,calibrationDimensionsV5({model_version:"b",from_station_id:"x",to_station_id:"y"})[0].profileId);
 });
 
 test("fusion v5 does not count correlated Telegram feeds as independent evidence", () => {

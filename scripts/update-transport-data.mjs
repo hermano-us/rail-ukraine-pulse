@@ -12,6 +12,7 @@ import { collectSwRailway } from "./source-adapters/swrailway.mjs";
 import { collectPoizdatoStations } from "./source-adapters/poizdato.mjs";
 import { collectKoleoCatalog } from "./source-adapters/koleo.mjs";
 
+import { classifySourceState, selectSourceFailover } from "../backend/src/intelligence/data-reliability.js";
 const DELAY_URL = "https://uz-vezemo.uz.gov.ua/delayform/";
 const liveTarget = resolve("data/live.json");
 const runtimeTarget = resolve("data/source-runtime.json");
@@ -130,9 +131,16 @@ async function main() {
     "koleo-station-catalog": koleo,
     ...referenceRuntime,
   };
+  const reliabilitySnapshots = Object.entries(sources).map(([sourceId, source]) => ({
+    sourceId, ...source, ...(typeof source.status === "object" ? source.status : { status:source.status }),
+    expectedCadenceMinutes: ["koleo-station-catalog", "poizdato-station-reference"].includes(sourceId) ? 1440 : 15,
+    recordsCount: Number(source.recordsCount || source.updates?.length || source.records?.length || source.stations?.length || 0),
+  }));
+  const reliabilityBySource = new Map(reliabilitySnapshots.map((source) => [source.sourceId, classifySourceState(source)]));
+  const operationalFailover = selectSourceFailover(reliabilitySnapshots);
   const evidenceUpdates = [board.updates || [], anyTrain.updates || [], telegram.updates || [], delay.updates || [], international.updates || []];
   const updates = mergeUpdates(evidenceUpdates);
-  const onlineCount = Object.values(sources).filter((source) => ["online", "snapshot"].includes(source.status?.status || source.status)).length;
+  const onlineCount = [...reliabilityBySource.values()].filter((state) => state.usable).length;
   const checkedAt = new Date().toISOString();
   const plannedUpdates = swRailway.plannedUpdates || [];
   const stationRecords = [...(board.records || []), ...(anyTrain.records || []), ...(swRailway.records || [])];
@@ -150,12 +158,14 @@ async function main() {
   const collectorDiagnostics = {
     board: { status: board.status?.status, checkedAt: board.status?.checkedAt, scheduler: board.scheduler || board.status?.scheduler || null, coverage: board.coverage || board.status?.coverage || null },
     anyTrain: { status: anyTrain.status?.status, sourceUpdatedAt: anyTrain.status?.sourceUpdatedAt || null, scheduler: anyTrain.scheduler || null },
+    failover: { selectedSourceId:operationalFailover.selected?.source?.sourceId || null, candidates:operationalFailover.candidates.slice(0,5).map((item)=>({sourceId:item.source.sourceId,score:item.score,state:item.state.operationalState,ageMinutes:item.state.ageMinutes})) },
   };
   sourceStatus.label = `UZ fusion: ${updates.length} \u0441\u043e\u0431\u044b\u0442\u0438\u0439 \u00b7 ${onlineCount}/${Object.keys(sources).length} \u0438\u0441\u0442\u043e\u0447\u043d\u0438\u043a\u043e\u0432 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b`;
   await atomicJson(runtimeTarget, { schemaVersion: 2, generatedAt: checkedAt, sources });
   const sourceStatuses = Object.entries(sources).map(([sourceId, source]) => ({
     sourceId, ...(source.status || {}),
     recordsCount: Number(source.recordsCount || source.updates?.length || source.records?.length || source.stations?.length || 0),
+    reliabilityState: reliabilityBySource.get(sourceId),
   }));
   await atomicJson(liveTarget, { schemaVersion: 7, provider: "Ukrzaliznytsia public source fusion", generatedAt, sourceStatus, sourceStatuses, updates, expectedRuns, externalSources: international.sources, collectorDiagnostics });
   console.log(`${sourceStatus.label}; board ${board.status.status}, Telegram ${telegram.status.status}, delays ${delay.status.status}.`);

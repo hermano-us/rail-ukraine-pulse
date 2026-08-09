@@ -154,6 +154,11 @@ export async function syncRailGraphReference(env, now = new Date().toISOString()
           VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11) ON CONFLICT(version_id) DO UPDATE SET health_status=excluded.health_status,connected_components=excluded.connected_components,largest_component_nodes=excluded.largest_component_nodes,topology_nodes=excluded.topology_nodes,isolated_stations=excluded.isolated_stations,terminal_nodes=excluded.terminal_nodes,anomalous_segments=excluded.anomalous_segments,maximum_segment_km=excluded.maximum_segment_km,details_json=excluded.details_json,calculated_at=excluded.calculated_at`)
           .bind(manifest.versionId,diagnostics.healthStatus,diagnostics.connectedComponents,diagnostics.largestComponentNodes,diagnostics.topologyNodes,diagnostics.isolatedStations,diagnostics.terminalNodes,diagnostics.anomalousSegments,diagnostics.maximumSegmentKm,JSON.stringify({componentSizes:diagnostics.componentSizes}),now),
       ]);
+      await env.DB.prepare(`INSERT OR IGNORE INTO rail_route_rebuild_queue(queue_id,version_id,from_station_id,to_station_id,run_id,priority,reason,queued_at)
+        SELECT ?1||':'||anchor_node_id||'>'||next_node_id,?1,anchor_node_id,next_node_id,run_id,
+          CASE WHEN position_status IN ('confirmed','reported') THEN 90 ELSE 60 END,'graph-version-activated',?2
+        FROM twin_states WHERE anchor_node_id IS NOT NULL AND next_node_id IS NOT NULL AND anchor_node_id!=next_node_id`)
+        .bind(manifest.versionId,now).run();
       return { status:"activated",versionId:manifest.versionId,recovered,diagnostics,...graphImportTelemetry({ ...state,next_station_chunk:nextStation,next_segment_chunk:nextSegment,finished_at:now,last_progress_at:now },manifest,now) };
     }
     state = { ...state,next_station_chunk:nextStation,next_segment_chunk:nextSegment,last_progress_at:now };

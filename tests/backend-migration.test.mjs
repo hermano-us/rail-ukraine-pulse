@@ -26,6 +26,7 @@ test("D1 migration creates the event backend schema", {
   const fusionV3Sql = await readFile(new URL("../backend/migrations/0020_observation_fusion_v3.sql", import.meta.url), "utf8");
   const operationsHubV2Sql = await readFile(new URL("../backend/migrations/0021_operations_hub_v2.sql", import.meta.url), "utf8");
   const reliabilityV4Sql = await readFile(new URL("../backend/migrations/0022_reliability_fusion_calibration_v4.sql", import.meta.url), "utf8");
+  const railGraphV4Sql = await readFile(new URL("../backend/migrations/0024_rail_graph_v4_registry_quality.sql", import.meta.url), "utf8");
   database.exec(historySql);
   database.exec(sql);
   database.exec(observabilitySql);
@@ -47,6 +48,7 @@ test("D1 migration creates the event backend schema", {
   database.exec(fusionV3Sql);
   database.exec(operationsHubV2Sql);
   database.exec(reliabilityV4Sql);
+  database.exec(railGraphV4Sql);
   const tables = database.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all().map((row) => row.name);
   assert.ok(tables.includes("runs"));
   assert.ok(tables.includes("events"));
@@ -94,6 +96,8 @@ test("D1 migration creates the event backend schema", {
   assert.ok(tables.includes("twin_state_transitions"));
   assert.ok(tables.includes("model_calibration_profiles_v3"));
   assert.ok(tables.includes("model_calibration_profiles_v4"));
+  assert.ok(tables.includes("model_calibration_profiles_v5"));
+  assert.ok(tables.includes("rail_route_rebuild_queue"));
   assert.ok(tables.includes("station_poll_health"));
   assert.ok(tables.includes("trusted_collector_registry"));
   assert.ok(tables.includes("expected_train_runs"));

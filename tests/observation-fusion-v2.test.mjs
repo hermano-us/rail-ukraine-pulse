@@ -65,9 +65,18 @@ test("daily registry preserves station calls and endpoint schedule boundaries", 
   assert.equal(run.scheduledDeparture, "2026-07-28T09:30:00+03:00");
   assert.equal(run.scheduledArrival, "2026-07-28T16:20:00+03:00");
 });
+test("board-only trains remain in the complete daily registry", () => {
+  const runs=buildExpectedRuns([], [{trainNumber:"701",route:"Kyiv — Lviv",station:"Kyiv",boardType:"departure",scheduledTime:"09:30",observedAt:"2026-07-28T06:00:00Z",sourceId:"uz-public-board"}], "2026-07-28T06:00:00Z");
+  assert.equal(runs.length,1);
+  assert.equal(runs[0].trainNumber,"701");
+  assert.equal(runs[0].sourceIds[0],"uz-public-board");
+  assert.equal(runs[0].metadata.stationCalls.length,1);
+});
+
 class Statement { constructor(database,sql){this.database=database;this.sql=sql;this.values=[];} bind(...values){this.values=values;return this;} all(){return {results:this.database.prepare(this.sql).all(...this.values)};} first(){return this.database.prepare(this.sql).get(...this.values)||null;} run(){return this.database.prepare(this.sql).run(...this.values);} }
 class DB { constructor(database){this.database=database;} prepare(sql){return new Statement(this.database,sql);} async batch(statements){return statements.map(item=>item.run());} }
 
+const addRegistryV4Columns=(database)=>database.exec("ALTER TABLE expected_train_runs ADD COLUMN operational_status TEXT NOT NULL DEFAULT 'planned'; ALTER TABLE expected_train_runs ADD COLUMN operational_reason TEXT; ALTER TABLE expected_train_runs ADD COLUMN state_changed_at TEXT;");
 test("passenger witness facts require moderation before becoming events", async () => {
   const database=new DatabaseSync(":memory:");
   for(const file of ["0001_initial.sql","0011_intelligence_platform.sql","0018_observation_fusion_v2.sql"])database.exec(await readFile(new URL(`../backend/migrations/${file}`,import.meta.url),"utf8"));
@@ -79,7 +88,7 @@ test("passenger witness facts require moderation before becoming events", async 
   assert.equal(reviewed.ok,true);assert.equal(database.prepare("SELECT COUNT(*) total FROM events WHERE source_id='passenger-witness'").get().total,1);database.close();
 });
 test("silent expected runs remain visible and open one idempotent coverage workflow", async () => {
-  const database=new DatabaseSync(":memory:");for(const file of ["0001_initial.sql","0011_intelligence_platform.sql","0015_rail_intelligence_routing.sql","0018_observation_fusion_v2.sql"])database.exec(await readFile(new URL(`../backend/migrations/${file}`,import.meta.url),"utf8"));const env={DB:new DB(database)},now="2026-07-28T12:00:00.000Z";
+  const database=new DatabaseSync(":memory:");for(const file of ["0001_initial.sql","0011_intelligence_platform.sql","0015_rail_intelligence_routing.sql","0018_observation_fusion_v2.sql"])database.exec(await readFile(new URL(`../backend/migrations/${file}`,import.meta.url),"utf8"));addRegistryV4Columns(database);const env={DB:new DB(database)},now="2026-07-28T12:00:00.000Z";
   await ingestExpectedRuns(env,[{expectedId:"expected:silent",runId:"run:silent",trainNumber:"777",serviceDate:"2026-07-28",route:"Kyiv — Lviv",scheduledDeparture:"2026-07-28T08:00:00Z"}],now);await refreshExpectedRunCoverage(env,now);await refreshExpectedRunCoverage(env,now);
   assert.equal(database.prepare("SELECT status FROM expected_train_runs WHERE expected_id='expected:silent'").get().status,"unobserved");assert.equal(database.prepare("SELECT COUNT(*) total FROM rail_coverage_gaps WHERE resolved_at IS NULL").get().total,1);assert.equal(database.prepare("SELECT COUNT(*) total FROM ops_workflows WHERE workflow_type='silent_run'").get().total,1);assert.equal(database.prepare("SELECT status FROM ops_movements WHERE run_id='run:silent'").get().status,"unobserved");database.close();
 });
@@ -87,6 +96,7 @@ test("canonical observation links activate the matched expected run", async () =
   const database=new DatabaseSync(":memory:");
   for(const file of ["0001_initial.sql","0011_intelligence_platform.sql","0015_rail_intelligence_routing.sql","0018_observation_fusion_v2.sql"]) database.exec(await readFile(new URL(`../backend/migrations/${file}`,import.meta.url),"utf8"));
   const env={DB:new DB(database)},now="2026-07-28T12:00:00.000Z";
+  addRegistryV4Columns(database);
   await ingestExpectedRuns(env,[{expectedId:"expected:canonical",runId:"run:canonical",trainNumber:"91",serviceDate:"2026-07-28",route:"Kyiv — Lviv",scheduledDeparture:"2026-07-28T08:00:00Z"}],now);
   database.prepare("INSERT INTO runs(run_id,train_number,service_date,route,current_update_json,first_observed_at,last_observed_at) VALUES(?,?,?,?,?,?,?)").run("run:source","91","2026-07-28","Kyiv — Lviv","{}","2026-07-28T11:55:00Z","2026-07-28T11:55:00Z");
   database.prepare("INSERT INTO events(event_id,run_id,event_type,event_value_json,station,occurred_at,observed_at,source_id,authority,reliability,position_evidence,raw_update_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").run("event:station","run:source","station_report","{}","Korosten","2026-07-28T11:55:00Z","2026-07-28T11:56:00Z","uz-public-board","official",.78,"station-board-window","{}");

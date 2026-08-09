@@ -48,8 +48,17 @@ export function buildExpectedRuns(updates = [], boardRecords = [], generatedAt =
   for (const update of updates) add(update);
   for (const record of boardRecords) {
     const route = splitRoute(record.route);
-    const update = updateIndex.get(updateKey(record.trainNumber, route.route)) || [...updateIndex.values()].find((item) => normalizeTrainNumber(item.trainNumber) === normalizeTrainNumber(record.trainNumber) && normalize(item.origin) === normalize(route.origin) && normalize(item.destination) === normalize(route.destination));
-    if (update) add(update, record);
+    const update = updateIndex.get(updateKey(record.trainNumber, route.route)) || [...updateIndex.values()].find((item) => normalizeTrainNumber(item.trainNumber) === normalizeTrainNumber(record.trainNumber) && normalize(item.origin) === normalize(route.origin) && normalize(item.destination) === normalize(route.destination)) || {
+      trainNumber: record.trainNumber,
+      route: route.route || record.route || null,
+      origin: route.origin || null,
+      destination: route.destination || null,
+      sourceId: record.sourceId || "station-board-registry",
+      updatedAt: record.observedAt || generatedAt,
+      serviceDate: record.serviceDate || generatedAt.slice(0, 10),
+      positionEvidence: "schedule-only",
+    };
+    add(update, record);
   }
   return [...result.values()].sort((left, right) => left.trainNumber.localeCompare(right.trainNumber, undefined, { numeric: true }));
 }

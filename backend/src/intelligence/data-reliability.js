@@ -1,5 +1,40 @@
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, Number(value) || 0));
 
+const parsedAgeMinutes = (value, now) => {
+  const timestamp = Date.parse(value || "");
+  return Number.isFinite(timestamp) ? Math.max(0, (Date.parse(now) - timestamp) / 60_000) : null;
+};
+
+export function classifySourceState(source = {}, now = new Date().toISOString()) {
+  const rawStatus = String(source.status?.status || source.status || "unknown").toLowerCase();
+  const configured = source.configured !== false && rawStatus !== "requires_configuration";
+  const cadence = Math.max(1, Number(source.expectedCadenceMinutes || source.expected_cadence_minutes) || 15);
+  const ageMinutes = parsedAgeMinutes(source.sourceUpdatedAt || source.last_success_at || source.checkedAt || source.checked_at, now);
+  const records = Math.max(0, Number(source.recordsCount ?? source.records_count) || 0);
+  const transportFailure = /(?:http\s*(?:401|403|429|5\d\d)|timeout|fetch failed|transport unavailable|tls|525)/i.test(String(source.error || ""));
+  let operationalState = "healthy";
+  if (!configured) operationalState = "unconfigured";
+  else if (["unavailable", "failed", "error"].includes(rawStatus) || transportFailure) operationalState = "failing";
+  else if (ageMinutes != null && ageMinutes > cadence * 4) operationalState = "stale";
+  else if (records === 0 && ["online", "snapshot"].includes(rawStatus)) operationalState = "empty";
+  else if (!["online", "snapshot", "healthy"].includes(rawStatus)) operationalState = rawStatus === "stale" ? "stale" : "degraded";
+  const usable = ["healthy", "empty"].includes(operationalState) || (operationalState === "stale" && ageMinutes != null && ageMinutes <= cadence * 12);
+  return { operationalState, rawStatus, configured, usable, records, ageMinutes:ageMinutes == null ? null : Number(ageMinutes.toFixed(1)), expectedCadenceMinutes:cadence, transportFailure };
+}
+
+export function selectSourceFailover(sources = [], capability, now = new Date().toISOString()) {
+  const ranked = sources.map((source) => {
+    const state = classifySourceState(source, now);
+    const capabilities = source.capabilities || source.status?.capabilities || [];
+    const supports = !capability || (Array.isArray(capabilities) ? capabilities.includes(capability) : Boolean(capabilities?.[capability]));
+    const freshness = state.ageMinutes == null ? .25 : Math.exp(-state.ageMinutes / Math.max(5, state.expectedCadenceMinutes * 3));
+    const reliability = clamp(source.reliability ?? source.priorityReliability ?? .6, 0, 1);
+    const score = supports && state.usable ? reliability * .55 + freshness * .35 + Math.min(1, state.records / 50) * .1 : 0;
+    return { source, state, score:Number(score.toFixed(4)) };
+  }).sort((left, right) => right.score - left.score);
+  return { selected:ranked[0]?.score > 0 ? ranked[0] : null, candidates:ranked };
+}
+
 export function priorityTier(priority = {}) {
   const score = Number(priority.priorityScore ?? priority.priority_score) || 0;
   if (Number(priority.overdueTwins ?? priority.overdue_twins) > 0 || Number(priority.silentRuns ?? priority.silent_runs) > 1 || score >= 70) return "critical";

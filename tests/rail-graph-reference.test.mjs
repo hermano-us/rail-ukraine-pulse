@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import { buildRailGraph, buildStationRegistry, normalizeStationAlias, stationAliasVariants } from "../scripts/lib/rail-graph-builder.mjs";
 import { analyzeRailTopology, graphImportTelemetry, loadStationAliasMap, syncRailGraphReference } from "../backend/src/intelligence/rail-graph-sync.js";
-import { resolveRailRouteGeometries } from "../backend/src/intelligence/rail-route-cache.js";
+import { rebuildQueuedRailRoutes, resolveRailRouteGeometries } from "../backend/src/intelligence/rail-route-cache.js";
 
 class Statement {
   constructor(database,sql){this.database=database;this.sql=sql;this.values=[];}
@@ -47,8 +47,10 @@ test("chunked graph import activates a complete version and creates reverse geom
   const database=new DatabaseSync(":memory:");
   database.exec(await readFile(new URL("../backend/migrations/0011_intelligence_platform.sql",import.meta.url),"utf8"));
   database.exec(await readFile(new URL("../backend/migrations/0014_rail_graph_registry.sql",import.meta.url),"utf8"));
+  database.exec(await readFile(new URL("../backend/migrations/0013_rail_intelligence_v2.sql",import.meta.url),"utf8"));
   database.exec(await readFile(new URL("../backend/migrations/0015_rail_intelligence_routing.sql",import.meta.url),"utf8"));
   database.exec(await readFile(new URL("../backend/migrations/0016_rail_foundation_fusion.sql",import.meta.url),"utf8"));
+  database.exec("CREATE TABLE rail_route_rebuild_queue(queue_id TEXT PRIMARY KEY,version_id TEXT,from_station_id TEXT,to_station_id TEXT,run_id TEXT,priority INTEGER,reason TEXT,queued_at TEXT,processed_at TEXT,result TEXT,error TEXT)");
   const versionId="test-v1";
   const assets=new Map([
     ["manifest.json",{versionId,source:"test",checksum:"abc",stationCount:2,segmentCount:1,aliasConflictCount:0,unmatchedStationCount:0,stationChunkSize:1,segmentChunkSize:1,stationChunks:["stations-000.json","stations-001.json"],segmentChunks:["segments-000.json"]}],
@@ -71,6 +73,10 @@ test("chunked graph import activates a complete version and creates reverse geom
   const firstRoute=await resolveRailRouteGeometries(env,[{from:"alpha",to:"beta"}],"2026-07-28T10:10:00.000Z"); assert.equal(firstRoute.calculated,1); assert.equal(JSON.parse(firstRoute.routes.get("alpha>beta").geometry_json).coordinates.length,3);
   const cachedRoute=await resolveRailRouteGeometries(env,[{from:"alpha",to:"beta"}],"2026-07-28T10:15:00.000Z"); assert.equal(cachedRoute.calculated,0); assert.equal(database.prepare("SELECT COUNT(*) total FROM rail_route_cache").get().total,1);
   const aliases=await loadStationAliasMap(env);
+  database.prepare("INSERT INTO rail_route_rebuild_queue(queue_id,version_id,from_station_id,to_station_id,priority,reason,queued_at) VALUES(?,?,?,?,?,?,?)").run("q1",versionId,"alpha","beta",90,"graph-version-activated","2026-07-28T10:16:00Z");
+  const rebuilt=await rebuildQueuedRailRoutes(env,"2026-07-28T10:17:00Z",4);
+  assert.equal(rebuilt.ready,1);
+  assert.equal(database.prepare("SELECT result FROM rail_route_rebuild_queue WHERE queue_id='q1'").get().result,"ready");
   assert.equal(aliases.get("alpha"),"alpha");
   database.close();
 });

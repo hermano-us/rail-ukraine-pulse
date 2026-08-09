@@ -43,13 +43,15 @@ async function rowsForSources(env, sqlPrefix, versionId, sourceIds) {
 
 async function batch(env, statements, size=50){for(let index=0;index<statements.length;index+=size)await env.DB.batch(statements.slice(index,index+size));}
 
-export async function resolveRailRouteGeometries(env, pairs = [], now = new Date().toISOString(), { maximumNewRoutes=12 } = {}) {
+export async function resolveRailRouteGeometries(env, pairs = [], now = new Date().toISOString(), { maximumNewRoutes=12, retryNoPathAfterMinutes=360 } = {}) {
   const version=await env.DB.prepare("SELECT version_id FROM rail_graph_versions WHERE status='active' ORDER BY activated_at DESC LIMIT 1").first();
   if(!version?.version_id||!pairs.length)return {versionId:version?.version_id||null,routes:new Map(),calculated:0};
   const unique=[...new Map(pairs.filter((pair)=>pair?.from&&pair?.to&&pair.from!==pair.to).map((pair)=>[`${pair.from}>${pair.to}`,pair])).values()];
   const requested=new Set(unique.map((pair)=>`${pair.from}>${pair.to}`));
   const cachedRows=await rowsForSources(env,"SELECT * FROM rail_route_cache WHERE",version.version_id,unique.map((pair)=>pair.from));
-  const routes=new Map(cachedRows.filter((row)=>requested.has(`${row.from_station_id}>${row.to_station_id}`)).map((row)=>[`${row.from_station_id}>${row.to_station_id}`,row]));
+  const retryBefore=Date.parse(now)-Math.max(5,Number(retryNoPathAfterMinutes)||360)*60_000;
+  const validCached=cachedRows.filter((row)=>requested.has(`${row.from_station_id}>${row.to_station_id}`)&&!(row.status==="no_path"&&Date.parse(row.calculated_at||0)<retryBefore));
+  const routes=new Map(validCached.map((row)=>[`${row.from_station_id}>${row.to_station_id}`,row]));
   const missing=unique.filter((pair)=>!routes.has(`${pair.from}>${pair.to}`)).slice(0,Math.max(0,maximumNewRoutes));if(!missing.length)return {versionId:version.version_id,routes,calculated:0};
   const topology=await fetchTopology(env,version.version_id),paths=[];
   for(const pair of missing)paths.push({pair,path:shortestPhysicalPath(topology.adjacency,pair.from,pair.to)});
@@ -59,4 +61,13 @@ export async function resolveRailRouteGeometries(env, pairs = [], now = new Date
   for(const {pair,path} of paths){const composed=path?composeRouteGeometry(path,edgeMap):null,status=composed?"ready":"no_path",cacheId=`${version.version_id}:${pair.from}>${pair.to}`,row={cache_id:cacheId,version_id:version.version_id,from_station_id:pair.from,to_station_id:pair.to,path_json:path?JSON.stringify(path.nodes):null,geometry_json:composed?JSON.stringify(composed.geometry):null,distance_km:path?.distanceKm??null,hop_count:path?.hopCount||0,status,geometry_quality:composed?.geometryQuality||0,calculated_at:now,last_used_at:now,error:!path?"no physical path":!composed?"incomplete segment geometry":null};routes.set(`${pair.from}>${pair.to}`,row);statements.push(env.DB.prepare(`INSERT INTO rail_route_cache(cache_id,version_id,from_station_id,to_station_id,path_json,geometry_json,distance_km,hop_count,status,geometry_quality,calculated_at,last_used_at,error)
       VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?11,?12) ON CONFLICT(cache_id) DO UPDATE SET path_json=excluded.path_json,geometry_json=excluded.geometry_json,distance_km=excluded.distance_km,hop_count=excluded.hop_count,status=excluded.status,geometry_quality=excluded.geometry_quality,last_used_at=excluded.last_used_at,error=excluded.error`).bind(cacheId,version.version_id,pair.from,pair.to,row.path_json,row.geometry_json,row.distance_km,row.hop_count,status,row.geometry_quality,now,row.error));}
   await batch(env,statements);return {versionId:version.version_id,routes,calculated:statements.length};
+}
+
+export async function rebuildQueuedRailRoutes(env, now = new Date().toISOString(), maximumRoutes = 24) {
+  const pending=rows(await env.DB.prepare("SELECT * FROM rail_route_rebuild_queue WHERE processed_at IS NULL ORDER BY priority DESC,queued_at LIMIT ?1").bind(Math.max(1,maximumRoutes)).all());
+  if(!pending.length)return {processed:0,ready:0,failed:0,versionId:null};
+  const resolution=await resolveRailRouteGeometries(env,pending.map((item)=>({from:item.from_station_id,to:item.to_station_id})),now,{maximumNewRoutes:maximumRoutes,retryNoPathAfterMinutes:5});
+  const statements=[];let ready=0,failed=0;
+  for(const item of pending){const route=resolution.routes.get(`${item.from_station_id}>${item.to_station_id}`),ok=route?.status==="ready";if(ok)ready+=1;else failed+=1;statements.push(env.DB.prepare("UPDATE rail_route_rebuild_queue SET processed_at=?1,result=?2,error=?3 WHERE queue_id=?4 AND processed_at IS NULL").bind(now,ok?"ready":"no_path",ok?null:route?.error||"route unresolved",item.queue_id));}
+  await batch(env,statements);return {processed:pending.length,ready,failed,versionId:resolution.versionId};
 }

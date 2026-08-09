@@ -12,7 +12,7 @@ import { runIntelligenceCycle } from "./intelligence/service.js";
 import { ingestExpectedRuns } from "./intelligence/expected-registry.js";
 import { handlePublicObservationRequest } from "./intelligence/observation-submissions.js";
 import { collectOfficialBoardEdge } from "./edge-board-collector.js";
-import { dynamicRequestBudget } from "./intelligence/data-reliability.js";
+import { classifySourceState, dynamicRequestBudget } from "./intelligence/data-reliability.js";
 import { pruneOperationalStorage, recordBackupCheckpoint, STORAGE_RETENTION } from "./storage-retention.js";
 
 const SNAPSHOT_KEY = "public:v1:snapshot";
@@ -397,7 +397,7 @@ async function getHealth(request, env) {
   ]);
   const freshness = snapshotFreshness(snapshot);
   const visibleSources = visibleSourceHealth(sources.results, env);
-  const onlineSources = visibleSources.filter((source) => source.status === "online").length;
+  const onlineSources = visibleSources.filter((source) => source.reliabilityState.usable).length;
   const backup = archiveStatus || { status: "backup_unavailable", provider: "github-draft-release" };
   return json({
     status: freshness.status,
@@ -435,7 +435,7 @@ async function getHealth(request, env) {
 }
 function visibleSourceHealth(rows, env) {
   const edgeDisabled = String(env.BOARD_EDGE_MODE || "disabled") === "disabled";
-  return (rows || []).filter((row) => !edgeDisabled || row.source_id !== "uz-public-board-edge");
+  return (rows || []).filter((row) => !edgeDisabled || row.source_id !== "uz-public-board-edge").map((row)=>({...row,reliabilityState:classifySourceState(row)}));
 }
 async function getAdminOverview(request, env) {
   const [runs, events, sources, recentEvents, snapshot, segmentStats, modelQuality, trustedCollector] = await Promise.all([
