@@ -44,9 +44,9 @@
           <button class="quick-chip" data-quick="favorites">Избранные</button>
         </section>
 
-        <section class="live-feed-section" aria-label="Оперативная лента УЗ">
+        <section class="live-feed-section" aria-label="Оперативная лента движения">
           <div class="section-heading"><h2>Последние статусы</h2><span id="live-feed-count">0 событий</span></div>
-          <div id="live-feed" class="live-feed"><p class="feed-empty">Ожидаются публичные статусы УЗ…</p></div>
+          <div id="live-feed" class="live-feed"><p class="feed-empty">Ожидаются оперативные статусы…</p></div>
         </section>
 
         <section class="filter-section">
@@ -102,12 +102,8 @@
           <p id="diagnostic-note">Проверяем актуальность источника и покрытие маршрутов.</p>
         </section>
 
-        <section class="source-registry" aria-label="Реестр источников">
-          <header><div><small>КОНТУР ДАННЫХ</small><strong>Источники и покрытие</strong></div><span id="source-registry-summary">—</span></header>
-          <div id="source-registry-list" class="source-registry-list"></div>
-        </section>
 
-        <section class="method-note"><div class="note-icon">∿</div><div><strong>Факты отделены от расчёта</strong><p>Объекты берутся из реальной таблицы УЗ. Оранжевая точка, участок и круг погрешности — аналитическая оценка, не GPS.</p></div></section>
+        <section class="method-note"><div class="note-icon">∿</div><div><strong>Факты отделены от расчёта</strong><p>Объекты строятся по проверяемым транспортным событиям. Оранжевая точка, участок и круг погрешности — аналитическая оценка, не GPS.</p></div></section>
         <section class="freight-note"><span>▦</span><div><strong>Грузовой слой</strong><p id="freight-status">Проверка открытой статистики…</p></div></section>
         <section class="marine-note"><span>⌁</span><div><strong>Морской источник</strong><p id="marine-status">Проверка AIS…</p></div></section>
         <footer class="sidebar-footer"><span>OSM · UZ public · geoBoundaries</span><a href="README.md">Методология ↗</a></footer>
@@ -153,7 +149,7 @@
           <div><header><strong>ВРЕМЯ КАРТЫ</strong><output id="map-timeline-output">Сейчас</output><button id="map-timeline-live">LIVE</button><button id="map-timeline-toggle" class="map-timeline-toggle" type="button" aria-expanded="true" aria-label="Collapse map timeline">&#8963;</button></header><input id="map-timeline-range" type="range" min="-1440" max="0" step="15" value="0" aria-label="Время карты: последние 24 часа"><div class="map-timeline-meta" id="map-timeline-meta" aria-live="polite"></div></div>
         </section>
         <section class="freshness-pulse" id="freshness-pulse" aria-label="Свежесть расчёта">
-          <div><small>ДАННЫЕ УЗ</small><strong id="pulse-source-age">—</strong></div>
+          <div><small>ВОЗРАСТ ДАННЫХ</small><strong id="pulse-source-age">—</strong></div>
           <div><small>РАСЧЁТ</small><strong id="pulse-calculated-at">—</strong></div>
           <div><small>РЕЖИМ</small><strong id="pulse-mode">—</strong></div>
           <div><small>ЭКСТРАПОЛЯЦИЯ</small><strong id="pulse-extrapolation">—</strong></div>

@@ -37,6 +37,7 @@ const nodes = {
   coverageMetrics: document.querySelector("#coverage-metrics"),
   sourceRows: document.querySelector("#source-rows"),
   eventRows: document.querySelector("#event-rows"),
+  sourceHealthGroups: document.querySelector("#source-health-groups"),
   updatedAt: document.querySelector("#updated-at"),
   connection: document.querySelector("#connection-badge"),
   systemHero: document.querySelector("#system-hero"),
@@ -181,19 +182,35 @@ function appendCell(row, value, className = "") {
 }
 
 function sourceControlId(id){return String(id).includes("telegram")?"uz-suburban-telegram":String(id).includes("delay-dashboard")?"uz-delay-dashboard":id;}
+function sourceHealthCategory(source){
+  const state=source.reliabilityState?.operationalState||String(source.status||"unknown").toLowerCase();
+  const usable=source.reliabilityState?.usable??(source.status==="online"&&Number(source.records_count)>0);
+  if(state==="unconfigured"||String(source.status).toLowerCase()==="requires_configuration")return {key:"configuration",label:"Нужно подключить",tone:"neutral"};
+  if(usable)return {key:"usable",label:"Пригоден",tone:state==="degraded"||state==="stale"?"warning":"ok"};
+  if(state==="empty"||Number(source.records_count||0)===0&&!source.error)return {key:"empty",label:"Нет записей",tone:"neutral"};
+  return {key:"failure",label:"Ошибка",tone:"error"};
+}
+function sourceHealthSummary(sources){
+  const totals={usable:0,empty:0,failure:0,configuration:0};for(const source of sources)totals[sourceHealthCategory(source).key]+=1;
+  nodes.sourceHealthGroups?.replaceChildren(metric("Пригодны",totals.usable,`из ${sources.length} зарегистрированных`,totals.usable?"ok":"warning"),metric("Без записей",totals.empty,"Источник ответил, фактов нет"),metric("Ошибки",totals.failure,"Требуют диагностики",totals.failure?"warning":"ok"),metric("Подключение",totals.configuration,"Нужны договор или ключ"));return totals;
+}
 function renderSources(sources) {
   nodes.sourceRows.replaceChildren();
   if (!sources.length) {
     const row = document.createElement("tr");
+    sourceHealthSummary([]);
     const cell = appendCell(row, "Источники ещё не зарегистрированы", "empty-row");
-    cell.colSpan = 5;
+    cell.colSpan = 7;
     nodes.sourceRows.append(row);
     return;
   }
+  sourceHealthSummary(sources);
   for (const source of sources) {
     const row = document.createElement("tr");
     appendCell(row, source.source_id);
-    appendCell(row, source.status, `status-pill ${String(source.status || "").toLowerCase()}`);
+    const category=sourceHealthCategory(source);
+    appendCell(row,category.label,`status-pill ${category.tone}`);
+    appendCell(row, source.reliabilityState?.operationalState||source.status, `status-pill ${String(source.reliabilityState?.operationalState||source.status||"").toLowerCase()}`);
     appendCell(row, formatAge(source.checked_at));
     appendCell(row, source.records_count);
     appendCell(row, source.error);
@@ -230,15 +247,16 @@ function render(data) {
   const status = pipeline.status || data.status || "unknown";
   const tone = status === "ok" ? "ok" : status === "degraded" ? "warning" : "error";
   const statusTitle = status === "ok" ? "Контур работает штатно" : status === "degraded" ? "Данные требуют внимания" : "Контур обновления нарушен";
-  const activeSources = (data.sources || []).filter((source) => source.status === "online").length;
-  const staleSources = (data.sources || []).filter((source) => source.status !== "online").length;
+  const sourceTotals=(data.sources||[]).reduce((totals,source)=>{totals[sourceHealthCategory(source).key]+=1;return totals;},{usable:0,empty:0,failure:0,configuration:0});
+  const activeSources=sourceTotals.usable;
+  const staleSources=sourceTotals.failure;
 
   nodes.systemHero.dataset.tone = tone;
   nodes.systemTitle.textContent = statusTitle;
   nodes.systemCaption.textContent = pipeline.message || `Последний снимок: ${formatDate(data.snapshot?.generatedAt)}`;
   nodes.pipelineBadge.textContent = String(status).toUpperCase();
   nodes.pipelineBadge.className = `tag status-pill ${status}`;
-  nodes.sourceSummary.textContent = `${activeSources} активных · ${staleSources} требуют внимания`;
+  nodes.sourceSummary.textContent = `${activeSources} пригодны · ${sourceTotals.empty} без записей · ${staleSources} ошибок · ${sourceTotals.configuration} ждут подключения`;
   nodes.storageSummary.textContent = `${data.runs?.total || 0} рейсов · ${data.events?.total || 0} событий`;
   nodes.eventsCaption.textContent = `${(data.recentEvents || []).length} последних записей`;
 
@@ -247,7 +265,7 @@ function render(data) {
     metric("Рейсы в D1", data.runs?.total, `Последнее событие ${formatAge(data.runs?.latest)}`),
     metric("События", data.events?.total, "Неизменяемый журнал"),
     metric("Возраст снимка", snapshotAge == null ? "—" : `${snapshotAge} мин`, pipeline.freshnessLabel || "Нет оценки", tone),
-    metric("Источники online", `${activeSources}/${(data.sources || []).length}`, staleSources ? `${staleSources} требуют проверки` : "Все доступные источники активны", staleSources ? "warning" : "ok"),
+    metric("Источники пригодны", `${activeSources}/${(data.sources || []).length-sourceTotals.configuration}`, `${staleSources} ошибок · ${sourceTotals.empty} без записей · ${sourceTotals.configuration} ждут подключения`, staleSources ? "warning" : "ok"),
   );
 
   const coverage = data.coverage || {};
@@ -332,7 +350,7 @@ async function resolveObservationLink(eventId,decision,runId=null){
 async function reviewWitnessSubmission(submissionId,decision){const result=await platformFetch(railIntelligenceEndpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"review-witness-submission",submissionId,decision})});if(!result)throw new Error("Insufficient permission to moderate observations");await loadPlatformSuite();return result;}
 
 
-const TWIN_STATE_LABELS={at_station:"На станции",dwelling:"Стоянка",departing:"Отправляется",in_transit:"В пути",approaching:"Приближается",overdue:"Нет ожидаемого факта",stale:"Устарело",unknown:"Неизвестно",unresolved:"Не определено"};
+const TWIN_STATE_LABELS={at_station:"На станции",dwelling:"Стоянка",held:"Движение остановлено",departing:"Отправляется",in_transit:"В пути",approaching:"Приближается",overdue:"Нет ожидаемого факта",stale:"Устарело",unknown:"Неизвестно",unresolved:"Не определено"};
 function renderRailIntelligence(data){
   if(!data)return;const counts=data.counts||{},geometryCoverage=counts.edges?Math.round(Number(counts.geometryEdges||0)/Number(counts.edges)*100):0;
   nodes.railIntelligenceMetrics.replaceChildren(metric("Узлы графа",counts.nodes||0,"Наблюдаемые станции"),metric("Рёбра графа",counts.edges||0,"Изученные перегоны"),metric("Цифровые двойники",counts.currentStates||0,`${counts.activeHypotheses||0} активных гипотез`),metric("Геометрия",`${geometryCoverage}%`,"Только реальные рёбра",geometryCoverage<60?"warning":"ok"),metric("Наблюдения",counts.observations||0,"Трассируемые факты"),metric("Калибровка",counts.resolvedPredictions||0,"Закрытые прогнозы"));
@@ -341,7 +359,7 @@ function renderRailIntelligence(data){
     nodes.railIntelligenceMetrics.append(metric("OSM Rail Graph",reference.status==="active"?reference.segments:`${progress}%`,reference.status==="active"?`${reference.activeDirectedSegments} направленных участков`:`${reference.importedStations}/${reference.stations} станций · ETA ${eta}`,graphTone),metric("Темп импорта",reference.status==="active"?"готово":lastProgressAge,`${reference.recoveryCount||0} восстановлений · ${reference.consecutiveFailures||0} ошибок подряд`,graphTone),metric("Реестр станций",reference.stations,`${reference.aliases} алиасов · ${reference.stationCodes||0} кодов · ${reference.unmatchedStations} без пути`,reference.unmatchedStations>500?"warning":"ok"));
     if(diagnostics)nodes.railIntelligenceMetrics.append(metric("Связность графа",diagnostics.connectedComponents,`${diagnostics.largestComponentNodes}/${diagnostics.topologyNodes} узлов в крупнейшем компоненте · ${diagnostics.anomalousSegments} аномальных сегментов`,diagnostics.status==="healthy"?"ok":"warning"));
   }
-  nodes.railIntelligenceMetrics.append(metric("\u041f\u0435\u0440\u0435\u0445\u043e\u0434\u044b v4",counts.stateTransitions||0,"Append-only история фаз"),metric("Нет ожидаемого факта",counts.overdueStates||0,"Требует нового станционного события",counts.overdueStates?"warning":"ok"));
+  nodes.railIntelligenceMetrics.append(metric("\u041f\u0435\u0440\u0435\u0445\u043e\u0434\u044b v4",counts.stateTransitions||0,"Append-only история фаз"),metric("Движение остановлено",counts.heldStates||0,"Позиция удерживается у последнего факта",counts.heldStates?"warning":"ok"),metric("Нет ожидаемого факта",counts.overdueStates||0,"Требует нового станционного события",counts.overdueStates?"warning":"ok"));
   nodes.railIntelligenceMetrics.append(metric("\u041a\u044d\u0448 \u043c\u0430\u0440\u0448\u0440\u0443\u0442\u043e\u0432",counts.cachedRoutes||0,"\u0421\u043e\u0441\u0442\u0430\u0432\u043d\u0430\u044f OSM-\u0433\u0435\u043e\u043c\u0435\u0442\u0440\u0438\u044f"),metric("\u0421\u0432\u044f\u0437\u0430\u043d\u043d\u044b\u0435 \u0444\u0430\u043a\u0442\u044b",counts.linkedObservations||0,`${counts.pendingLinks||0} \u0442\u0440\u0435\u0431\u0443\u044e\u0442 \u0443\u0442\u043e\u0447\u043d\u0435\u043d\u0438\u044f`,counts.pendingLinks?"warning":"ok"));
   const expected=data.expectedRegistry?.runs||[],gaps=data.expectedRegistry?.gaps||[],fusion=data.observationFusion?.groups||[],external=data.externalSources||[],priorities=data.stationCoveragePriorities||[];
   const readiness=data.operationalReadiness||{};
@@ -406,14 +424,14 @@ function renderOperationsSelection(item){
 }
 async function renderOperationsMap(movements=[],freightCorridors=[],freightStationFacts=[]){
   const sequence=++operationsMapRenderSequence;ensureOperationsMap();if(!operationsLayer)return;const fingerprint=JSON.stringify({movements:movements.map(item=>[item.movement_id,item.latitude,item.longitude,item.position_status,item.last_observed_at]),corridors:freightCorridors.map(item=>[item.corridorId,item.confidence,item.lastObservedAt]),facts:freightStationFacts.map(item=>[item.factId,item.occurredAt])});if(fingerprint===operationsMapFingerprint){if(selectedMovementId&&operationsMovements.has(selectedMovementId))focusOperationsMovement(selectedMovementId,{zoom:false});return;}operationsMapFingerprint=fingerprint;const stationLookup=await operationsStationLookup();if(sequence!==operationsMapRenderSequence)return;operationsLayer.clearLayers();operationsMarkers=new Map();const bounds=[];
-  for(const item of movements){const lat=Number(item.latitude),lon=Number(item.longitude);if(!validUkraineOperationsPoint(lat,lon))continue;const marker=L.marker([lat,lon],{icon:L.divIcon({className:"",html:`<span class="ops-train-marker ${item.position_status==="confirmed"?"":"estimated"}">R</span>`,iconSize:[24,24],iconAnchor:[12,12]})});const content=document.createElement("div"),title=document.createElement("strong"),detail=document.createElement("p");title.textContent=`Поезд ${item.train_number||item.run_id}`;const meta=operationsMetadata(item);detail.textContent=`${item.origin||"—"} → ${item.destination||"—"} · ${item.position_status||"estimated"} · ${Math.round(Number(item.confidence||0)*100)}%${Number.isFinite(Number(meta.uncertaintyKm))?` · ±${Math.round(Number(meta.uncertaintyKm))} км`:""}`;content.append(title,detail);marker.bindPopup(content);marker.on("click",()=>focusOperationsMovement(item.movement_id,{zoom:false}));marker.addTo(operationsLayer);operationsMarkers.set(item.movement_id,marker);bounds.push([lat,lon]);}
+  for(const item of movements){const lat=Number(item.latitude),lon=Number(item.longitude);if(!validUkraineOperationsPoint(lat,lon))continue;const held=item.status==="held"||operationsMetadata(item).operationalState==="held",marker=L.marker([lat,lon],{icon:L.divIcon({className:"",html:`<span class="ops-train-marker ${held?"held":item.position_status==="confirmed"?"":"estimated"}">${held?"Ⅱ":"R"}</span>`,iconSize:[24,24],iconAnchor:[12,12]})});const content=document.createElement("div"),title=document.createElement("strong"),detail=document.createElement("p");title.textContent=`Поезд ${item.train_number||item.run_id}`;const meta=operationsMetadata(item);detail.textContent=`${item.origin||"—"} → ${item.destination||"—"} · ${held?"движение остановлено":item.position_status||"estimated"} · ${Math.round(Number(item.confidence||0)*100)}%${Number.isFinite(Number(meta.uncertaintyKm))?` · ±${Math.round(Number(meta.uncertaintyKm))} км`:""}`;content.append(title,detail);marker.bindPopup(content);marker.on("click",()=>focusOperationsMovement(item.movement_id,{zoom:false}));marker.addTo(operationsLayer);operationsMarkers.set(item.movement_id,marker);bounds.push([lat,lon]);}
   for(const corridor of freightCorridors){const definition=FREIGHT_CORRIDOR_GEOMETRY[corridor.corridorCode];if(!definition)continue;const latLngs=definition.coordinates.map(([lon,lat])=>[lat,lon]);let shape;if(definition.kind==="area"){shape=L.polygon(latLngs,{color:"#ffad68",weight:2,opacity:.75,fillColor:"#ff9d52",fillOpacity:.08,dashArray:corridor.status==="corroborated"?null:"8 8"}).addTo(operationsLayer);}else{L.polyline(latLngs,{color:"#ff9d52",weight:Math.max(10,Math.min(28,Number(corridor.uncertaintyKm||50)/4)),opacity:.1,lineCap:"round",interactive:false}).addTo(operationsLayer);shape=L.polyline(latLngs,{color:"#ffad68",weight:4,opacity:.85,dashArray:corridor.status==="corroborated"?null:"10 9"}).addTo(operationsLayer);}const popup=document.createElement("div"),title=document.createElement("strong"),detail=document.createElement("p"),evidence=document.createElement("small");title.textContent=`Грузовой ${definition.kind==="area"?"район":"коридор"} · ${definition.label}`;detail.textContent=`${corridor.status} · уверенность ${Math.round(Number(corridor.confidence||0)*100)}% · погрешность около ${corridor.uncertaintyKm} км`;evidence.textContent=`${corridor.observationCount} наблюдений · ${corridor.independentSources} источников · ${corridor.direction?`направление ${corridor.direction}`:"направление не определено"}`;popup.append(title,detail,evidence);shape.bindPopup(popup);for(const point of latLngs)bounds.push(point);if(definition.kind==="line"){const terminal=definition.terminals[normalizeOperationsStation(corridor.direction)],arrowPoint=terminal==="start"?latLngs[0]:terminal==="end"?latLngs.at(-1):null;if(arrowPoint)L.marker(arrowPoint,{icon:L.divIcon({className:"",html:'<span class="ops-freight-arrow">→</span>',iconSize:[26,26],iconAnchor:[13,13]})}).addTo(operationsLayer);}}
   for(const fact of freightStationFacts){const normalized=normalizeOperationsStation(fact.station),station=stationLookup.get(normalized),coordinates=station?.coordinates||FREIGHT_STATION_FALLBACKS.get(normalized);if(!Array.isArray(coordinates)||coordinates.length<2)continue;const [lon,lat]=coordinates;if(!validUkraineOperationsPoint(Number(lat),Number(lon)))continue;const marker=L.circleMarker([lat,lon],{radius:8,color:fact.factStatus==="confirmed"?"#5ce1c5":"#ffad68",weight:2,fillColor:"#071b23",fillOpacity:.9,dashArray:fact.factStatus==="confirmed"?null:"4 3"});const popup=document.createElement("div"),title=document.createElement("strong"),detail=document.createElement("p"),excerpt=document.createElement("small");title.textContent=`Станционный факт · ${station?.name||fact.station}`;detail.textContent=`${fact.factStatus} · ${Math.round(Number(fact.confidence||0)*100)}% · ${formatDate(fact.occurredAt)}`;excerpt.textContent=fact.excerpt||fact.sourceId;popup.append(title,detail,excerpt);marker.bindPopup(popup);marker.addTo(operationsLayer);bounds.push([lat,lon]);}
   if(bounds.length&&!operationsMapHasInitialFit&&!selectedMovementId){operationsMap.fitBounds(bounds,{padding:[30,30],maxZoom:9});operationsMapHasInitialFit=true;}if(selectedMovementId&&operationsMovements.has(selectedMovementId))focusOperationsMovement(selectedMovementId,{zoom:false});setTimeout(()=>operationsMap?.invalidateSize(),0);
 }
 async function renderOperationsHub(data){
   if(!data)return;latestOperationsHubData=data;const movements=data.movements||[],notifications=data.notifications||[],workflows=data.workflows||[],freightCorridors=data.freightCorridors||[],freightStationFacts=data.freightStationFacts||[],freightTracks=data.freightTracks||[],visibleMovements=filterOperationsMovements(movements,workflows);if(nodes.operationsFilterCount)nodes.operationsFilterCount.textContent=visibleMovements.length+" / "+movements.length;operationsMovements=new Map(movements.map(item=>[item.movement_id,item]));const invalidCoordinates=movements.filter(item=>item.latitude!=null&&item.longitude!=null&&!validUkraineOperationsPoint(Number(item.latitude),Number(item.longitude))).length,reviewWorkflows=workflows.filter(item=>item.workflow_type==="twin_ambiguity");
-  nodes.operationsHubMetrics.replaceChildren(metric("Перевозки",movements.length,"Закрытый реестр"),metric("Грузовые коридоры",freightCorridors.length,"Вероятностный слой",freightCorridors.length?"warning":"ok"),metric("Связанные сигналы",freightTracks.length,"Только по устойчивому идентификатору"),metric("Станционные факты",freightStationFacts.length,"Только явные упоминания"),metric("Задержки 1ч+",movements.filter(item=>Number(item.delay_minutes)>=60).length,"Требуют внимания"),metric("Спорные гипотезы",reviewWorkflows.length,"Требуют станционного факта",reviewWorkflows.length?"warning":"ok"),metric("Уведомления",notifications.length,"Не прочитаны",notifications.length?"warning":"ok"),metric("Геозащита",invalidCoordinates,invalidCoordinates?"Скрыты неверные координаты":"Координаты валидны",invalidCoordinates?"warning":"ok"));await renderOperationsMap(visibleMovements,freightCorridors,freightStationFacts);
+  nodes.operationsHubMetrics.replaceChildren(metric("Перевозки",movements.length,"Закрытый реестр"),metric("Остановлены",movements.filter(item=>item.status==="held").length,"Позиция заморожена до нового факта",movements.some(item=>item.status==="held")?"warning":"ok"),metric("Грузовые коридоры",freightCorridors.length,"Вероятностный слой",freightCorridors.length?"warning":"ok"),metric("Связанные сигналы",freightTracks.length,"Только по устойчивому идентификатору"),metric("Станционные факты",freightStationFacts.length,"Только явные упоминания"),metric("Задержки 1ч+",movements.filter(item=>Number(item.delay_minutes)>=60).length,"Требуют внимания"),metric("Спорные гипотезы",reviewWorkflows.length,"Требуют станционного факта",reviewWorkflows.length?"warning":"ok"),metric("Уведомления",notifications.length,"Не прочитаны",notifications.length?"warning":"ok"),metric("Геозащита",invalidCoordinates,invalidCoordinates?"Скрыты неверные координаты":"Координаты валидны",invalidCoordinates?"warning":"ok"));await renderOperationsMap(visibleMovements,freightCorridors,freightStationFacts);
   if(selectedMovementId&&!visibleMovements.some(item=>item.movement_id===selectedMovementId))selectedMovementId=null;renderOperationsSelection(selectedMovementId?operationsMovements.get(selectedMovementId):null);
   if(nodes.freightTrackRows){if(!freightTracks.length)emptyTable(nodes.freightTrackRows,"Связанные наблюдения появятся после повторной фиксации устойчивого идентификатора.",6);else{nodes.freightTrackRows.replaceChildren();for(const track of freightTracks.slice(0,100)){const row=document.createElement("tr");if(track.linkedMovementId){row.className="linked-track";row.addEventListener("click",()=>focusOperationsMovement(track.linkedMovementId));}appendCell(row,track.locomotive||track.trainNumber||track.trackId);appendCell(row,(track.corridorCodes||[]).join(", ")||"—");appendCell(row,track.direction||"—");appendCell(row,(track.stationSequence||[]).map(item=>item.station).join(" → ")||"—");appendCell(row,track.independentSources);appendCell(row,`${Math.round(Number(track.confidence||0)*100)}%`,`status-pill ${track.status}`);nodes.freightTrackRows.append(row);}}}
   if(!visibleMovements.length)emptyTable(nodes.operationsMovementRows,"Активных перевозок пока нет.",7);else{nodes.operationsMovementRows.replaceChildren();for(const item of visibleMovements.slice(0,250)){const row=document.createElement("tr");row.className="operations-movement-row";row.dataset.movementId=item.movement_id;row.classList.toggle("selected",item.movement_id===selectedMovementId);row.addEventListener("click",()=>focusOperationsMovement(item.movement_id));appendCell(row,item.train_number||item.run_id);appendCell(row,`${item.origin||"—"} → ${item.destination||"—"}`);appendCell(row,item.status,`status-pill ${item.status}`);appendCell(row,item.delay_minutes==null?"—":`${Math.round(item.delay_minutes)} мин`);appendCell(row,formatDate(item.eta));appendCell(row,item.last_station||formatAge(item.last_observed_at));const cell=document.createElement("td"),select=document.createElement("select");select.className="workflow-select";for(const value of ["monitoring","attention","investigating","resolved"]){const option=document.createElement("option");option.value=value;option.textContent=value;option.selected=value===item.workflow_state;select.append(option);}select.addEventListener("click",event=>event.stopPropagation());select.addEventListener("change",()=>platformAction({action:"update-movement",id:item.movement_id,workflowState:select.value}).catch(error=>nodes.platformError.textContent=error.message));cell.append(select);row.append(cell);nodes.operationsMovementRows.append(row);}}

@@ -84,7 +84,7 @@ export class MapView{
       if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
       const status=object.position.status,operation=object.operationalStatus||"moving";
       const color=["stale","unknown"].includes(status)?POSITION_STATUSES[status].color:(OPERATION_COLORS[operation]||POSITION_STATUSES[status].color);
-      const estimateLabel=status==="estimated"?"<em>Расчётное · не GPS</em>":status==="stale"?`<em>${escapeHtml(object.stationPresence?.label||"Расчёт остановлен")}</em>`:`<em>${escapeHtml(object.stationPresence?.label||OPERATION_LABELS[operation])}</em>`;
+      const estimateLabel=object.disruption?.held?"<em>Остановка · последнее вероятное положение</em>":status==="estimated"?"<em>Расчётное · не GPS</em>":status==="stale"?`<em>${escapeHtml(object.stationPresence?.label||"Расчёт остановлен")}</em>`:`<em>${escapeHtml(object.stationPresence?.label||OPERATION_LABELS[operation])}</em>`;
       const delay=object.liveUpdate?.delayLabel||"—",qualitySignal=Math.round((object.quality||0)*100),freshSignal=object.position.freshness?.key==="fresh"?100:object.position.freshness?.key==="delayed"?55:20;
       const icon=L.divIcon({
         className:"transport-marker",

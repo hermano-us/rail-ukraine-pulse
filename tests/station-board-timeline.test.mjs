@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { deriveStationLifecycle, deriveStationPresence } from "../js/data-store-ukraine.js";
+import { deriveOperationalDisruption, deriveStationLifecycle, deriveStationPresence, freezeDisruptedPosition } from "../js/data-store-ukraine.js";
 
 test("station presence distinguishes a passage from a retained terminal arrival", () => {
   const now=new Date("2026-07-29T12:00:00Z");
@@ -44,4 +44,26 @@ test("public map contains a collapsible station board and a 24-hour timeline", a
   assert.match(app,/loadMapTimeline/);
   assert.match(app,/buildTimelineObjects/);
   assert.match(client,/\/api\/v1\/timeline/);
+});
+test("a stop without a station retains a frozen probabilistic marker",()=>{
+  const update={operationalStatus:"moving",publicStatus:"рух зупинено",updatedAt:"2026-08-09T03:55:00Z",delayMinutes:90};
+  assert.equal(deriveOperationalDisruption(update).held,true);
+  const position=freezeDisruptedPosition({
+    update,routeResult:{coordinates:[[30,50],[31,50]],anchorErrorKm:2},
+    estimate:{coordinates:[30.25,50],confidence:.6,errorKm:18,calculation:{progress:.25}},
+    now:new Date("2026-08-09T04:10:00Z"),sourceAgeMinutes:15,
+  });
+  assert.deepEqual(position.coordinates,[30.25,50]);
+  assert.equal(position.calculation.progress,.25);
+  assert.equal(position.calculation.frozen,true);
+  assert.equal(position.method,"operational-hold-frozen-estimate");
+  assert.ok(position.errorKm>=25);
+});
+
+test("a stationless hold falls back to a broad route envelope instead of disappearing",()=>{
+  const position=freezeDisruptedPosition({update:{publicStatus:"поезд остановлен",updatedAt:"2026-08-09T03:00:00Z"},routeResult:{coordinates:[[30,50],[31,50]]},now:new Date("2026-08-09T05:00:00Z"),sourceAgeMinutes:120});
+  assert.ok(position.coordinates.every(Number.isFinite));
+  assert.equal(position.status,"stale");
+  assert.equal(position.method,"operational-hold-route-envelope");
+  assert.ok(position.errorKm>50);
 });

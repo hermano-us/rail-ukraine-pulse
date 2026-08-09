@@ -302,6 +302,42 @@ export function buildStationPlan(waypoints,update,position,forecastArrivalAt){
     return {sequence:index+1,station:point.name||point.label,distanceKm:Number(point.distanceKm.toFixed(1)),plannedAt:new Date(startMs+point.distanceKm/totalKm*(endMs-startMs)).toISOString(),actualAt:actual,status,category};
   });
 }
+export function deriveOperationalDisruption(update={}){
+  const operational=String(update.operationalStatus||"").toLowerCase();
+  const text=`${update.publicStatus||""} ${update.status||""} ${update.reason||""}`.toLocaleLowerCase("uk");
+  const held=["held","stopped","suspended","station","at-station","dwelling","waiting","depot"].includes(operational)||/(рух\s+(?:призупинено|зупинено)|зупинен(?:о|ий)?|остановлен(?:о|ный)?|призупинен(?:о|ий)?|стоїть|стоит|затриман(?:о|ий)?\s+на\s+станц)/u.test(text);
+  const delay=Number(update.delayMinutes);
+  return {held,state:held?"held":Number.isFinite(delay)&&delay>0?"delayed":"normal",delayMinutes:Number.isFinite(delay)&&delay>0?delay:0};
+}
+
+export function freezeDisruptedPosition({update={},routeResult=null,estimate=null,now=new Date(),sourceAgeMinutes=0}={}){
+  const disruption=deriveOperationalDisruption(update);if(!disruption.held)return null;
+  const measure=buildRouteMeasure(routeResult?.coordinates),age=Math.max(0,Number(sourceAgeMinutes)||0),freshness=evaluateFreshness(age);
+  if(!measure)return null;
+  const hasEstimate=Array.isArray(estimate?.coordinates)&&estimate.coordinates.every(Number.isFinite);
+  const progress=hasEstimate&&Number.isFinite(Number(estimate?.calculation?.progress))?Number(estimate.calculation.progress):.5;
+  const coordinates=hasEstimate?estimate.coordinates:interpolateAlongRoute(measure,measure.totalKm*progress);
+  if(!coordinates)return null;
+  const baseConfidence=hasEstimate?Number(estimate.confidence||.35):.14;
+  const confidence=Math.max(.05,Math.min(.48,baseConfidence*.68*Math.exp(-age/360)));
+  const routeEnvelope=hasEstimate?0:measure.totalKm*.52;
+  const errorKm=Math.min(300,Math.max(Number(estimate?.errorKm)||25,routeEnvelope,25+age*.3));
+  return {
+    ...(estimate||{}),status:age>90?"stale":"estimated",coordinates,
+    updatedAt:update.updatedAt||now.toISOString(),sourceUpdatedAt:update.updatedAt||null,
+    calculatedAt:update.updatedAt||now.toISOString(),confidence:Number(confidence.toFixed(2)),errorKm:Number(errorKm.toFixed(1)),
+    method:hasEstimate?"operational-hold-frozen-estimate":"operational-hold-route-envelope",
+    lastConfirmedAt:null,freshness,sources:["operational-event","rail-geometry"],
+    confidenceReasons:[
+      {positive:false,text:"Движение остановлено; станция не определена"},
+      {positive:hasEstimate,text:hasEstimate?"Положение зафиксировано на момент сообщения об остановке":"Показан центр вероятного участка маршрута"},
+      {positive:false,text:`Неопределённость увеличена до ±${Math.round(errorKm)} км`},
+    ],
+    calculation:{...(estimate?.calculation||{}),progress:Number(progress.toFixed(3)),totalKm:Number(measure.totalKm.toFixed(1)),frozen:true,frozenAt:update.updatedAt||now.toISOString()},
+    reasonCode:"operational_hold",reason:"Последнее вероятное положение на момент остановки; точная станция не подтверждена",
+  };
+}
+
 export function deriveStationPresence(update, now = new Date()) {
   const station=String(update?.reportedStation||"").trim();
   if(!station)return null;
@@ -309,7 +345,7 @@ export function deriveStationPresence(update, now = new Date()) {
   const text=`${update.publicStatus||""} ${update.status||""}`.toLocaleLowerCase("uk");
   const sameDestination=normalizePlace(station)===normalizePlace(update.destination||"");
   const explicitDepot=update.operationalStatus==="depot";
-  const explicitStop=update.operationalStatus==="station"||/(прибув|прибыл|прибуття|на станц|стоїть|стоит|кінцева|конечн)/u.test(text);
+  const explicitStop=deriveOperationalDisruption(update).held||/(прибув|прибыл|прибуття|на станц|кінцева|конечн)/u.test(text);
   if(!sameDestination&&!explicitDepot&&!explicitStop)return {station,kind:"passage",label:`Зафиксировано прохождение: ${station}`,ageMinutes:Number(ageMinutes.toFixed(1)),holdsPosition:false};
   const dwellMinutes=explicitDepot?12*60:sameDestination?180:60;
   const fresh=ageMinutes<=dwellMinutes;
@@ -343,12 +379,16 @@ function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,so
   const freshness=evaluateFreshness(sourceAgeMinutes);
   const stationPresence=deriveStationPresence(update,now);
   const stationLifecycle=deriveStationLifecycle(update,now);
+  const disruption=deriveOperationalDisruption(update);
   const isStationReport=Boolean(update.reportedStation&&["reported-station-passage","station-board-window"].includes(update.positionEvidence));
   const admission=positionAdmission(update,{hasRoute:Boolean(routeResult),sourceAgeMinutes});
   const estimated=admission.allowCalculated?estimatePosition(update,routeResult,now,sourceAgeMinutes,isStationReport?reportedAnchor:null,segmentCalibration):null;
   const reportConfidence=update.positionEvidence==="reported-station-passage"?0.82:update.positionEvidence==="station-board-window"?0.66:0.58;
   const reportErrorKm=update.positionEvidence==="reported-station-passage"?2:update.positionEvidence==="station-board-window"?5:3;
   const reportableAnchor=admission.allowReported&&freshness.canPosition&&reportedAnchor;
+  const holdAt=update.updatedAt&&Number.isFinite(Date.parse(update.updatedAt))?new Date(update.updatedAt):now;
+  const stopMomentEstimate=disruption.held&&routeResult?estimatePosition({...update,operationalStatus:"moving"},routeResult,holdAt,0,isStationReport?reportedAnchor:null,segmentCalibration):null;
+  const heldPosition=disruption.held?freezeDisruptedPosition({update,routeResult,estimate:stopMomentEstimate||estimated,now,sourceAgeMinutes}):null;
   const retainedStationAnchor=stationPresence?.holdsPosition&&reportedAnchor;
   const reported=(reportableAnchor||retainedStationAnchor)&&(update.operationalStatus!=="moving"||isStationReport||stationPresence?.holdsPosition)?{
     status:freshness.frozen||stationPresence?.fresh===false?"stale":"reported",coordinates:reportedAnchor,updatedAt:update.updatedAt,
@@ -357,7 +397,8 @@ function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,so
     freshness,sources:[update.sourceId||"uz-delay-dashboard"],
     confidenceReasons:freshnessReasons({freshness,hasRoute:Boolean(routeResult),hasForecast:Boolean(update.forecastArrival),anchorErrorKm:routeResult?.anchorErrorKm}),
   }:null;
-  const position=(stationPresence?.holdsPosition?reported||estimated:estimated||reported)||{
+  const unavailableDuringHold={status:"unknown",coordinates:null,updatedAt:update.updatedAt,sourceUpdatedAt:update.updatedAt,calculatedAt:now.toISOString(),confidence:0,errorKm:null,method:"operational-hold-without-station-anchor",lastConfirmedAt:null,freshness,sources:[update.sourceId||"public-status"],confidenceReasons:["Явная остановка движения без доступного станционного якоря"],reasonCode:"operational_hold",reason:"Движение остановлено; точная станция не подтверждена"};
+  const position=(disruption.held?(reported||heldPosition||unavailableDuringHold):(stationPresence?.holdsPosition?reported||estimated:estimated||reported))||{
     status:"unknown",coordinates:null,updatedAt:update.updatedAt,sourceUpdatedAt:update.updatedAt,calculatedAt:now.toISOString(),confidence:0,errorKm:null,
     method:admission.reasonCode==="source_expired"?"source-snapshot-expired":admission.reasonCode,lastConfirmedAt:update.reportedStation?update.updatedAt:null,
     freshness,sources:["UZ official public status"],
@@ -387,8 +428,8 @@ function objectFromUpdate(update,routeResult,routeId,regions,now,sourceStatus,so
     trainNumber:update.trainNumber,transport:"train",type:"passenger",name:`Поезд №${update.trainNumber}`,
     route:update.route,origin:update.origin,destination:update.destination,routeId,regions,routeCoordinates:routeResult?.coordinates||[],
     description:`Публичный рейс Укрзалізниці ${update.route}. Официальный статус: ${update.publicStatus}; задержка ${update.delayLabel||"не указана"}.`,
-    rollingStock:"Тип состава не опубликован в источнике",operationalStatus:stationPresence?.holdsPosition?(stationPresence.kind==="depot"?"depot":"station"):update.operationalStatus,
-    stationPresence,stationLifecycle,registryState:update.registryState||"unobserved",positionAdmission:admission,
+    rollingStock:"Тип состава не опубликован в источнике",operationalStatus:disruption.held?(stationPresence?.kind==="depot"?"depot":"station"):update.operationalStatus,
+    stationPresence,stationLifecycle,disruption,registryState:update.registryState||"unobserved",positionAdmission:admission,
     stationQueue:queue&&queueCoordinates?{...queue,coordinates:queueCoordinates}:null,
     liveUpdate:update,telemetry:{speedKph:null},position,quality,
     evidence:evidenceFor(update,position,sourceStatus),events,corridor,routeTimeline,

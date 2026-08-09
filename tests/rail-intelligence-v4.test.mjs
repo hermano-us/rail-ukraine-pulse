@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { fuseObservationRowsV3 } from "../backend/src/intelligence/observation-fusion-v3.js";
+import { deriveOperationalDisruption, deriveTwinOperationalState } from "../backend/src/intelligence/twin-state-machine.js";
 import { calculateStationPriority } from "../backend/src/intelligence/station-coverage.js";
 import { buildTwinHypotheses } from "../backend/src/intelligence/service.js";
 import { chooseCanonicalRun } from "../backend/src/intelligence/observation-linker.js";
@@ -46,6 +48,32 @@ test("digital twin v5 tightens a corroborated corridor and records evidence", ()
   assert.ok(fused.state.confidence>single.state.confidence);
   assert.ok(fused.state.uncertaintyKm<single.state.uncertaintyKm);
   assert.equal(fused.hypotheses[0].reasons.fusionId,"fusion-1");
+});
+
+test("explicit operational hold freezes the twin and moves ETA into the future", () => {
+  const now="2026-08-09T04:00:00Z",event={run_id:"held-1",event_id:"fact-1",train_number:"91",station_id:"kyiv",occurred_at:"2026-08-09T02:00:00Z",reliability:.9};
+  const candidate={to_station_id:"fastiv",p10_minutes:40,p50_minutes:60,p90_minutes:80,sample_count:30,reliability:.9,distance_km:65,train_family:"91",geometry_json:JSON.stringify({type:"LineString",coordinates:[[30.5,50.4],[29.9,50.1]]})};
+  const disruption=deriveOperationalDisruption({operationalStatus:"station",publicStatus:"рух зупинено",delayMinutes:95,updatedAt:"2026-08-09T03:55:00Z"},now);
+  const result=buildTwinHypotheses({event:{...event,disruption},candidates:[candidate],now});
+  assert.equal(disruption.held,true);
+  assert.equal(result.hypotheses[0].progress,0);
+  assert.deepEqual([result.state.longitude,result.state.latitude],[30.5,50.4]);
+  assert.ok(Date.parse(result.state.etaP50)>Date.parse(now));
+  const operational=deriveTwinOperationalState({now,anchorAt:event.occurred_at,positionStatus:result.state.positionStatus,progress:0,etaP80End:result.state.etaP80End,confidence:result.state.confidence,disruption});
+  assert.equal(operational.state,"held");
+});
+
+test("delay without explicit stop does not manufacture a station hold", () => {
+  const disruption=deriveOperationalDisruption({operationalStatus:"moving",publicStatus:"в пути",delayMinutes:120,updatedAt:"2026-08-09T03:55:00Z"},"2026-08-09T04:00:00Z");
+  assert.equal(disruption.state,"delayed");
+  assert.equal(disruption.held,false);
+});
+
+test("public map does not expose the technical source registry", async () => {
+  const [html,app,admin]=await Promise.all([readFile(new URL("../index.html",import.meta.url),"utf8"),readFile(new URL("../js/app-ukraine.js",import.meta.url),"utf8"),readFile(new URL("../js/admin.js",import.meta.url),"utf8")]);
+  assert.doesNotMatch(html,/source-registry-list/);
+  assert.doesNotMatch(app,/renderSourceRegistry/);
+  assert.match(admin,/sourceHealthSummary/);
 });
 
 test("entity resolution v3 lowers thresholds only for corroborated evidence", () => {
