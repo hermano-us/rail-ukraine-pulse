@@ -32,11 +32,16 @@ test("rail graph follows physical track geometry and never invents a straight li
     {type:"node",id:3,lat:50,lon:30.2,tags:{railway:"station",name:"Beta"}},
     {type:"way",id:10,nodes:[1,2,3],tags:{railway:"rail"}},
     {type:"way",id:11,nodes:[1,3],tags:{highway:"primary"}},
+    {type:"way",id:12,nodes:[1,3],tags:{railway:"rail",service:"yard"}},
+    {type:"relation",id:91,members:[{type:"way",ref:10,role:""}],tags:{type:"route",route:"train",ref:"91",name:"Alpha - Beta"}},
   ];
   const registry=buildStationRegistry({reviewedStations,osmElements});
   const graph=buildRailGraph({osmElements,registry});
   const segment=graph.segments.find((item)=>item.fromStationId==="alpha"&&item.toStationId==="beta");
   assert.ok(segment);
+  assert.deepEqual(segment.sourceWayIds,["10"]);
+  assert.deepEqual(segment.routeRelationIds,["91"]);
+  assert.equal(graph.stats.routeRelations,1);
   assert.deepEqual(segment.geometry.coordinates,[[30,50],[30.1,50.1],[30.2,50]]);
   assert.equal(segment.bidirectional,true);
   assert.ok(segment.distanceKm>20);
@@ -50,6 +55,7 @@ test("chunked graph import activates a complete version and creates reverse geom
   database.exec(await readFile(new URL("../backend/migrations/0013_rail_intelligence_v2.sql",import.meta.url),"utf8"));
   database.exec(await readFile(new URL("../backend/migrations/0015_rail_intelligence_routing.sql",import.meta.url),"utf8"));
   database.exec(await readFile(new URL("../backend/migrations/0016_rail_foundation_fusion.sql",import.meta.url),"utf8"));
+  database.exec(await readFile(new URL("../backend/migrations/0026_route_aware_rail_graph.sql",import.meta.url),"utf8"));
   database.exec("CREATE TABLE rail_route_rebuild_queue(queue_id TEXT PRIMARY KEY,version_id TEXT,from_station_id TEXT,to_station_id TEXT,run_id TEXT,priority INTEGER,reason TEXT,queued_at TEXT,processed_at TEXT,result TEXT,error TEXT)");
   const versionId="test-v1";
   const assets=new Map([
@@ -71,6 +77,9 @@ test("chunked graph import activates a complete version and creates reverse geom
   const reverse=JSON.parse(database.prepare("SELECT geometry_json FROM rail_segment_geometries WHERE from_station_id='beta'").get().geometry_json);
   assert.deepEqual(reverse.coordinates,[[30.2,50],[30.1,50.1],[30,50]]);
   const firstRoute=await resolveRailRouteGeometries(env,[{from:"alpha",to:"beta"}],"2026-07-28T10:10:00.000Z"); assert.equal(firstRoute.calculated,1); assert.equal(JSON.parse(firstRoute.routes.get("alpha>beta").geometry_json).coordinates.length,3);
+  assert.equal(firstRoute.routes.get("alpha>beta").routing_method,"osm-route-aware-v7");
+  assert.ok(firstRoute.routes.get("alpha>beta").route_confidence>0);
+  assert.match(firstRoute.routes.get("alpha>beta").context_hash,/^v7-/);
   const cachedRoute=await resolveRailRouteGeometries(env,[{from:"alpha",to:"beta"}],"2026-07-28T10:15:00.000Z"); assert.equal(cachedRoute.calculated,0); assert.equal(database.prepare("SELECT COUNT(*) total FROM rail_route_cache").get().total,1);
   const aliases=await loadStationAliasMap(env);
   database.prepare("INSERT INTO rail_route_rebuild_queue(queue_id,version_id,from_station_id,to_station_id,priority,reason,queued_at) VALUES(?,?,?,?,?,?,?)").run("q1",versionId,"alpha","beta",90,"graph-version-activated","2026-07-28T10:16:00Z");

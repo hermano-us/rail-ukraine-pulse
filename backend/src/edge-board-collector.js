@@ -47,7 +47,7 @@ function rankStations(catalog, state, updates, nowMs, coveragePriorities = []) {
     const silenceHours = unseen ? 24 : Math.max(0, (nowMs - lastSuccess) / 3_600_000);
     const matching = (Array.isArray(updates) ? updates : []).filter((update) => [update.reportedStation, update.origin, update.destination].some((value) => normalize(value) === key));
     const uncertain = matching.reduce((sum, update) => sum + Math.max(0, 1 - (Number(update.confidence) || .5)) + Math.min(2, (Number(update.errorKm) || 0) / 100), 0);
-    const score = (unseen ? 30 : 0) + Math.min(18, silenceHours) + (hubWeight.get(key) || 1) * 2 + matching.length * 5 + uncertain * 3 + Math.min(90,Number(coverageDemand?.priorityScore)||0)*.75;
+    const score = (unseen ? 30 : 0) + Math.min(18, silenceHours) + (hubWeight.get(key) || 1) * 2 + matching.length * 5 + uncertain * 3 + Math.min(90,Number(coverageDemand?.priorityScore)||0)*.75 + Math.min(18,Number(coverageDemand?.requestWeight||1)*3) + Math.max(0,12-Number(coverageDemand?.targetIntervalMinutes||20)*.5);
     const reasons = [];
     if (unseen) reasons.push("never-observed");
     if(coverageDemand)reasons.push(...(Array.isArray(coverageDemand.reasons)?coverageDemand.reasons:["rail-intelligence-priority"]));

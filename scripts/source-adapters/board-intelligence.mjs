@@ -51,7 +51,7 @@ export function rankBoardStations(stations, { updates = [], previousRecords = []
     const lastObservedMs = lastSeen.get(key) || null;
     const silenceMinutes = lastObservedMs == null ? 720 : Math.max(0, (nowMs - lastObservedMs) / 60_000);
     const centrality = HUB_WEIGHT.get(key) || 1;
-    const score = centrality * 2 + (stationDemand?.points || 0) + Math.min(12, silenceMinutes / 60) + Math.min(90,Number(coverageDemand?.priorityScore)||0)*.75;
+    const score = centrality * 2 + (stationDemand?.points || 0) + Math.min(12, silenceMinutes / 60) + Math.min(90,Number(coverageDemand?.priorityScore)||0)*.75 + Math.min(18,Number(coverageDemand?.requestWeight||1)*3) + Math.max(0,12-Number(coverageDemand?.targetIntervalMinutes||20)*.5);
     const reasons = [];
     if (stationDemand?.trains.size) reasons.push(`${stationDemand.trains.size} \u043e\u0436\u0438\u0434\u0430\u0435\u043c\u044b\u0445 \u0440\u0435\u0439\u0441\u043e\u0432`);
     if (coverageDemand) reasons.push(...(Array.isArray(coverageDemand.reasons)?coverageDemand.reasons:["Rail Intelligence priority"]));

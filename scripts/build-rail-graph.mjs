@@ -21,7 +21,7 @@ try { osm = JSON.parse(await readFile(sourcePath, "utf8")); }
 catch (error) { if (error?.code !== "ENOENT") throw error; }
 
 const registry = buildStationRegistry({ reviewedStations:reviewed.stations || [], osmElements:osm.elements || [] });
-const sourceDigest = createHash("sha256").update(JSON.stringify(osm.elements || [])).digest("hex");
+const sourceDigest = createHash("sha256").update("rail-graph-v7.1-route-aware\n").update(JSON.stringify(osm.elements || [])).digest("hex");
 const versionDate = String(osm.generatedAt || reviewed.generatedAt || new Date().toISOString()).slice(0,10).replaceAll("-", "");
 const versionId = `osm-${versionDate}-${sourceDigest.slice(0,12)}`;
 const generatedAt = new Date().toISOString();
@@ -68,6 +68,7 @@ if (hasRailWays) {
     unmatchedStations:graph.unmatchedStations,
     stations:graph.stations.map((station) => ({ stationId:station.stationId,graphNodeId:station.graphNodeId,metadata:station.metadata })),
     segments:graph.segments,
+    routeRelations:graph.routeRelations,
   };
   await writeFile(stationOutputPath, `${JSON.stringify(stationAsset, null, 2)}\n`, "utf8");
   await writeFile(graphOutputPath, `${JSON.stringify(graphAsset)}\n`, "utf8");
@@ -79,8 +80,21 @@ if (hasRailWays) {
   for (const [index, segments] of segmentChunks.entries()) await writeFile(resolve(referenceOutputPath, chunkName("segments", index)), `${JSON.stringify({ versionId, segments })}\n`, "utf8");
   const topologyFile = "topology.json";
   await writeFile(resolve(referenceOutputPath, topologyFile), `${JSON.stringify({
-    schemaVersion:1, versionId,
-    edges:graphAsset.segments.map((segment)=>[segment.fromStationId,segment.toStationId,segment.distanceKm]),
+    schemaVersion:2, versionId,
+    edges:graphAsset.segments.map((segment)=>({
+      from:segment.fromStationId,
+      to:segment.toStationId,
+      distanceKm:segment.distanceKm,
+      railwayType:segment.railwayType,
+      usage:segment.usageType,
+      services:segment.serviceTypes||[],
+      electrified:segment.electrified,
+      serviceShare:segment.serviceShare||0,
+      gauges:segment.gauges||[],
+      tracks:segment.trackCount,
+      routeRelationIds:segment.routeRelationIds||[],
+    })),
+    routeRelations:graphAsset.routeRelations,
   })}\n`, "utf8");
   const manifest = {
     schemaVersion:1, versionId, generatedAt, source:osm.source, sourceGeneratedAt:osm.generatedAt,

@@ -7,7 +7,9 @@ const fullGraph = argumentsList.includes("--full");
 const outputArgument = argumentsList.find((value) => value.startsWith("--output="));
 const outputPath = resolve(outputArgument?.slice("--output=".length) || "data/osm-rail-source.json");
 const cacheDirectory = resolve(process.env.RAIL_OSM_CACHE || ".cache/rail-osm");
-const endpoint = process.env.OVERPASS_ENDPOINT || "https://overpass-api.de/api/interpreter";
+const endpoints = String(process.env.OVERPASS_ENDPOINTS || process.env.OVERPASS_ENDPOINT || "https://overpass-api.de/api/interpreter,https://overpass.kumi.systems/api/interpreter")
+  .split(",").map((value) => value.trim()).filter(Boolean);
+if (!endpoints.length) throw new Error("No Overpass endpoint configured");
 const timeoutSeconds = fullGraph ? 300 : 120;
 
 // Ukraine is queried in bounded tiles. This is substantially more reliable than
@@ -23,15 +25,16 @@ const sleep = (milliseconds) => new Promise((resolvePromise) => setTimeout(resol
 function queryForTile([south, west, north, east]) {
   const bbox = `${south},${west},${north},${east}`;
   const stationSelectors = `node(area.ua)["railway"="station"];node(area.ua)["railway"="halt"];node(area.ua)["railway"="junction"];way(area.ua)["railway"="station"];`;
-  const trackSelectors = fullGraph ? `way(area.ua)["railway"="rail"];way(area.ua)["railway"="narrow_gauge"];` : "";
-  return `[out:json][timeout:${timeoutSeconds}][maxsize:536870912][bbox:${bbox}];area["ISO3166-1"="UA"][admin_level=2]->.ua;(${stationSelectors}${trackSelectors})->.rail;(.rail;>;);out body qt;`;
+  const trackSelectors = fullGraph ? `way(area.ua)["railway"="rail"]->.standard;way(area.ua)["railway"="narrow_gauge"]->.narrow;(.standard;.narrow;)->.tracks;rel(bw.tracks)["type"="route"]["route"~"^(train|railway|tracks)$"]->.routes;` : "";
+  return `[out:json][timeout:${timeoutSeconds}][maxsize:536870912][bbox:${bbox}];area["ISO3166-1"="UA"][admin_level=2]->.ua;${trackSelectors}(${stationSelectors}${fullGraph ? ".tracks;.routes;" : ""})->.rail;(.rail;>;);out body qt;`;
 }
 async function fetchTile(tile, index) {
-  const cachePath = resolve(cacheDirectory, `v2-${fullGraph ? "full" : "stations"}-${tile.join("_")}.json`);
+  const cachePath = resolve(cacheDirectory, `v3-relations-${fullGraph ? "full" : "stations"}-${tile.join("_")}.json`);
   try { const cached=JSON.parse(await readFile(cachePath,"utf8"));if(Array.isArray(cached.elements)){console.log(`OSM tile ${index+1}/${tiles.length}: cache ${cached.elements.length} elements`);return cached;} } catch(error) { if(error?.code!=="ENOENT")console.warn(`Ignoring invalid OSM cache: ${error.message}`); }
   let failure;
   for (let attempt = 1; attempt <= 6; attempt += 1) {
     try {
+      const endpoint=endpoints[(attempt-1)%endpoints.length];
       const controller = new AbortController(), timer = setTimeout(() => controller.abort(), (timeoutSeconds + 30) * 1000);
       const response = await fetch(endpoint, {
         method: "POST",
@@ -56,9 +59,9 @@ const collections = [];
 for (const [index, tile] of tiles.entries()) { collections.push(await fetchTile(tile, index)); if(index<tiles.length-1)await sleep(2500); }
 const elements = mergeOverpassElements(collections);
 const snapshot = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   source: "OpenStreetMap via Overpass API",
-  endpoint,
+  endpoints,
   mode: fullGraph ? "full-rail-graph" : "station-registry",
   generatedAt: new Date().toISOString(),
   attribution: "© OpenStreetMap contributors, ODbL",

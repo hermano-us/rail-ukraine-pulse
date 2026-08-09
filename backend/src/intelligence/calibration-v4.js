@@ -1,4 +1,5 @@
 import { calculateCalibrationProfileV3 } from "./calibration.js";
+import { classifyTrainCategory } from "./rail-intelligence-v6.js";
 
 const rows = (result) => result?.results || [];
 const timeBucket = (value) => {
@@ -25,7 +26,12 @@ export function calibrationDimensionsV4(item = {}) {
 
 export function calibrationDimensionsV5(item = {}) {
   const modelVersion=String(item.model_version||item.modelVersion||"rail-intelligence-v5");
-  return calibrationDimensionsV4(item).map((dimension)=>({...dimension,modelVersion,profileId:`v5:${modelVersion}:${dimension.type}:${dimension.key}`}));
+  const base=calibrationDimensionsV4(item),source=String(item.source_id||"unknown"),segment=`${item.from_station_id}>${item.to_station_id}`,time=timeBucket(item.evaluated_at),category=classifyTrainCategory(item.train_category||item.train_number);
+  base.splice(1,0,
+    {type:"source-category-segment-time",key:`${source}:${category}:${segment}:${time}`,sourceId:source,trainFamily:category,timeBucket:time,horizonBucket:null,fromStationId:item.from_station_id,toStationId:item.to_station_id},
+    {type:"category-segment-time",key:`${category}:${segment}:${time}`,sourceId:null,trainFamily:category,timeBucket:time,horizonBucket:null,fromStationId:item.from_station_id,toStationId:item.to_station_id},
+  );
+  return base.map((dimension)=>({...dimension,modelVersion,profileId:`v5:${modelVersion}:${dimension.type}:${dimension.key}`}));
 }
 
 async function batch(env, statements, size = 60) {

@@ -4,7 +4,7 @@ import { applyCalibration, applyCalibrationV3, calculateCalibrationProfile, calc
 import { deriveTwinOperationalState, stateTransition, summarizeStationEvidence } from "../backend/src/intelligence/twin-state-machine.js";
 import { chooseCanonicalRun, scoreRunCandidate, scoreRunCandidateDetails } from "../backend/src/intelligence/observation-linker.js";
 import { analyzeRailTopology, graphImportTelemetry } from "../backend/src/intelligence/rail-graph-sync.js";
-import { buildTopology, composeRouteGeometry, shortestPhysicalPath } from "../backend/src/intelligence/rail-route-cache.js";
+import { buildTopology, composeRouteGeometry, routeAwareCandidates, shortestPhysicalPath } from "../backend/src/intelligence/rail-route-cache.js";
 
 test("physical routing composes multiple track segments instead of a straight chord",()=>{
   const topology=buildTopology([["kyiv","fastiv",65],["fastiv","koziatyn",90],["kyiv","poltava",340]]),path=shortestPhysicalPath(topology,"kyiv","koziatyn");
@@ -13,6 +13,43 @@ test("physical routing composes multiple track segments instead of a straight ch
     ["kyiv>fastiv",{geometry_json:JSON.stringify({type:"LineString",coordinates:[[30.4,50.4],[29.9,50.1]]}),geometry_quality:.98}],
     ["fastiv>koziatyn",{geometry_json:JSON.stringify({type:"LineString",coordinates:[[29.9,50.1],[28.8,49.7]]}),geometry_quality:.94}],
   ]),composed=composeRouteGeometry(path,edges);assert.deepEqual(composed.geometry.coordinates,[[30.4,50.4],[29.9,50.1],[28.8,49.7]]);assert.equal(composed.geometryQuality,.94);
+});
+
+test("route-aware routing rejects a short yard shortcut in favour of the main OSM relation",()=>{
+  const topology=buildTopology([
+    {from:"a",to:"yard",distanceKm:4,services:["yard"]},
+    {from:"yard",to:"d",distanceKm:4,services:["yard"]},
+    {from:"a",to:"main",distanceKm:7,usage:"main",routeRelationIds:["r-91"]},
+    {from:"main",to:"d",distanceKm:7,usage:"main",routeRelationIds:["r-91"]},
+  ]);
+  const candidates=routeAwareCandidates(topology,"a","d",{routeRelationIds:["r-91"],trainCategory:"passenger"});
+  assert.deepEqual(candidates[0].nodes,["a","main","d"]);
+  assert.equal(candidates[0].explanation.method,"osm-route-aware-v7");
+  assert.equal(candidates[0].explanation.matchedRouteRelationEdges,2);
+  assert.ok(candidates[0].confidence>.7);
+});
+
+test("a short station throat does not penalize the entire mainline segment",()=>{
+  const topology=buildTopology([
+    {from:"a",to:"platform",distanceKm:5,services:["siding"],serviceShare:.05},
+    {from:"platform",to:"d",distanceKm:5,services:["siding"],serviceShare:.05},
+    {from:"a",to:"detour",distanceKm:7},
+    {from:"detour",to:"d",distanceKm:7},
+  ]);
+  const candidates=routeAwareCandidates(topology,"a","d",{trainCategory:"passenger"});
+  assert.deepEqual(candidates[0].nodes,["a","platform","d"]);
+});
+
+test("route-aware routing obeys scheduled intermediate stations and keeps alternatives explicit",()=>{
+  const topology=buildTopology([
+    {from:"a",to:"direct",distanceKm:5},{from:"direct",to:"d",distanceKm:5},
+    {from:"a",to:"b",distanceKm:6},{from:"b",to:"c",distanceKm:6},{from:"c",to:"d",distanceKm:6},
+    {from:"b",to:"x",distanceKm:7},{from:"x",to:"c",distanceKm:7},
+  ]);
+  const candidates=routeAwareCandidates(topology,"a","d",{waypoints:["b","c"]},{maximumCandidates:3});
+  assert.deepEqual(candidates[0].nodes,["a","b","c","d"]);
+  assert.deepEqual(candidates[0].explanation.requiredWaypoints,["b","c"]);
+  assert.ok(candidates.some((candidate)=>candidate.nodes.includes("x")));
 });
 
 test("observation linker selects the matching date and direction but keeps conflicts pending",()=>{

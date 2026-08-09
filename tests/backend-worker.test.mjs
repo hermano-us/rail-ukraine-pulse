@@ -183,7 +183,7 @@ test("trusted collector receives protected adaptive board priorities", async () 
   const accepted=await handleRequest(new Request("https://api.example/api/v1/collector/board-priorities",{headers:{Authorization:"Bearer "+env.INGEST_TOKEN}}),env);
   assert.equal(accepted.status,200);
   const body=await accepted.json();
-  assert.equal(body.strategy,"information-gain-v3");
+  assert.equal(body.strategy,"information-gain-v6-adaptive-coverage");
   assert.ok(body.recommendedRequestBudget>=1);
   assert.deepEqual(body.stations,[]);
   assert.ok(env.DB.prepare);
