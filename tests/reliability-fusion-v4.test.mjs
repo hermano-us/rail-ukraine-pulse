@@ -20,6 +20,9 @@ test("source reliability distinguishes failures, empty responses and usable fail
   const now="2026-08-09T12:00:00Z";
   assert.equal(classifySourceState({status:"online",recordsCount:0,checkedAt:now},now).operationalState,"empty");
   assert.equal(classifySourceState({status:"unavailable",error:"upstream HTTP 525",checkedAt:now},now).transportFailure,true);
+  const mirrored=classifySourceState({status:"online",recordsCount:47,error:"direct HTTP 525; mirror active",checkedAt:now},now);
+  assert.equal(mirrored.operationalState,"degraded");
+  assert.equal(mirrored.usable,true);
   const result=selectSourceFailover([
     {sourceId:"broken",status:"unavailable",error:"HTTP 525",checkedAt:now,reliability:.95},
     {sourceId:"mirror",status:"online",recordsCount:80,checkedAt:now,reliability:.72},

@@ -14,11 +14,12 @@ export function classifySourceState(source = {}, now = new Date().toISOString())
   const transportFailure = /(?:http\s*(?:401|403|429|5\d\d)|timeout|fetch failed|transport unavailable|tls|525)/i.test(String(source.error || ""));
   let operationalState = "healthy";
   if (!configured) operationalState = "unconfigured";
-  else if (["unavailable", "failed", "error"].includes(rawStatus) || transportFailure) operationalState = "failing";
+  else if (["unavailable", "failed", "error"].includes(rawStatus) || (transportFailure && records === 0)) operationalState = "failing";
   else if (ageMinutes != null && ageMinutes > cadence * 4) operationalState = "stale";
   else if (records === 0 && ["online", "snapshot"].includes(rawStatus)) operationalState = "empty";
+  else if (transportFailure) operationalState = "degraded";
   else if (!["online", "snapshot", "healthy"].includes(rawStatus)) operationalState = rawStatus === "stale" ? "stale" : "degraded";
-  const usable = ["healthy", "empty"].includes(operationalState) || (operationalState === "stale" && ageMinutes != null && ageMinutes <= cadence * 12);
+  const usable = ["healthy", "empty"].includes(operationalState) || (operationalState === "degraded" && records > 0 && (ageMinutes == null || ageMinutes <= cadence * 4)) || (operationalState === "stale" && ageMinutes != null && ageMinutes <= cadence * 12);
   return { operationalState, rawStatus, configured, usable, records, ageMinutes:ageMinutes == null ? null : Number(ageMinutes.toFixed(1)), expectedCadenceMinutes:cadence, transportFailure };
 }
 
