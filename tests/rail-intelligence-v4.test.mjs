@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { fuseObservationRowsV3 } from "../backend/src/intelligence/observation-fusion-v3.js";
 import { deriveOperationalDisruption, deriveTwinOperationalState } from "../backend/src/intelligence/twin-state-machine.js";
 import { calculateStationPriority } from "../backend/src/intelligence/station-coverage.js";
-import { buildTwinHypotheses } from "../backend/src/intelligence/service.js";
+import { buildTwinHypotheses, summarizeSegmentDisruptions } from "../backend/src/intelligence/service.js";
 import { chooseCanonicalRun } from "../backend/src/intelligence/observation-linker.js";
 
 test("fusion v3 canonicalizes aliases and corroborates independent sources", () => {
@@ -47,6 +47,9 @@ test("digital twin v5 tightens a corroborated corridor and records evidence", ()
   assert.equal(fused.state.method,"station-graph-probabilistic-twin-v5");
   assert.ok(fused.state.confidence>single.state.confidence);
   assert.ok(fused.state.uncertaintyKm<single.state.uncertaintyKm);
+  const interval=fused.hypotheses[0].reasons.progressInterval;
+  assert.ok(interval.p10<=interval.p50&&interval.p50<=interval.p90);
+  assert.ok(interval.p90>interval.p10);
   assert.equal(fused.hypotheses[0].reasons.fusionId,"fusion-1");
 });
 
@@ -74,6 +77,18 @@ test("public map does not expose the technical source registry", async () => {
   assert.doesNotMatch(html,/source-registry-list/);
   assert.doesNotMatch(app,/renderSourceRegistry/);
   assert.match(admin,/sourceHealthSummary/);
+});
+
+test("segment disruption fusion requires corroboration before becoming probable",()=>{
+  const single=summarizeSegmentDisruptions([{runId:"r1",trainNumber:"91",eventId:"e1",fromNodeId:"kyiv",toNodeId:"fastiv",delayMinutes:80,confidence:.7}]);
+  assert.equal(single[0].status,"possible");
+  assert.equal(single[0].affectedRuns,1);
+  const fused=summarizeSegmentDisruptions([
+    {runId:"r1",trainNumber:"91",eventId:"e1",fromNodeId:"kyiv",toNodeId:"fastiv",delayMinutes:80,confidence:.7},
+    {runId:"r2",trainNumber:"105",eventId:"e2",fromNodeId:"kyiv",toNodeId:"fastiv",delayMinutes:190,confidence:.8},
+    {runId:"r2",trainNumber:"105",eventId:"e3",fromNodeId:"kyiv",toNodeId:"fastiv",delayMinutes:190,confidence:.8},
+  ]);
+  assert.equal(fused[0].status,"probable");assert.equal(fused[0].affectedRuns,2);assert.equal(fused[0].severity,"high");assert.equal(fused[0].events.length,3);
 });
 
 test("entity resolution v3 lowers thresholds only for corroborated evidence", () => {
