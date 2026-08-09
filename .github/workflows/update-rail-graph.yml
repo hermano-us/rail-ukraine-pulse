@@ -28,13 +28,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - uses: actions/cache@v4
         with:
           path: .cache/rail-osm
           key: rail-osm-relations-v3-${{ github.run_id }}
           restore-keys: rail-osm-relations-v3-
-      - run: npm ci
+      - run: npm install --no-audit --no-fund
       - name: Fetch complete physical graph and route relations
         run: npm run update-rail-graph
       - name: Validate routing and migration
