@@ -2,7 +2,7 @@ import { buildRouteMeasure, haversineKm, interpolateAlongRoute, projectDistanceO
 import { estimatePosterior } from "../shared/rail-posterior.js";
 import { buildGeometricWaypoints, buildOfficialEvents, buildUncertaintyCorridor, hydrateSourceRegistry, sourceRegistrySummary } from "./evidence-engine.js";
 import { evaluateFreshness, freshnessConfidenceFactor, freshnessReasons, sourceAgeMinutes as ageOf } from "./freshness-policy.js";
-import { loadFreightSnapshot, loadLiveSnapshot, loadPublicRailRoutes } from "./live-data-client.js?v=20260811-route-batches";
+import { loadFreightSnapshot, loadLiveSnapshot, loadPublicRailRoutes, publicRailRouteKey } from "./live-data-client.js?v=20260811-verified-itinerary";
 import { canonicalServiceKey, fuseServiceUpdates, groupStationQueues, positionAdmission, stationQueueForUpdate } from "./service-registry.js";
 import { materializePublicFreight } from "./freight-public-layer.js?v=20260808-freight-v2";
 
@@ -473,24 +473,25 @@ export async function loadTransportData(now=new Date()){
   const stations=stationData?.stations||[],stationLookup=buildStationLookup(stations);
   const graph=buildRailGraph(baseRoutes.features);
   const fusedUpdates=fuseServiceUpdates(liveData?.updates||[],now);
-  const publicRailRoutes=await loadPublicRailRoutes(fusedUpdates);
-  const publicRouteMap=new Map((publicRailRoutes.routes||[]).filter((item)=>item.status==="ready"&&item.geometry?.coordinates?.length>1).map((item)=>[item.key,item]));
+  const routeUpdates=fusedUpdates.map((update)=>{const identity=buildRunIdentity(update,now);return {...update,serviceDate:update.serviceDate||identity.serviceDate,runId:update.runId||identity.runId};});
+  const publicRailRoutes=await loadPublicRailRoutes(routeUpdates);
+  const publicRouteResults=new Map((publicRailRoutes.routes||[]).map((item)=>[item.key,item]));
   const materializeUpdates=(updates,at=now,prefix="uz-live-route")=>{
     const features=[];
     const materialized=(updates||[]).map((update,index)=>{
       const origin=stationCoordinates(update.origin,stationLookup),destination=stationCoordinates(update.destination,stationLookup),reported=stationCoordinates(update.reportedStation,stationLookup);
-      const publicRoute=publicRouteMap.get(`${update.trainNumber}|${update.origin}|${update.destination}`);
-      const fallbackRoute=origin&&destination?railPathViaAnchor(graph,origin,destination,reported):null;
-      const routeResult=preferPhysicalRailRoute(publicRoute,fallbackRoute);
+      const routeIdentity={...update,serviceDate:update.serviceDate||buildRunIdentity(update,at).serviceDate};
+      const routeRecord=publicRouteResults.get(publicRailRouteKey(routeIdentity)),publicRoute=routeRecord?.status==="ready"?routeRecord:null;
+      const routeResult=preferPhysicalRailRoute(publicRoute,null);
       const routeId=`${prefix}-${index}`;
       if(routeResult)features.push({
-        type:"Feature",properties:{id:routeId,quality:publicRoute?.quality||0.76,source:publicRoute?.method||"schematic-rail-corridor-fallback",graphVersion:publicRoute?.versionId||null,viaConfirmedStation:Boolean(routeResult.viaAnchor),schematicFallback:!publicRoute},
+        type:"Feature",properties:{id:routeId,quality:publicRoute?.quality||0.76,source:publicRoute?.method||"verified-itinerary-required",graphVersion:publicRoute?.versionId||null,viaConfirmedStation:Boolean(routeResult.viaAnchor),schematicFallback:false,routeVerification:publicRoute?.verification||null},
         geometry:{type:"LineString",coordinates:routeResult.coordinates},
       });
       const regionAnchors=routeResult?.coordinates||(reported||origin||destination?[reported,origin,destination].filter(Boolean):[]);
       const updateAgeMinutes=ageOf(update.updatedAt||generatedAt,at);
       const segmentCalibration=segmentCalibrationFor(liveData?.segmentStats||[],update.trainNumber);
-      return objectFromUpdate(update,routeResult,routeId,regionsForPoints(regionAnchors,regions.features),at,sourceStatus,updateAgeMinutes,stations,stationLookup,segmentCalibration);
+      const object=objectFromUpdate(update,routeResult,routeId,regionsForPoints(regionAnchors,regions.features),at,sourceStatus,updateAgeMinutes,stations,stationLookup,segmentCalibration);object.routeVerification=routeRecord?.verification||{status:"unverified",reason:routeRecord?.reason||"itinerary_not_loaded",serviceDate:routeIdentity.serviceDate,waypointCount:0};return object;
     });
     return {objects:materialized,routes:{type:"FeatureCollection",features},routeMap:new Map(features.map(feature=>[feature.properties.id,feature]))};
   };

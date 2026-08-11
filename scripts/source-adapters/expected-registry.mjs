@@ -27,6 +27,9 @@ export function buildExpectedRuns(updates = [], boardRecords = [], generatedAt =
       scheduledDeparture: null, scheduledArrival: null, sourceIds: [], discoveryCount: 0,
       metadata: { stations: [], stationCalls: [], boardObservationCount: 0 },
     };
+    for (const endpoint of [current.origin, current.destination]) {
+      if (endpoint && !current.metadata.stations.some((station) => normalize(station) === normalize(endpoint))) current.metadata.stations.push(endpoint);
+    }
     current.sourceIds = [...new Set([...current.sourceIds, update.sourceId || "unknown"])];
     current.discoveryCount += 1;
     if (extra.station) {

@@ -77,13 +77,15 @@ export async function loadFreightSnapshot() {
   }
 }
 
+export function publicRailRouteKey(item={}){return `v2|${item.trainNumber||""}|${item.origin||""}|${item.destination||""}|${item.serviceDate||"undated"}`;}
+
 export async function loadPublicRailRoutes(updates = [], { force = false } = {}) {
   const config=await loadRuntimeConfig();
   if(!config.apiBase||!updates.length)return {routes:[],transport:"unavailable"};
   const endpoint=new URL(config.railRoutesPath||"/api/v1/rail-routes",`${config.apiBase.replace(/\/$/,"")}/`).toString();
   const now=Date.now(),controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),Math.max(7000,Number(config.requestTimeoutMs)||4500));
   try{
-    const descriptors=[...new Map(updates.filter((item)=>item?.origin&&item?.destination).sort((left,right)=>Number(right.operationalStatus==="moving")-Number(left.operationalStatus==="moving")||Number(Boolean(right.reportedStation))-Number(Boolean(left.reportedStation))).map((item)=>{const key=`${item.trainNumber}|${item.origin}|${item.destination}`;return [key,{key,trainNumber:item.trainNumber,origin:item.origin,destination:item.destination,reportedStation:item.reportedStation||null}];})).values()];
+    const descriptors=[...new Map(updates.filter((item)=>item?.origin&&item?.destination).sort((left,right)=>Number(right.operationalStatus==="moving")-Number(left.operationalStatus==="moving")||Number(Boolean(right.reportedStation))-Number(Boolean(left.reportedStation))).map((item)=>{const key=publicRailRouteKey(item);return [key,{key,trainNumber:item.trainNumber,origin:item.origin,destination:item.destination,reportedStation:item.reportedStation||null,serviceDate:item.serviceDate||null,runId:item.runId||null}];})).values()];
     const pending=descriptors.filter((item)=>force||(publicRailRouteCache.get(item.key)?.expiresAt||0)<=now).slice(0,20);
     if(!pending.length)return {routes:descriptors.map((item)=>publicRailRouteCache.get(item.key)?.route).filter(Boolean),versionId:publicRailRouteVersion,transport:"memory-cache"};
     const response=await fetch(endpoint,{method:"POST",cache:"no-store",signal:controller.signal,headers:{Accept:"application/json","Content-Type":"application/json"},body:JSON.stringify({routes:pending})});
@@ -91,7 +93,7 @@ export async function loadPublicRailRoutes(updates = [], { force = false } = {})
     const payload=await response.json();if(payload.versionId&&publicRailRouteVersion&&payload.versionId!==publicRailRouteVersion)publicRailRouteCache.clear();publicRailRouteVersion=payload.versionId||publicRailRouteVersion;
     for(const route of payload.routes||[])publicRailRouteCache.set(route.key,{route,expiresAt:now+(route.status==="ready"?30*60_000:2*60_000)});
     return {...payload,routes:descriptors.map((item)=>publicRailRouteCache.get(item.key)?.route).filter(Boolean),transport:"api"};
-  }catch(error){console.warn("OSM rail route service unavailable; using schematic fallback",error);return {routes:updates.map((item)=>publicRailRouteCache.get(`${item.trainNumber}|${item.origin}|${item.destination}`)?.route).filter(Boolean),versionId:publicRailRouteVersion,transport:"fallback",error:String(error?.message||error)};}
+  }catch(error){console.warn("OSM rail route service unavailable; verified geometry remains unavailable",error);return {routes:updates.map((item)=>publicRailRouteCache.get(publicRailRouteKey(item))?.route).filter(Boolean),versionId:publicRailRouteVersion,transport:"fallback",error:String(error?.message||error)};}
   finally{clearTimeout(timeout);}
 }
 

@@ -1,5 +1,5 @@
-import { buildHistoricalPosition, deriveStationPresence, loadTransportData } from "./data-store-ukraine.js?v=20260811-route-batches";
-import { loadMapTimeline, loadPublicRailRoutes, loadRunHistory, loadRuntimeConfig, subscribeToLiveUpdates } from "./live-data-client.js?v=20260811-route-batches";
+import { buildHistoricalPosition, deriveStationPresence, loadTransportData } from "./data-store-ukraine.js?v=20260811-verified-itinerary";
+import { loadMapTimeline, loadPublicRailRoutes, loadRunHistory, loadRuntimeConfig, publicRailRouteKey, subscribeToLiveUpdates } from "./live-data-client.js?v=20260811-verified-itinerary";
 import { MapView } from "./map-view-ukraine.js?v=20260808-freight-v2";
 import { POSITION_STATUSES } from "./positioning.js";
 import { OPERATION_COLORS, OPERATION_LABELS, TRANSPORT_LABELS, TYPE_LABELS, escapeHtml, formatDateTime, formatRelative } from "./formatters-ukraine.js?v=20260808-freight-v2";
@@ -348,11 +348,13 @@ function detailTemplate(object){
   const quality=Math.round(object.quality*100);
   const corridor=object.corridor,previousWaypoint=object.journey?.previousWaypoint,nextWaypoint=object.journey?.nextWaypoint;
   const historyCount=(object.history||[]).filter(item=>item.coordinates).length;
+  const routeVerified=object.routeVerification?.status==="verified",routeWaypointCount=Number(object.routeVerification?.waypointCount||0);
   return `
     <p class="detail-focus-note">РЕЖИМ ФОКУСА · НА КАРТЕ ТОЛЬКО ЭТОТ РЕЙС, ЕГО МАРШРУТ И СТАНЦИИ</p>
     <p class="detail-kicker">${TRANSPORT_LABELS[object.transport]} · ${TYPE_LABELS[object.type]||object.type}</p>
     <h2>${escapeHtml(object.name)}</h2>
     <p class="detail-route">${escapeHtml(object.route)}</p>
+    <p class="detail-focus-note route-load-status ${routeVerified?"ok":"warn"}">${routeVerified?`МАРШРУТ ПРОВЕРЕН · ${routeWaypointCount} ОБЯЗАТЕЛЬНЫХ ПРОМЕЖУТОЧНЫХ СТАНЦИЙ`:`МАРШРУТ НЕ ПОКАЗАН · НЕТ ПРОВЕРЕННОЙ ПОСЛЕДОВАТЕЛЬНОСТИ ОСТАНОВОК ДЛЯ ЭТОГО РЕЙСА`}</p>
     <div class="run-identity"><span>Рейс <b>${escapeHtml(object.serviceDate)}</b></span><code>${escapeHtml(object.runId)}</code></div>
 
     <div class="truth-grid">
@@ -408,10 +410,20 @@ function selectObject(object){
   stopPlayback();
   state.selected=object;const url=new URL(location.href);url.searchParams.set("train",object.runId);history.replaceState(null,"",url);render();mapView.focusObject(object);elements.detailContent.innerHTML=detailTemplate(object);
   const selectedRoute=state.data?.routeMap?.get(object.routeId);
-  if(object.transport==="train"&&object.origin&&object.destination&&selectedRoute?.properties?.schematicFallback&&!object.publicRouteRequested){
+  if(object.transport==="train"&&object.origin&&object.destination&&(!selectedRoute||selectedRoute.properties?.schematicFallback)&&!object.publicRouteRequested){
     object.publicRouteRequested=true;
-    const descriptor={key:`${object.trainNumber}|${object.origin}|${object.destination}`,trainNumber:object.trainNumber,origin:object.origin,destination:object.destination,reportedStation:object.liveUpdate?.reportedStation||null};
-    loadPublicRailRoutes([descriptor],{force:true}).then((result)=>{if(result.routes?.some((route)=>route.key===descriptor.key&&route.status==="ready"))refreshData();}).catch((error)=>console.warn("Selected OSM rail route unavailable",error));
+    const descriptor={key:publicRailRouteKey(object),trainNumber:object.trainNumber,origin:object.origin,destination:object.destination,reportedStation:object.liveUpdate?.reportedStation||null,serviceDate:object.serviceDate,runId:object.runId};
+    const routeStatus=document.createElement("p");routeStatus.className="detail-focus-note route-load-status";routeStatus.textContent="Загружаем точную геометрию железной дороги…";elements.detailContent.prepend(routeStatus);
+    loadPublicRailRoutes([descriptor],{force:true}).then((result)=>{
+      const responseRoute=result.routes?.find((item)=>item.key===descriptor.key),route=responseRoute?.status==="ready"?responseRoute:null;
+      if(!route)throw new Error(responseRoute?.reason||"physical_route_unavailable");
+      const current=state.data?.routeMap?.get(object.routeId);
+      const feature={type:"Feature",properties:{...(current?.properties||{}),id:object.routeId,quality:route.quality||0,source:route.method||"osm-route-aware-v7",graphVersion:route.versionId||result.versionId||null,schematicFallback:false,routeVerification:route.verification||null},geometry:{type:"LineString",coordinates:route.geometry.coordinates}};
+      state.data.routeMap.set(object.routeId,feature);object.routeCoordinates=route.geometry.coordinates;object.routeVerification=route.verification||{status:"verified",waypointCount:0};
+      const featureIndex=state.data.routes.features.findIndex((item)=>item.properties?.id===object.routeId);if(featureIndex>=0)state.data.routes.features[featureIndex]=feature;else state.data.routes.features.push(feature);
+      mapView.currentRouteMap=state.data.routeMap;if(state.selected?.id===object.id)mapView.focusObject(object);
+      if(routeStatus.isConnected){routeStatus.textContent="Точная геометрия маршрута загружена";routeStatus.classList.add("ok");setTimeout(()=>routeStatus.remove(),1800);}
+    }).catch((error)=>{object.publicRouteRequested=false;if(routeStatus.isConnected){routeStatus.textContent="Маршрут скрыт: станционный план рейса ещё не подтверждён";routeStatus.classList.add("warn");}console.warn("Selected verified OSM rail route unavailable",error);});
   }
   elements.detail.scrollTop=0;elements.detail.classList.add("open");elements.detail.setAttribute("aria-hidden","false");
   renderFleet(filteredObjects());

@@ -3,6 +3,28 @@ const normalize = (value) => String(value || "").normalize("NFKC").toLocaleLower
 const parseTime = (value) => Number.isFinite(Date.parse(value || "")) ? Date.parse(value) : null;
 const minutes = (left, right) => (Date.parse(right) - Date.parse(left)) / 60_000;
 const parseJson = (value, fallback = {}) => { try { return JSON.parse(value || "") ?? fallback; } catch { return fallback; } };
+const callKey = (call = {}) => String(call.key || `${normalize(call.station)}:${call.boardType || "unknown"}:${call.scheduledAt || "unknown"}`);
+function mergeRouteMetadata(previous = {}, current = {}) {
+  const stationMap = new Map();
+  for (const station of [...(Array.isArray(previous.stations) ? previous.stations : []), ...(Array.isArray(current.stations) ? current.stations : [])]) {
+    const name = typeof station === "string" ? station : station?.station;
+    if (name && !stationMap.has(normalize(name))) stationMap.set(normalize(name), station);
+  }
+  const calls = new Map();
+  for (const call of [...(Array.isArray(previous.stationCalls) ? previous.stationCalls : []), ...(Array.isArray(current.stationCalls) ? current.stationCalls : [])]) {
+    if (call?.station) calls.set(callKey(call), call);
+  }
+  return { ...previous, ...current, stations: [...stationMap.values()], stationCalls: [...calls.values()].sort((left, right) => Date.parse(left.scheduledAt || 0) - Date.parse(right.scheduledAt || 0)), boardObservationCount: Math.max(Number(previous.boardObservationCount) || 0, calls.size, Number(current.boardObservationCount) || 0) };
+}
+async function existingExpectedMetadata(env, expectedIds = []) {
+  const result = new Map(), unique = [...new Set(expectedIds)].filter(Boolean);
+  for (let index = 0; index < unique.length; index += 75) {
+    const ids = unique.slice(index, index + 75), slots = ids.map((_, offset) => `?${offset + 1}`).join(",");
+    const found = rows(await env.DB.prepare(`SELECT expected_id,metadata_json FROM expected_train_runs WHERE expected_id IN (${slots})`).bind(...ids).all());
+    for (const item of found) result.set(item.expected_id, parseJson(item.metadata_json, {}));
+  }
+  return result;
+}
 
 export function expectedRunId(run = {}) {
   if (run.expectedId) return String(run.expectedId).slice(0, 220);
@@ -55,6 +77,8 @@ export function classifyExpectedRun(run, now = new Date().toISOString()) {
 
 export async function ingestExpectedRuns(env, input = [], now = new Date().toISOString()) {
   const runs = [...new Map(input.map((item) => normalizeExpectedRun(item, now)).filter(Boolean).map((item) => [item.expectedId, item])).values()];
+  const existingMetadata = await existingExpectedMetadata(env, runs.map((run) => run.expectedId));
+  for (const run of runs) run.metadata = mergeRouteMetadata(existingMetadata.get(run.expectedId), run.metadata);
   const statements = runs.map((run) => env.DB.prepare(`INSERT INTO expected_train_runs(expected_id,run_id,service_date,train_number,origin,destination,route,scheduled_departure,scheduled_arrival,status,status_reason,source_ids_json,discovery_count,first_seen_at,updated_at,metadata_json)
     VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,'planned','newly-discovered',?10,?11,?12,?12,?13)
     ON CONFLICT(expected_id) DO UPDATE SET origin=COALESCE(excluded.origin,expected_train_runs.origin),destination=COALESCE(excluded.destination,expected_train_runs.destination),route=COALESCE(excluded.route,expected_train_runs.route),scheduled_departure=COALESCE(excluded.scheduled_departure,expected_train_runs.scheduled_departure),scheduled_arrival=COALESCE(excluded.scheduled_arrival,expected_train_runs.scheduled_arrival),source_ids_json=excluded.source_ids_json,discovery_count=MAX(expected_train_runs.discovery_count,excluded.discovery_count),updated_at=excluded.updated_at,metadata_json=excluded.metadata_json`)

@@ -24,8 +24,12 @@ export async function handleEvidenceRequest(request, env, principal) {
     const safetyQuarantine = evidence.domain === "rail_freight_safety" || evidence.sensitivity_level === "highly_restricted";
     if (safetyQuarantine && (status === "corroborated" || body.linkedRunId)) return json({ error: "safety_quarantine_cannot_be_promoted" }, 409);
     const now = new Date().toISOString();
+    // Compatibility principals are not rows in access_users, so persisting their
+    // synthetic id would violate the reviewed_by foreign key in D1. The audit log
+    // still records the authenticated legacy principal and the complete decision.
+    const reviewerId = principal.authMethod === "session" ? principal.id : null;
     await env.DB.prepare("UPDATE restricted_evidence SET review_status=?1,reviewed_by=?2,reviewed_at=?3,resolution_note=?4,linked_run_id=COALESCE(?5,linked_run_id),updated_at=?3 WHERE evidence_id=?6")
-      .bind(status, principal.id, now, String(body.note || "").slice(0, 1000), body.linkedRunId || null, evidenceId).run();
+      .bind(status, reviewerId, now, String(body.note || "").slice(0, 1000), body.linkedRunId || null, evidenceId).run();
     const freightStatus = status === "corroborated" || status === "rejected" || status === "expired" ? status : "pending";
     await env.DB.prepare("UPDATE freight_observations SET moderation_status=?1 WHERE observation_id=?2").bind(freightStatus, evidenceId).run();
     await writeSecureAudit(env, principal, "evidence.reviewed", "restricted_evidence", evidenceId, { status, linkedRunId: body.linkedRunId || null });

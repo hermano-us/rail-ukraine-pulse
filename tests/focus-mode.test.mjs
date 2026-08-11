@@ -5,13 +5,19 @@ import { readFile } from "node:fs/promises";
 test("selected train enters isolated map focus mode with its route and stations", async () => {
   const app = await readFile(new URL("../js/app-ukraine.js", import.meta.url), "utf8");
   const map = await readFile(new URL("../js/map-view-ukraine.js", import.meta.url), "utf8");
+  const store = await readFile(new URL("../js/data-store-ukraine.js", import.meta.url), "utf8");
   assert.match(app, /mapView\.render\(focused\?\[focused\]:visible/);
   assert.match(map, /visibleRouteIds=new Set\(objects\.filter/);
   assert.match(map, /features:\(this\.routes\.features\|\|\[\]\)\.filter/);
   assert.match(map, /for\(const waypoint of object\.waypoints/);
   assert.match(map, /focus-station-/);
   assert.match(app, /loadPublicRailRoutes\(\[descriptor\],\{force:true\}\)/);
-  assert.match(app, /selectedRoute\?\.properties\?\.schematicFallback/);
+  assert.match(app, /!selectedRoute\|\|selectedRoute\.properties\?\.schematicFallback/);
+  assert.match(app, /state\.data\.routeMap\.set\(object\.routeId,feature\)/);
+  assert.match(app, /mapView\.focusObject\(object\)/);
+  assert.doesNotMatch(app, /loadPublicRailRoutes\(\[descriptor\],\{force:true\}\)\.then\([^\n]*refreshData/);
+  assert.match(store, /preferPhysicalRailRoute\(publicRoute,null\)/);
+  assert.doesNotMatch(store, /preferPhysicalRailRoute\(publicRoute,fallbackRoute\)/);
 });
 
 test("initial map viewport stays focused on Ukraine", async () => {
