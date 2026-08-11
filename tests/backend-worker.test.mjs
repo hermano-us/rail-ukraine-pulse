@@ -90,6 +90,11 @@ test("ingestion endpoint rejects missing credentials", async () => {
   assert.equal(response.status, 401);
 });
 
+test("rail graph warm-up endpoint is private", async () => {
+  const response = await handleRequest(new Request("https://api.example/api/v1/rail-graph/sync", { method: "POST" }), environment());
+  assert.equal(response.status, 401);
+});
+
 
 test("health reports snapshot freshness instead of unconditional ok", async () => {
   const env = environment();

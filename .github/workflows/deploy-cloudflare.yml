@@ -43,3 +43,19 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Activate matching Rail Graph reference
+        env:
+          RAIL_INGEST_TOKEN: ${{ secrets.RAIL_INGEST_TOKEN }}
+        run: |
+          for attempt in $(seq 1 40); do
+            response=$(curl --fail --silent --show-error --max-time 30 \
+              -X POST -H "Authorization: Bearer $RAIL_INGEST_TOKEN" \
+              https://rail-ukraine-pulse-api.hitchhermano.workers.dev/api/v1/rail-graph/sync)
+            status=$(printf '%s' "$response" | jq -r '.status // "unknown"')
+            version=$(printf '%s' "$response" | jq -r '.versionId // "unknown"')
+            echo "Rail Graph warm-up ${attempt}/40: ${status} (${version})"
+            if [ "$status" = "active" ] || [ "$status" = "activated" ]; then exit 0; fi
+            sleep 2
+          done
+          echo "Rail Graph did not activate within the bounded deployment warm-up" >&2
+          exit 1

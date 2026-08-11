@@ -12,6 +12,7 @@ import { runIntelligenceCycle } from "./intelligence/service.js";
 import { ingestExpectedRuns } from "./intelligence/expected-registry.js";
 import { handlePublicObservationRequest } from "./intelligence/observation-submissions.js";
 import { resolvePublicRailRoutes } from "./intelligence/public-rail-routes.js";
+import { syncRailGraphReference } from "./intelligence/rail-graph-sync.js";
 import { collectOfficialBoardEdge } from "./edge-board-collector.js";
 import { classifySourceState, dynamicRequestBudget } from "./intelligence/data-reliability.js";
 import { pruneOperationalStorage, recordBackupCheckpoint, STORAGE_RETENTION } from "./storage-retention.js";
@@ -623,6 +624,10 @@ export async function handleRequest(request, env) {
       return getAdminOverview(request, env);
     }
     if (request.method === "GET" && url.pathname === "/api/v1/snapshot") return getSnapshot(request, env);
+    if (request.method === "POST" && url.pathname === "/api/v1/rail-graph/sync") {
+      if (!authorized(request, env)) return json({ error: "unauthorized" }, { status: 401 }, request, env);
+      return json(await syncRailGraphReference(env,new Date().toISOString(),{stationChunks:12,segmentChunks:4}),{headers:{"Cache-Control":"no-store"}},request,env);
+    }
     if (request.method === "POST" && url.pathname === "/api/v1/rail-routes") {
       const body=await request.json();
       return json(await resolvePublicRailRoutes(env,body?.routes),{headers:{"Cache-Control":"no-store"}},request,env);
