@@ -32,14 +32,22 @@ function mergeRouteMetadata(previous = {}, current = {}) {
   const previousOrdered=Array.isArray(previous.orderedStations)?previous.orderedStations:[],currentOrdered=Array.isArray(current.orderedStations)?current.orderedStations:[],orderedStations=currentOrdered.length>=previousOrdered.length?currentOrdered:previousOrdered;
   return { ...previous, ...current, stations: [...stationMap.values()], orderedStations, stationCalls: [...calls.values()].sort((left, right) => Date.parse(left.scheduledAt || 0) - Date.parse(right.scheduledAt || 0)), boardObservationCount: Math.max(Number(previous.boardObservationCount) || 0, calls.size, Number(current.boardObservationCount) || 0) };
 }
-async function existingExpectedMetadata(env, expectedIds = []) {
-  const result = new Map(), unique = [...new Set(expectedIds)].filter(Boolean);
-  for (let index = 0; index < unique.length; index += 75) {
-    const ids = unique.slice(index, index + 75), slots = ids.map((_, offset) => `?${offset + 1}`).join(",");
-    const found = rows(await env.DB.prepare(`SELECT expected_id,metadata_json FROM expected_train_runs WHERE expected_id IN (${slots})`).bind(...ids).all());
-    for (const item of found) result.set(item.expected_id, parseJson(item.metadata_json, {}));
+async function existingExpectedRuns(env, runs = []) {
+  const byExpected = new Map(), byRun = new Map();
+  async function load(column, values) {
+    const unique = [...new Set(values)].filter(Boolean);
+    for (let index = 0; index < unique.length; index += 75) {
+      const ids = unique.slice(index, index + 75), slots = ids.map((_, offset) => `?${offset + 1}`).join(",");
+      const found = rows(await env.DB.prepare(`SELECT expected_id,run_id,metadata_json FROM expected_train_runs WHERE ${column} IN (${slots})`).bind(...ids).all());
+      for (const item of found) {
+        byExpected.set(item.expected_id, item);
+        byRun.set(item.run_id, item);
+      }
+    }
   }
-  return result;
+  await load("expected_id", runs.map((run) => run.expectedId));
+  await load("run_id", runs.map((run) => run.runId));
+  return { byExpected, byRun };
 }
 
 export function expectedRunId(run = {}) {
@@ -93,8 +101,14 @@ export function classifyExpectedRun(run, now = new Date().toISOString()) {
 
 export async function ingestExpectedRuns(env, input = [], now = new Date().toISOString()) {
   const runs = [...new Map(input.map((item) => normalizeExpectedRun(item, now)).filter(Boolean).map((item) => [item.expectedId, item])).values()];
-  const existingMetadata = await existingExpectedMetadata(env, runs.map((run) => run.expectedId));
-  for (const run of runs) run.metadata = mergeRouteMetadata(existingMetadata.get(run.expectedId), run.metadata);
+  const existing = await existingExpectedRuns(env, runs);
+  for (const run of runs) {
+    const persisted = existing.byExpected.get(run.expectedId) || existing.byRun.get(run.runId);
+    // Older collectors could create a different expected_id for the same physical run.
+    // Reuse that canonical row so the unique run_id constraint cannot reject the batch.
+    if (persisted) run.expectedId = persisted.expected_id;
+    run.metadata = mergeRouteMetadata(parseJson(persisted?.metadata_json, {}), run.metadata);
+  }
   const statements = runs.map((run) => env.DB.prepare(`INSERT INTO expected_train_runs(expected_id,run_id,service_date,train_number,origin,destination,route,scheduled_departure,scheduled_arrival,status,status_reason,source_ids_json,discovery_count,first_seen_at,updated_at,metadata_json)
     VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,'planned','newly-discovered',?10,?11,?12,?12,?13)
     ON CONFLICT(expected_id) DO UPDATE SET origin=COALESCE(excluded.origin,expected_train_runs.origin),destination=COALESCE(excluded.destination,expected_train_runs.destination),route=COALESCE(excluded.route,expected_train_runs.route),scheduled_departure=COALESCE(excluded.scheduled_departure,expected_train_runs.scheduled_departure),scheduled_arrival=COALESCE(excluded.scheduled_arrival,expected_train_runs.scheduled_arrival),source_ids_json=excluded.source_ids_json,discovery_count=MAX(expected_train_runs.discovery_count,excluded.discovery_count),updated_at=excluded.updated_at,metadata_json=excluded.metadata_json`)

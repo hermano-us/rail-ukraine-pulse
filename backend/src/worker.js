@@ -389,8 +389,10 @@ async function getMapTimeline(request,env){
   return json(payload,{headers:{"Cache-Control":"public, max-age=30"}},request,env);
 }
 async function getHealth(request, env) {
-  const [database, sources, snapshot, segmentStats, modelQuality, archiveStatus] = await Promise.all([
+  const [database, registry, latestCycle, sources, snapshot, segmentStats, modelQuality, archiveStatus] = await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS runs FROM runs").first(),
+    env.DB.prepare("SELECT COUNT(*) expected_runs,(SELECT COUNT(*) FROM run_itineraries) itineraries,MAX(updated_at) latest FROM expected_train_runs").first(),
+    env.DB.prepare("SELECT started_at,finished_at,status,error FROM collection_cycles ORDER BY started_at DESC LIMIT 1").first(),
     env.DB.prepare("SELECT * FROM source_health ORDER BY checked_at DESC").all(),
     readSnapshot(env),
     readSegmentStats(env),
@@ -406,6 +408,8 @@ async function getHealth(request, env) {
     checkedAt: new Date().toISOString(),
     version: WORKER_VERSION,
     runs: Number(database?.runs || 0),
+    routeRegistry: { expectedRuns:Number(registry?.expected_runs || 0), itineraries:Number(registry?.itineraries || 0), latest:registry?.latest || null },
+    collectionCycle: latestCycle ? { startedAt:latestCycle.started_at, finishedAt:latestCycle.finished_at, status:latestCycle.status, error:latestCycle.error || null } : null,
     snapshot: { generatedAt: snapshot?.generatedAt || null, ageMinutes: freshness.ageMinutes, updates: snapshot?.updates?.length || 0 },
     sources: visibleSources,
     positioning: { learnedSegments: segmentStats.length, model: "rail-posterior-v3", quality: modelQuality },
