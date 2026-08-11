@@ -738,6 +738,19 @@ export async function scheduledRefresh(env) {
     }
   }
 
+  if (!mirrorExpectedRuns.length) {
+    const nextRegistrySync = Number(await env.SNAPSHOT?.get("expected-registry:next-sync-at") || 0);
+    if (Date.now() >= nextRegistrySync) {
+      try {
+        const registryResponse = await fetchWithRetry("https://raw.githubusercontent.com/hermano-us/rail-ukraine-pulse/main/data/live.json");
+        const registryMirror = await registryResponse.json();
+        const registryAge = Math.max(0, (Date.parse(checkedAt) - Date.parse(registryMirror.generatedAt || "")) / 60_000);
+        if (!Array.isArray(registryMirror.expectedRuns) || !registryMirror.expectedRuns.length || !Number.isFinite(registryAge) || registryAge > 180) throw new Error(`expected registry mirror is invalid or stale (${Math.round(registryAge)} min)`);
+        mirrorExpectedRuns = registryMirror.expectedRuns;
+        await env.SNAPSHOT?.put("expected-registry:next-sync-at", String(Date.now() + 30 * 60_000), { expirationTtl: 3600 });
+      } catch (error) { errors.push(`expected-registry: ${String(error?.message || error)}`); }
+    }
+  }
   if (usableSources > 0) {
     const sourcesTotal = boardEdgeConfigured ? 3 : 2;
     const result = await ingestPayload(env, {
