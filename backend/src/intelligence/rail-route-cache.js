@@ -1,7 +1,7 @@
 const rows = (result) => result?.results || [];
 let topologyCache = null;
 const normalizedContext=(pair)=>({waypoints:[...new Set((pair.waypoints||[]).filter(Boolean))],routeRelationIds:[...new Set((pair.routeRelationIds||[]).map(String))],trainCategory:pair.trainCategory||null,gauge:pair.gauge?String(pair.gauge):null,electrified:pair.electrified||null,allowServiceTracks:Boolean(pair.allowServiceTracks),direction:pair.direction||null,itineraryHash:pair.itineraryHash||null,serviceDate:pair.serviceDate||null});
-export function contextHash(pair){const serialized=JSON.stringify(normalizedContext(pair));let hash=2166136261;for(let index=0;index<serialized.length;index+=1){hash^=serialized.charCodeAt(index);hash=Math.imul(hash,16777619);}return `v8-${(hash>>>0).toString(16).padStart(8,"0")}`;}
+export function contextHash(pair){const serialized=JSON.stringify(normalizedContext(pair));let hash=2166136261;for(let index=0;index<serialized.length;index+=1){hash^=serialized.charCodeAt(index);hash=Math.imul(hash,16777619);}return `v9-${(hash>>>0).toString(16).padStart(8,"0")}`;}
 function routeKey(pair){return `${pair.from}>${pair.to}`;}
 
 class MinHeap {
