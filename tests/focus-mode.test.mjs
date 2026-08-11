@@ -10,6 +10,8 @@ test("selected train enters isolated map focus mode with its route and stations"
   assert.match(map, /features:\(this\.routes\.features\|\|\[\]\)\.filter/);
   assert.match(map, /for\(const waypoint of object\.waypoints/);
   assert.match(map, /focus-station-/);
+  assert.match(app, /loadPublicRailRoutes\(\[descriptor\],\{force:true\}\)/);
+  assert.match(app, /selectedRoute\?\.properties\?\.schematicFallback/);
 });
 
 test("initial map viewport stays focused on Ukraine", async () => {

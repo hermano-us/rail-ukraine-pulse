@@ -1,5 +1,5 @@
-import { buildHistoricalPosition, deriveStationPresence, loadTransportData } from "./data-store-ukraine.js?v=20260809-osm-public-routes";
-import { loadMapTimeline, loadRunHistory, loadRuntimeConfig, subscribeToLiveUpdates } from "./live-data-client.js?v=20260808-freight-v2";
+import { buildHistoricalPosition, deriveStationPresence, loadTransportData } from "./data-store-ukraine.js?v=20260811-selected-route";
+import { loadMapTimeline, loadPublicRailRoutes, loadRunHistory, loadRuntimeConfig, subscribeToLiveUpdates } from "./live-data-client.js?v=20260811-selected-route";
 import { MapView } from "./map-view-ukraine.js?v=20260808-freight-v2";
 import { POSITION_STATUSES } from "./positioning.js";
 import { OPERATION_COLORS, OPERATION_LABELS, TRANSPORT_LABELS, TYPE_LABELS, escapeHtml, formatDateTime, formatRelative } from "./formatters-ukraine.js?v=20260808-freight-v2";
@@ -407,6 +407,12 @@ function detailTemplate(object){
 function selectObject(object){
   stopPlayback();
   state.selected=object;const url=new URL(location.href);url.searchParams.set("train",object.runId);history.replaceState(null,"",url);render();mapView.focusObject(object);elements.detailContent.innerHTML=detailTemplate(object);
+  const selectedRoute=state.data?.routeMap?.get(object.routeId);
+  if(object.transport==="train"&&object.origin&&object.destination&&selectedRoute?.properties?.schematicFallback&&!object.publicRouteRequested){
+    object.publicRouteRequested=true;
+    const descriptor={key:`${object.trainNumber}|${object.origin}|${object.destination}`,trainNumber:object.trainNumber,origin:object.origin,destination:object.destination,reportedStation:object.liveUpdate?.reportedStation||null};
+    loadPublicRailRoutes([descriptor],{force:true}).then((result)=>{if(result.routes?.some((route)=>route.key===descriptor.key&&route.status==="ready"))refreshData();}).catch((error)=>console.warn("Selected OSM rail route unavailable",error));
+  }
   elements.detail.scrollTop=0;elements.detail.classList.add("open");elements.detail.setAttribute("aria-hidden","false");
   renderFleet(filteredObjects());
   const historyItems=(object.history||[]).filter(item=>item.coordinates).sort((a,b)=>Date.parse(a.timestamp)-Date.parse(b.timestamp));

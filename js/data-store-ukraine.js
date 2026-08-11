@@ -2,7 +2,7 @@ import { buildRouteMeasure, haversineKm, interpolateAlongRoute, projectDistanceO
 import { estimatePosterior } from "../shared/rail-posterior.js";
 import { buildGeometricWaypoints, buildOfficialEvents, buildUncertaintyCorridor, hydrateSourceRegistry, sourceRegistrySummary } from "./evidence-engine.js";
 import { evaluateFreshness, freshnessConfidenceFactor, freshnessReasons, sourceAgeMinutes as ageOf } from "./freshness-policy.js";
-import { loadFreightSnapshot, loadLiveSnapshot, loadPublicRailRoutes } from "./live-data-client.js?v=20260809-osm-public-routes";
+import { loadFreightSnapshot, loadLiveSnapshot, loadPublicRailRoutes } from "./live-data-client.js?v=20260811-selected-route";
 import { canonicalServiceKey, fuseServiceUpdates, groupStationQueues, positionAdmission, stationQueueForUpdate } from "./service-registry.js";
 import { materializePublicFreight } from "./freight-public-layer.js?v=20260808-freight-v2";
 

@@ -9,7 +9,7 @@ test("public route client progressively covers more than one 60-route batch",asy
   };
   try{
     const {loadPublicRailRoutes}=await import(`../js/live-data-client.js?progressive=${Date.now()}`),updates=Array.from({length:70},(_,index)=>({trainNumber:String(700+index),origin:`Origin ${index}`,destination:`Destination ${index}`,operationalStatus:"moving"}));
-    const first=await loadPublicRailRoutes(updates),second=await loadPublicRailRoutes(updates);
-    assert.deepEqual(calls,[60,10]);assert.equal(first.routes.length,60);assert.equal(second.routes.length,70);assert.equal(second.routes.every((route)=>route.method==="osm-route-aware-v7"),true);
+    const first=await loadPublicRailRoutes(updates),second=await loadPublicRailRoutes(updates),forced=await loadPublicRailRoutes([updates[69]],{force:true});
+    assert.deepEqual(calls,[60,10,1]);assert.equal(first.routes.length,60);assert.equal(second.routes.length,70);assert.equal(forced.routes[0].method,"osm-route-aware-v7");assert.equal(second.routes.every((route)=>route.method==="osm-route-aware-v7"),true);
   }finally{globalThis.fetch=originalFetch;}
 });
