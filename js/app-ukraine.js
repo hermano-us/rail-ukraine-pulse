@@ -1,5 +1,5 @@
-import { buildHistoricalPosition, deriveStationPresence, loadTransportData } from "./data-store-ukraine.js?v=20260811-selected-route";
-import { loadMapTimeline, loadPublicRailRoutes, loadRunHistory, loadRuntimeConfig, subscribeToLiveUpdates } from "./live-data-client.js?v=20260811-selected-route";
+import { buildHistoricalPosition, deriveStationPresence, loadTransportData } from "./data-store-ukraine.js?v=20260811-route-batches";
+import { loadMapTimeline, loadPublicRailRoutes, loadRunHistory, loadRuntimeConfig, subscribeToLiveUpdates } from "./live-data-client.js?v=20260811-route-batches";
 import { MapView } from "./map-view-ukraine.js?v=20260808-freight-v2";
 import { POSITION_STATUSES } from "./positioning.js";
 import { OPERATION_COLORS, OPERATION_LABELS, TRANSPORT_LABELS, TYPE_LABELS, escapeHtml, formatDateTime, formatRelative } from "./formatters-ukraine.js?v=20260808-freight-v2";

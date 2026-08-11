@@ -84,7 +84,7 @@ export async function loadPublicRailRoutes(updates = [], { force = false } = {})
   const now=Date.now(),controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),Math.max(7000,Number(config.requestTimeoutMs)||4500));
   try{
     const descriptors=[...new Map(updates.filter((item)=>item?.origin&&item?.destination).sort((left,right)=>Number(right.operationalStatus==="moving")-Number(left.operationalStatus==="moving")||Number(Boolean(right.reportedStation))-Number(Boolean(left.reportedStation))).map((item)=>{const key=`${item.trainNumber}|${item.origin}|${item.destination}`;return [key,{key,trainNumber:item.trainNumber,origin:item.origin,destination:item.destination,reportedStation:item.reportedStation||null}];})).values()];
-    const pending=descriptors.filter((item)=>force||(publicRailRouteCache.get(item.key)?.expiresAt||0)<=now).slice(0,60);
+    const pending=descriptors.filter((item)=>force||(publicRailRouteCache.get(item.key)?.expiresAt||0)<=now).slice(0,20);
     if(!pending.length)return {routes:descriptors.map((item)=>publicRailRouteCache.get(item.key)?.route).filter(Boolean),versionId:publicRailRouteVersion,transport:"memory-cache"};
     const response=await fetch(endpoint,{method:"POST",cache:"no-store",signal:controller.signal,headers:{Accept:"application/json","Content-Type":"application/json"},body:JSON.stringify({routes:pending})});
     if(!response.ok)throw new Error(`${endpoint}: HTTP ${response.status}`);
