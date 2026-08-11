@@ -25,8 +25,11 @@ export function buildExpectedRuns(updates = [], boardRecords = [], generatedAt =
       expectedId: `expected:${runId}`, runId, serviceDate, trainNumber: String(update.trainNumber),
       origin: update.origin || null, destination: update.destination || null, route: update.route || null,
       scheduledDeparture: null, scheduledArrival: null, sourceIds: [], discoveryCount: 0,
-      metadata: { stations: [], stationCalls: [], boardObservationCount: 0 },
+      metadata: { stations: [], orderedStations: [], stationCalls: [], boardObservationCount: 0 },
     };
+    const suppliedStations = Array.isArray(update.orderedStations) ? update.orderedStations : Array.isArray(update.routeStations) ? update.routeStations : Array.isArray(update.stations) ? update.stations : [];
+    const suppliedNames = [...new Map(suppliedStations.map((station) => [normalize(typeof station === "string" ? station : station?.station || station?.name), typeof station === "string" ? station : station?.station || station?.name]).filter(([key,name]) => key && name)).values()];
+    if (suppliedNames.length >= 2 && suppliedNames.length >= current.metadata.orderedStations.length) current.metadata.orderedStations = suppliedNames;
     for (const endpoint of [current.origin, current.destination]) {
       if (endpoint && !current.metadata.stations.some((station) => normalize(station) === normalize(endpoint))) current.metadata.stations.push(endpoint);
     }

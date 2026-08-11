@@ -24,7 +24,7 @@ test("route-aware routing rejects a short yard shortcut in favour of the main OS
   ]);
   const candidates=routeAwareCandidates(topology,"a","d",{routeRelationIds:["r-91"],trainCategory:"passenger"});
   assert.deepEqual(candidates[0].nodes,["a","main","d"]);
-  assert.equal(candidates[0].explanation.method,"osm-route-aware-v7");
+  assert.equal(candidates[0].explanation.method,"itinerary-constrained-v1");
   assert.equal(candidates[0].explanation.matchedRouteRelationEdges,2);
   assert.ok(candidates[0].confidence>.7);
 });
@@ -50,6 +50,17 @@ test("route-aware routing obeys scheduled intermediate stations and keeps altern
   assert.deepEqual(candidates[0].nodes,["a","b","c","d"]);
   assert.deepEqual(candidates[0].explanation.requiredWaypoints,["b","c"]);
   assert.ok(candidates.some((candidate)=>candidate.nodes.includes("x")));
+});
+
+test("route compiler prefers one continuous rail relation across itinerary legs",()=>{
+  const topology=buildTopology([
+    {from:"a",to:"short-one",distanceKm:4.5,routeRelationIds:["r-short-a"]},{from:"short-one",to:"b",distanceKm:4.5,routeRelationIds:["r-short-a"]},
+    {from:"a",to:"main-one",distanceKm:5,routeRelationIds:["r-main"]},{from:"main-one",to:"b",distanceKm:5,routeRelationIds:["r-main"]},
+    {from:"b",to:"short-two",distanceKm:4.5,routeRelationIds:["r-short-c"]},{from:"short-two",to:"c",distanceKm:4.5,routeRelationIds:["r-short-c"]},
+    {from:"b",to:"main-two",distanceKm:5,routeRelationIds:["r-main"]},{from:"main-two",to:"c",distanceKm:5,routeRelationIds:["r-main"]},
+  ]),candidates=routeAwareCandidates(topology,"a","c",{waypoints:["b"],trainCategory:"passenger"},{maximumCandidates:3});
+  assert.deepEqual(candidates[0].nodes,["a","main-one","b","main-two","c"]);
+  assert.equal(candidates[0].explanation.validation.reason,"mandatory_stations_in_order");
 });
 
 test("observation linker selects the matching date and direction but keeps conflicts pending",()=>{

@@ -26,6 +26,7 @@ test("D1 migration creates the event backend schema", {
   const fusionV3Sql = await readFile(new URL("../backend/migrations/0020_observation_fusion_v3.sql", import.meta.url), "utf8");
   const operationsHubV2Sql = await readFile(new URL("../backend/migrations/0021_operations_hub_v2.sql", import.meta.url), "utf8");
   const routeAwareSql = await readFile(new URL("../backend/migrations/0026_route_aware_rail_graph.sql", import.meta.url), "utf8");
+  const routeCompilerSql = await readFile(new URL("../backend/migrations/0027_rail_route_compiler.sql", import.meta.url), "utf8");
   const reliabilityV4Sql = await readFile(new URL("../backend/migrations/0022_reliability_fusion_calibration_v4.sql", import.meta.url), "utf8");
   const railGraphV4Sql = await readFile(new URL("../backend/migrations/0024_rail_graph_v4_registry_quality.sql", import.meta.url), "utf8");
   database.exec(historySql);
@@ -50,6 +51,7 @@ test("D1 migration creates the event backend schema", {
   database.exec(operationsHubV2Sql);
   database.exec(reliabilityV4Sql);
   database.exec(railGraphV4Sql);
+  database.exec(routeCompilerSql);
   const tables = database.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all().map((row) => row.name);
   assert.ok(tables.includes("runs"));
   database.exec(routeAwareSql);
@@ -106,6 +108,8 @@ test("D1 migration creates the event backend schema", {
   assert.ok(tables.includes("station_poll_health"));
   assert.ok(tables.includes("trusted_collector_registry"));
   assert.ok(tables.includes("expected_train_runs"));
+  assert.ok(tables.includes("run_itineraries"));
+  assert.ok(tables.includes("run_itinerary_stops"));
   assert.ok(tables.includes("rail_coverage_gaps"));
   assert.ok(tables.includes("observation_fusion_groups"));
   assert.ok(tables.includes("external_rail_sources"));

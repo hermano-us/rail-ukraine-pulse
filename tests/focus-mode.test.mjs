@@ -19,7 +19,7 @@ test("selected train enters isolated map focus mode with its route and stations"
   assert.match(store, /preferPhysicalRailRoute\(publicRoute,provisionalRoute\)/);
   assert.match(store, /probabilisticFallback:!publicRoute/);
   assert.match(store, /confidenceCeiling=routeResult\.provisional\?0\.34:0\.72/);
-  assert.match(map, /dashArray:provisional\?"3 9":null/);
+  assert.match(map, /dashArray:provisional\?"3 9":constrained\?"8 6":null/);
 });
 
 test("initial map viewport stays focused on Ukraine", async () => {

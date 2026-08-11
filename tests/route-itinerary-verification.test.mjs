@@ -21,9 +21,19 @@ test("a composite public number reuses the directional station plan of its activ
   assert.equal(scheduleForRequest({...request,origin:"Lviv",destination:"Dnipro"},schedules),null);
 });
 
+test("leading zero train legs remain equivalent after source normalization",()=>{
+  const padded={...schedules[0],run_id:"run-003",train_number:"003"};
+  assert.equal(scheduleForRequest({trainNumber:"3/4",origin:"Dnipro",destination:"Lviv",serviceDate:"2026-08-11"},[padded]).run_id,"run-003");
+});
+
 test("endpoint-only schedule cannot create a supposedly exact rail corridor",()=>{
   const request={trainNumber:"91",origin:"Kyiv",destination:"Lviv",serviceDate:"2026-08-11"},schedule={run_id:"run-91",service_date:"2026-08-11",train_number:"91",origin:"Kyiv",destination:"Lviv",metadata_json:JSON.stringify({stations:["Kyiv","Lviv"]})};
   const itinerary=verifiedItinerary(request,schedule);assert.equal(itinerary.status,"unverified");assert.equal(itinerary.reason,"insufficient_ordered_waypoints");
+});
+
+test("persisted canonical itinerary outranks unordered metadata",()=>{
+  const request={trainNumber:"91",origin:"Kyiv",destination:"Lviv",serviceDate:"2026-08-11"},schedule={run_id:"run-91",service_date:"2026-08-11",train_number:"91",origin:"Kyiv",destination:"Lviv",metadata_json:JSON.stringify({stations:["Kyiv","Lviv","Wrong Branch"]}),canonicalItinerary:{hash:"it-v1-known",stops:[{station_name:"Kyiv"},{station_name:"Korosten"},{station_name:"Shepetivka"},{station_name:"Lviv"}]}};
+  const itinerary=verifiedItinerary(request,schedule);assert.equal(itinerary.status,"verified");assert.equal(itinerary.source,"canonical_itinerary_v1");assert.equal(itinerary.itineraryHash,"it-v1-known");assert.deepEqual(itinerary.intermediateStations,["Korosten","Shepetivka"]);
 });
 
 test("public route cache identity includes the service date",()=>{

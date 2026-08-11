@@ -1,5 +1,5 @@
-import { buildHistoricalPosition, deriveStationPresence, loadTransportData } from "./data-store-ukraine.js?v=20260811-probabilistic-presence";
-import { loadMapTimeline, loadPublicRailRoutes, loadRunHistory, loadRuntimeConfig, publicRailRouteKey, subscribeToLiveUpdates } from "./live-data-client.js?v=20260811-probabilistic-presence";
+import { buildHistoricalPosition, deriveStationPresence, loadTransportData } from "./data-store-ukraine.js?v=20260811-route-compiler-v1";
+import { loadMapTimeline, loadPublicRailRoutes, loadRunHistory, loadRuntimeConfig, publicRailRouteKey, subscribeToLiveUpdates } from "./live-data-client.js?v=20260811-route-compiler-v1";
 import { MapView } from "./map-view-ukraine.js?v=20260808-freight-v2";
 import { POSITION_STATUSES } from "./positioning.js";
 import { OPERATION_COLORS, OPERATION_LABELS, TRANSPORT_LABELS, TYPE_LABELS, escapeHtml, formatDateTime, formatRelative } from "./formatters-ukraine.js?v=20260808-freight-v2";
@@ -348,13 +348,13 @@ function detailTemplate(object){
   const quality=Math.round(object.quality*100);
   const corridor=object.corridor,previousWaypoint=object.journey?.previousWaypoint,nextWaypoint=object.journey?.nextWaypoint;
   const historyCount=(object.history||[]).filter(item=>item.coordinates).length;
-  const routeVerified=object.routeVerification?.status==="verified",routeWaypointCount=Number(object.routeVerification?.waypointCount||0);
+  const routeVerified=object.routeVerification?.status==="verified",routeConstrained=object.routeVerification?.status==="constrained",routeWaypointCount=Number(object.routeVerification?.waypointCount||0);
   return `
     <p class="detail-focus-note">РЕЖИМ ФОКУСА · НА КАРТЕ ТОЛЬКО ЭТОТ РЕЙС, ЕГО МАРШРУТ И СТАНЦИИ</p>
     <p class="detail-kicker">${TRANSPORT_LABELS[object.transport]} · ${TYPE_LABELS[object.type]||object.type}</p>
     <h2>${escapeHtml(object.name)}</h2>
     <p class="detail-route">${escapeHtml(object.route)}</p>
-    <p class="detail-focus-note route-load-status ${routeVerified?"ok":"warn"}">${routeVerified?`МАРШРУТ ПРОВЕРЕН · ${routeWaypointCount} ОБЯЗАТЕЛЬНЫХ ПРОМЕЖУТОЧНЫХ СТАНЦИЙ`:`ВЕРОЯТНОСТНЫЙ КОРИДОР · ТОЧНАЯ ПОСЛЕДОВАТЕЛЬНОСТЬ ОСТАНОВОК ЕЩЁ НЕ ПОДТВЕРЖДЕНА`}</p>
+    <p class="detail-focus-note route-load-status ${routeVerified?"ok":"warn"}">${routeVerified?`МАРШРУТ ПРОВЕРЕН · ${routeWaypointCount} ОБЯЗАТЕЛЬНЫХ ПРОМЕЖУТОЧНЫХ СТАНЦИЙ`:routeConstrained?`МАРШРУТ ОГРАНИЧЕН ФАКТАМИ · ${routeWaypointCount} ПРОМЕЖУТОЧНАЯ СТАНЦИЯ`:`ВЕРОЯТНОСТНЫЙ КОРИДОР · ТОЧНАЯ ПОСЛЕДОВАТЕЛЬНОСТЬ ОСТАНОВОК ЕЩЁ НЕ ПОДТВЕРЖДЕНА`}</p>
     <div class="run-identity"><span>Рейс <b>${escapeHtml(object.serviceDate)}</b></span><code>${escapeHtml(object.runId)}</code></div>
 
     <div class="truth-grid">

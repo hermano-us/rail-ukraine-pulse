@@ -91,7 +91,7 @@ export async function loadPublicRailRoutes(updates = [], { force = false } = {})
     const response=await fetch(endpoint,{method:"POST",cache:"no-store",signal:controller.signal,headers:{Accept:"application/json","Content-Type":"application/json"},body:JSON.stringify({routes:pending})});
     if(!response.ok)throw new Error(`${endpoint}: HTTP ${response.status}`);
     const payload=await response.json();if(payload.versionId&&publicRailRouteVersion&&payload.versionId!==publicRailRouteVersion)publicRailRouteCache.clear();publicRailRouteVersion=payload.versionId||publicRailRouteVersion;
-    for(const route of payload.routes||[])publicRailRouteCache.set(route.key,{route,expiresAt:now+(route.status==="ready"?30*60_000:2*60_000)});
+    for(const route of payload.routes||[])publicRailRouteCache.set(route.key,{route,expiresAt:now+(route.status==="ready"?5*60_000:2*60_000)});
     return {...payload,routes:descriptors.map((item)=>publicRailRouteCache.get(item.key)?.route).filter(Boolean),transport:"api"};
   }catch(error){console.warn("OSM rail route service unavailable; verified geometry remains unavailable",error);return {routes:updates.map((item)=>publicRailRouteCache.get(publicRailRouteKey(item))?.route).filter(Boolean),versionId:publicRailRouteVersion,transport:"fallback",error:String(error?.message||error)};}
   finally{clearTimeout(timeout);}
