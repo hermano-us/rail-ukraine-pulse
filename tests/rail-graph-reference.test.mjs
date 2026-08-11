@@ -79,7 +79,7 @@ test("chunked graph import activates a complete version and creates reverse geom
   const firstRoute=await resolveRailRouteGeometries(env,[{from:"alpha",to:"beta"}],"2026-07-28T10:10:00.000Z"); assert.equal(firstRoute.calculated,1); assert.equal(JSON.parse(firstRoute.routes.get("alpha>beta").geometry_json).coordinates.length,3);
   assert.equal(firstRoute.routes.get("alpha>beta").routing_method,"itinerary-constrained-v1");
   assert.ok(firstRoute.routes.get("alpha>beta").route_confidence>0);
-  assert.match(firstRoute.routes.get("alpha>beta").context_hash,/^v8-/);
+  assert.match(firstRoute.routes.get("alpha>beta").context_hash,/^v9-/);
   const cachedRoute=await resolveRailRouteGeometries(env,[{from:"alpha",to:"beta"}],"2026-07-28T10:15:00.000Z"); assert.equal(cachedRoute.calculated,0); assert.equal(database.prepare("SELECT COUNT(*) total FROM rail_route_cache").get().total,1);
   const aliases=await loadStationAliasMap(env);
   database.prepare("INSERT INTO rail_route_rebuild_queue(queue_id,version_id,from_station_id,to_station_id,priority,reason,queued_at) VALUES(?,?,?,?,?,?,?)").run("q1",versionId,"alpha","beta",90,"graph-version-activated","2026-07-28T10:16:00Z");
