@@ -60,12 +60,12 @@ export function composeRouteGeometry(path, edgeMap) {
   return coordinates.length>1?{geometry:{type:"LineString",coordinates},geometryQuality:Number(quality.toFixed(3))}:null;
 }
 
-async function fetchTopology(env, versionId) {
-  if(topologyCache?.versionId===versionId)return topologyCache;
-  if(!env.ASSETS?.fetch)throw new Error("rail topology asset binding unavailable");
+async function fetchTopology(env) {
+  if(topologyCache)return topologyCache;
+  if(!env.ASSETS?.fetch)return null;
   const response=await env.ASSETS.fetch(new Request("https://rail-reference.local/data/rail-reference/topology.json"));
-  if(!response.ok)throw new Error(`rail topology HTTP ${response.status}`);const asset=await response.json();if(asset?.versionId!==versionId||!Array.isArray(asset.edges))throw new Error("rail topology version mismatch");
-  topologyCache={versionId,adjacency:buildTopology(asset.edges),routeRelations:Array.isArray(asset.routeRelations)?asset.routeRelations:[]};return topologyCache;
+  if(!response.ok)throw new Error(`rail topology HTTP ${response.status}`);const asset=await response.json();if(!asset?.versionId||!Array.isArray(asset.edges))throw new Error("invalid rail topology asset");
+  topologyCache={versionId:asset.versionId,adjacency:buildTopology(asset.edges),routeRelations:Array.isArray(asset.routeRelations)?asset.routeRelations:[]};return topologyCache;
 }
 
 async function rowsForSources(env, sqlPrefix, versionId, sourceIds) {
@@ -77,8 +77,11 @@ async function rowsForSources(env, sqlPrefix, versionId, sourceIds) {
 async function batch(env, statements, size=50){for(let index=0;index<statements.length;index+=size)await env.DB.batch(statements.slice(index,index+size));}
 
 export async function resolveRailRouteGeometries(env, pairs = [], now = new Date().toISOString(), { maximumNewRoutes=12, retryNoPathAfterMinutes=360 } = {}) {
-  const version=await env.DB.prepare("SELECT version_id FROM rail_graph_versions WHERE status='active' ORDER BY activated_at DESC LIMIT 1").first();
-  if(!version?.version_id||!pairs.length)return {versionId:version?.version_id||null,routes:new Map(),calculated:0};
+  if(!pairs.length)return {versionId:null,routes:new Map(),routesByContext:new Map(),calculated:0};
+  const topology=await fetchTopology(env);
+  if(!topology)return {versionId:null,routes:new Map(),routesByContext:new Map(),calculated:0,error:"rail_topology_asset_unavailable"};
+  const version=await env.DB.prepare("SELECT version_id FROM rail_graph_versions WHERE version_id=?1 AND imported_stations>=station_count AND imported_segments>=segment_count ORDER BY CASE status WHEN 'active' THEN 0 WHEN 'superseded' THEN 1 ELSE 2 END,activated_at DESC LIMIT 1").bind(topology.versionId).first();
+  if(!version?.version_id)return {versionId:topology.versionId,routes:new Map(),routesByContext:new Map(),calculated:0,error:"rail_graph_asset_not_imported"};
   const unique=[...new Map(pairs.filter((pair)=>pair?.from&&pair?.to&&pair.from!==pair.to).map((pair)=>[`${routeKey(pair)}:${contextHash(pair)}`,{...pair,contextHash:contextHash(pair)}])).values()];
   const requested=new Map(unique.map((pair)=>[`${routeKey(pair)}:${pair.contextHash}`,pair]));
   const cachedRows=await rowsForSources(env,"SELECT * FROM rail_route_cache WHERE",version.version_id,unique.map((pair)=>pair.from));
@@ -88,10 +91,10 @@ export async function resolveRailRouteGeometries(env, pairs = [], now = new Date
   const routesByContext=new Map(validCached.map((row)=>[`${row.from_station_id}>${row.to_station_id}:${row.context_hash||"legacy"}`,row]));
   const cachedContexts=new Set(validCached.map((row)=>`${row.from_station_id}>${row.to_station_id}:${row.context_hash||"legacy"}`));
   const missing=unique.filter((pair)=>!cachedContexts.has(`${routeKey(pair)}:${pair.contextHash}`)).slice(0,Math.max(0,maximumNewRoutes));if(!missing.length)return {versionId:version.version_id,routes,routesByContext,calculated:0};
-  const topology=await fetchTopology(env,version.version_id),paths=[];
+  const paths=[];
   for(const pair of missing){const candidates=routeAwareCandidates(topology.adjacency,pair.from,pair.to,normalizedContext(pair),{maximumCandidates:3});paths.push({pair,candidates,path:candidates[0]||null});}
   const sourceNodes=[];for(const item of paths)for(const candidate of item.candidates)sourceNodes.push(...candidate.nodes.slice(0,-1));
-  const edgeRows=sourceNodes.length?await rowsForSources(env,"SELECT from_station_id,to_station_id,geometry_json,distance_km,geometry_quality FROM rail_segment_geometries WHERE active=1 AND",version.version_id,sourceNodes):[];
+  const edgeRows=sourceNodes.length?await rowsForSources(env,"SELECT from_station_id,to_station_id,geometry_json,distance_km,geometry_quality FROM rail_segment_geometries WHERE",version.version_id,sourceNodes):[];
   const edgeMap=new Map(edgeRows.map((edge)=>[`${edge.from_station_id}>${edge.to_station_id}`,edge])),statements=[];
   for(const {pair,path,candidates} of paths){const composed=path?composeRouteGeometry(path,edgeMap):null,alternatives=candidates.slice(1).map((candidate)=>{const alternative=composeRouteGeometry(candidate,edgeMap);return alternative?{rank:candidate.rank,score:candidate.score,confidence:candidate.confidence,path:candidate.nodes,geometry:alternative.geometry,distanceKm:candidate.distanceKm,explanation:candidate.explanation}:null;}).filter(Boolean),status=composed?"ready":"no_path",cacheId=`${version.version_id}:${pair.from}>${pair.to}:${pair.contextHash}`,row={cache_id:cacheId,version_id:version.version_id,from_station_id:pair.from,to_station_id:pair.to,path_json:path?JSON.stringify(path.nodes):null,geometry_json:composed?JSON.stringify(composed.geometry):null,distance_km:path?.distanceKm??null,hop_count:path?.hopCount||0,status,geometry_quality:composed?.geometryQuality||0,context_hash:pair.contextHash,routing_method:"osm-route-aware-v7",route_score:path?.score??null,route_confidence:path?.confidence??0,explanation_json:path?JSON.stringify(path.explanation):null,alternatives_json:JSON.stringify(alternatives),calculated_at:now,last_used_at:now,error:!path?"no physical path":!composed?"incomplete segment geometry":null};routes.set(routeKey(pair),row);routesByContext.set(`${routeKey(pair)}:${pair.contextHash}`,row);statements.push(env.DB.prepare(`INSERT INTO rail_route_cache(cache_id,version_id,from_station_id,to_station_id,path_json,geometry_json,distance_km,hop_count,status,geometry_quality,calculated_at,last_used_at,error,context_hash,routing_method,route_score,route_confidence,explanation_json,alternatives_json)
       VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?11,?12,?13,?14,?15,?16,?17,?18) ON CONFLICT(cache_id) DO UPDATE SET path_json=excluded.path_json,geometry_json=excluded.geometry_json,distance_km=excluded.distance_km,hop_count=excluded.hop_count,status=excluded.status,geometry_quality=excluded.geometry_quality,last_used_at=excluded.last_used_at,error=excluded.error,route_score=excluded.route_score,route_confidence=excluded.route_confidence,explanation_json=excluded.explanation_json,alternatives_json=excluded.alternatives_json`).bind(cacheId,version.version_id,pair.from,pair.to,row.path_json,row.geometry_json,row.distance_km,row.hop_count,status,row.geometry_quality,now,row.error,row.context_hash,row.routing_method,row.route_score,row.route_confidence,row.explanation_json,row.alternatives_json));}

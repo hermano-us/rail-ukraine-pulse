@@ -30,8 +30,11 @@ test("train 779 public route follows imported OSM segments and scheduled waypoin
   ]);
   const env={DB:new D1Adapter(database),ASSETS:{fetch:async(request)=>{const name=new URL(request.url).pathname.split("/").at(-1);return assets.has(name)?Response.json(assets.get(name)):new Response("missing",{status:404});}}};
   const imported=await syncRailGraphReference(env,"2026-08-09T10:00:00.000Z",{stationChunks:2,segmentChunks:2});assert.equal(imported.status,"activated");
+  database.prepare("UPDATE rail_graph_versions SET status='superseded' WHERE version_id=?").run(versionId);
+  database.prepare("UPDATE rail_segment_geometries SET active=0 WHERE version_id=?").run(versionId);
+  database.prepare(`INSERT INTO rail_graph_versions(version_id,source,checksum,status,station_count,segment_count,imported_stations,imported_segments,created_at,activated_at) VALUES(?,?,?,?,?,?,?,?,?,?)`).run("newer-d1-version","test","newer","active",1,1,1,1,"2026-08-09T10:01:00Z","2026-08-09T10:01:00Z");
   database.prepare(`INSERT INTO expected_train_runs(expected_id,run_id,service_date,train_number,origin,destination,first_seen_at,updated_at,metadata_json) VALUES(?,?,?,?,?,?,?,?,?)`).run("779","run-779","2026-08-09","779","Суми","Київ-Пас.","2026-08-09T10:00:00Z","2026-08-09T10:00:00Z",JSON.stringify({stations:["Суми","Ніжин","Бобрик","Київ-Пас."]}));
   const result=await resolvePublicRailRoutes(env,[{key:"779|Суми|Київ-Пас.",trainNumber:"779",origin:"Суми",destination:"Київ-Пас."}],"2026-08-09T10:05:00Z");
-  assert.equal(result.routes[0].status,"ready");assert.equal(result.routes[0].method,"osm-route-aware-v7");assert.equal(result.routes[0].geometry.coordinates.length,7);assert.ok(result.routes[0].geometry.coordinates.some(([longitude,latitude])=>longitude===31.1&&latitude===50.72));assert.equal(result.calculated,1);
+  assert.equal(result.routes[0].status,"ready");assert.equal(result.routes[0].versionId,versionId);assert.equal(result.routes[0].method,"osm-route-aware-v7");assert.equal(result.routes[0].geometry.coordinates.length,7);assert.ok(result.routes[0].geometry.coordinates.some(([longitude,latitude])=>longitude===31.1&&latitude===50.72));assert.equal(result.calculated,1);
   database.close();
 });
