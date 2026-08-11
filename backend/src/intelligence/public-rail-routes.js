@@ -16,9 +16,11 @@ function parseGeometry(value){try{const geometry=typeof value==="string"?JSON.pa
 function categoryFor(trainNumber){return /^(?:[89]\d{3}|\d{4,5})$/.test(String(trainNumber||""))?"suburban":"passenger";}
 
 const sameStation=(left,right)=>Boolean(left&&right&&normalizeAlias(left)===normalizeAlias(right));
+const trainNumberParts=(value)=>new Set(String(value||"").replace(/^№\s*/,"").split("/").map((part)=>part.replace(/^0+(?=\d)/,"").trim()).filter(Boolean));
+const sameTrainNumber=(left,right)=>{const first=trainNumberParts(left),second=trainNumberParts(right);return [...first].some((part)=>second.has(part));};
 function orderedUniqueStations(values=[]){const seen=new Set(),result=[];for(const value of values){const station=typeof value==="string"?value:value?.station,key=normalizeAlias(station);if(key&&!seen.has(key)){seen.add(key);result.push(station);}}return result;}
 export function scheduleForRequest(request,schedules=[]){
-  let candidates=schedules.filter((row)=>String(row.train_number)===request.trainNumber);
+  let candidates=schedules.filter((row)=>sameTrainNumber(row.train_number,request.trainNumber));
   if(request.runId){const exact=candidates.filter((row)=>row.run_id===request.runId);if(exact.length)candidates=exact;}
   if(request.serviceDate){const exactDate=candidates.filter((row)=>row.service_date===request.serviceDate);if(!exactDate.length)return null;candidates=exactDate;}
   const exactDirection=candidates.filter((row)=>sameStation(row.origin,request.origin)&&sameStation(row.destination,request.destination));if(!exactDirection.length)return null;candidates=exactDirection;

@@ -36,6 +36,17 @@ test("forecast-only live run retains the conservative corridor fallback", () => 
   assert.ok(position.errorKm >= 18);
 });
 
+test("an unverified route keeps the train visible but widens uncertainty", () => {
+  const position = estimatePosition({
+    trainNumber: "127/128", updatedAt: "2026-07-20T10:00:00Z", operationalStatus: "moving",
+    reliability: "medium", forecastArrival: "13:00",
+  }, { ...routeResult, provisional: true }, new Date("2026-07-20T10:20:00Z"), 20);
+  assert.equal(position.method, "probabilistic-rail-envelope-v1");
+  assert.ok(position.coordinates);
+  assert.ok(position.confidence <= .34);
+  assert.ok(position.errorKm >= 35);
+});
+
 
 test("digital twin builds a dated station plan with one next station", () => {
   const position={calculatedAt:"2026-07-21T07:00:00Z",calculation:{totalKm:200,progress:.42}};

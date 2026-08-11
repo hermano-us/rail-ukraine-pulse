@@ -12,7 +12,7 @@ export class MapView{
       maxZoom:18,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(this.map);
     this.regionLayer=L.geoJSON(null,{interactive:false}).addTo(this.map);
-    this.routeLayer=L.geoJSON(null,{interactive:false,style:(feature)=>{const count=this.routeIntensity?.get(feature?.properties?.id)||1;return {color:count>4?"#f3b562":"#2f8a9d",weight:1.1+Math.min(4,Math.log2(count+1)),opacity:.12+Math.min(.5,count*.055)};}}).addTo(this.map);
+    this.routeLayer=L.geoJSON(null,{interactive:false,style:(feature)=>{const count=this.routeIntensity?.get(feature?.properties?.id)||1,provisional=Boolean(feature?.properties?.probabilisticFallback);return {color:provisional?"#a87645":count>4?"#f3b562":"#2f8a9d",weight:provisional?1.2:1.1+Math.min(4,Math.log2(count+1)),opacity:provisional?.24:.12+Math.min(.5,count*.055),dashArray:provisional?"3 9":null};}}).addTo(this.map);
     this.uncertaintyLayer=L.layerGroup().addTo(this.map);
     this.selectedLayer=L.layerGroup().addTo(this.map);
     this.markerLayer=L.layerGroup().addTo(this.map);

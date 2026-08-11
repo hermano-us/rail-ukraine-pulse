@@ -2,7 +2,7 @@ import { buildRouteMeasure, haversineKm, interpolateAlongRoute, projectDistanceO
 import { estimatePosterior } from "../shared/rail-posterior.js";
 import { buildGeometricWaypoints, buildOfficialEvents, buildUncertaintyCorridor, hydrateSourceRegistry, sourceRegistrySummary } from "./evidence-engine.js";
 import { evaluateFreshness, freshnessConfidenceFactor, freshnessReasons, sourceAgeMinutes as ageOf } from "./freshness-policy.js";
-import { loadFreightSnapshot, loadLiveSnapshot, loadPublicRailRoutes, publicRailRouteKey } from "./live-data-client.js?v=20260811-verified-itinerary";
+import { loadFreightSnapshot, loadLiveSnapshot, loadPublicRailRoutes, publicRailRouteKey } from "./live-data-client.js?v=20260811-probabilistic-presence";
 import { canonicalServiceKey, fuseServiceUpdates, groupStationQueues, positionAdmission, stationQueueForUpdate } from "./service-registry.js";
 import { materializePublicFreight } from "./freight-public-layer.js?v=20260808-freight-v2";
 
@@ -243,15 +243,18 @@ export function estimatePosition(update,routeResult,now,sourceAgeMinutes,station
   const quality=calculateQuality({
     hasRoute:true,hasForecast:true,sourceAgeMinutes,reliability:update.reliability,anchorErrorKm:routeResult.anchorErrorKm,
   });
-  const confidence=Math.max(freshness.frozen?0.16:0.24,Math.min(0.72,quality*0.78*freshnessConfidenceFactor(sourceAgeMinutes)));
+  const confidenceCeiling=routeResult.provisional?0.34:0.72;
+  const confidenceFloor=routeResult.provisional?(freshness.frozen?0.1:0.16):(freshness.frozen?0.16:0.24);
+  const confidence=Math.max(confidenceFloor,Math.min(confidenceCeiling,quality*0.78*freshnessConfidenceFactor(sourceAgeMinutes)));
   const agePenaltyKm=Math.max(0,sourceAgeMinutes-30)*0.22;
-  const errorKm=Math.max(18,routeResult.anchorErrorKm/2+measure.totalKm*(1-confidence)*0.1+agePenaltyKm);
+  const routePenaltyKm=routeResult.provisional?Math.max(35,measure.totalKm*0.16):18;
+  const errorKm=Math.max(routePenaltyKm,routeResult.anchorErrorKm/2+measure.totalKm*(1-confidence)*(routeResult.provisional?0.18:0.1)+agePenaltyKm);
   return {
     status:freshness.frozen?"stale":"estimated",coordinates:interpolateAlongRoute(measure,measure.totalKm*progress),
     updatedAt:update.updatedAt,sourceUpdatedAt:update.updatedAt,calculatedAt:now.toISOString(),
     confidence:Number(confidence.toFixed(2)),errorKm:Number(errorKm.toFixed(1)),
-    method:"rail-corridor-v6",lastConfirmedAt:update.updatedAt,freshness,
-    sources:["UZ official public status","UZ forecast arrival","rail corridor graph"],
+    method:routeResult.provisional?"probabilistic-rail-envelope-v1":"rail-corridor-v6",lastConfirmedAt:update.updatedAt,freshness,
+    sources:["UZ official public status","UZ forecast arrival",routeResult.provisional?"unverified rail corridor envelope":"rail corridor graph"],
     confidenceReasons:freshnessReasons({freshness,hasRoute:true,hasForecast:true,anchorErrorKm:routeResult.anchorErrorKm}),
     calculation:{
       progress:Number(progress.toFixed(3)),totalKm:Number(measure.totalKm.toFixed(1)),
@@ -482,10 +485,12 @@ export async function loadTransportData(now=new Date()){
       const origin=stationCoordinates(update.origin,stationLookup),destination=stationCoordinates(update.destination,stationLookup),reported=stationCoordinates(update.reportedStation,stationLookup);
       const routeIdentity={...update,serviceDate:update.serviceDate||buildRunIdentity(update,at).serviceDate};
       const routeRecord=publicRouteResults.get(publicRailRouteKey(routeIdentity)),publicRoute=routeRecord?.status==="ready"?routeRecord:null;
-      const routeResult=preferPhysicalRailRoute(publicRoute,null);
+      const fallbackRoute=origin&&destination?railPathViaAnchor(graph,origin,destination,reported):null;
+      const provisionalRoute=fallbackRoute?{...fallbackRoute,provisional:true,method:"probabilistic-rail-envelope-v1",routeConfidence:.25,geometryQuality:.45}:null;
+      const routeResult=preferPhysicalRailRoute(publicRoute,provisionalRoute);
       const routeId=`${prefix}-${index}`;
       if(routeResult)features.push({
-        type:"Feature",properties:{id:routeId,quality:publicRoute?.quality||0.76,source:publicRoute?.method||"verified-itinerary-required",graphVersion:publicRoute?.versionId||null,viaConfirmedStation:Boolean(routeResult.viaAnchor),schematicFallback:false,routeVerification:publicRoute?.verification||null},
+        type:"Feature",properties:{id:routeId,quality:publicRoute?.quality||0.45,source:publicRoute?.method||"probabilistic-rail-envelope-v1",graphVersion:publicRoute?.versionId||null,viaConfirmedStation:Boolean(routeResult.viaAnchor),schematicFallback:!publicRoute,probabilisticFallback:!publicRoute,routeVerification:routeRecord?.verification||null},
         geometry:{type:"LineString",coordinates:routeResult.coordinates},
       });
       const regionAnchors=routeResult?.coordinates||(reported||origin||destination?[reported,origin,destination].filter(Boolean):[]);

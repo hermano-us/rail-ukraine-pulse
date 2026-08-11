@@ -15,6 +15,12 @@ test("route schedule selection is isolated by service date and direction",()=>{
   assert.equal(scheduleForRequest({...request,serviceDate:"2026-08-12"},schedules),null);
 });
 
+test("a composite public number reuses the directional station plan of its active leg",()=>{
+  const request={trainNumber:"127/128",origin:"Dnipro",destination:"Lviv",serviceDate:"2026-08-11"};
+  assert.equal(scheduleForRequest(request,schedules).run_id,"run-east");
+  assert.equal(scheduleForRequest({...request,origin:"Lviv",destination:"Dnipro"},schedules),null);
+});
+
 test("endpoint-only schedule cannot create a supposedly exact rail corridor",()=>{
   const request={trainNumber:"91",origin:"Kyiv",destination:"Lviv",serviceDate:"2026-08-11"},schedule={run_id:"run-91",service_date:"2026-08-11",train_number:"91",origin:"Kyiv",destination:"Lviv",metadata_json:JSON.stringify({stations:["Kyiv","Lviv"]})};
   const itinerary=verifiedItinerary(request,schedule);assert.equal(itinerary.status,"unverified");assert.equal(itinerary.reason,"insufficient_ordered_waypoints");
