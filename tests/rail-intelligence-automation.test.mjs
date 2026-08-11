@@ -127,3 +127,18 @@ test("calibration v3 prefers live segment evidence and expands weak P80",()=>{
   const dimension=calibrationDimensions({train_number:"091",source_id:"uz",from_station_id:"kyiv",to_station_id:"fastiv"}).find(item=>item.type==="train-segment"),profiles=new Map([[dimension.profileId,{...profile,...dimension}]]),edge=applyCalibrationV3({train_family:"091",from_station_id:"kyiv",to_station_id:"fastiv",p10_minutes:52,p50_minutes:60,p90_minutes:68},profiles,{trainFamily:"091",sourceId:"other"});
   assert.equal(edge.calibration_profile.version,"v3");assert.equal(edge.calibration_profile.dimension,"train-segment");assert.ok(edge.p90_minutes-edge.p10_minutes>16);
 });
+test("a scheduled platform throat may return to the main line without authorizing arbitrary reversals",()=>{
+  const topology=buildTopology([
+    {from:"a",to:"junction",distanceKm:10},
+    {from:"junction",to:"platform",distanceKm:3,services:["crossover","siding"],serviceShare:.25},
+    {from:"junction",to:"d",distanceKm:10},
+  ]),candidates=routeAwareCandidates(topology,"a","d",{waypoints:["platform"],trainCategory:"passenger"});
+  assert.deepEqual(candidates[0].nodes,["a","junction","platform","junction","d"]);
+  assert.equal(candidates[0].validation.stationThroatReversals,1);
+  const longSpur=buildTopology([
+    {from:"a",to:"junction",distanceKm:10},
+    {from:"junction",to:"platform",distanceKm:8,services:["crossover","siding"],serviceShare:.25},
+    {from:"junction",to:"d",distanceKm:10},
+  ]);
+  assert.equal(routeAwareCandidates(longSpur,"a","d",{waypoints:["platform"],trainCategory:"passenger"}).length,0);
+});
