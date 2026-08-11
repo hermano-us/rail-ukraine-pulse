@@ -11,6 +11,7 @@ import { handleIntelligencePlatformRequest } from "./intelligence/api.js";
 import { runIntelligenceCycle } from "./intelligence/service.js";
 import { ingestExpectedRuns } from "./intelligence/expected-registry.js";
 import { handlePublicObservationRequest } from "./intelligence/observation-submissions.js";
+import { resolvePublicRailRoutes } from "./intelligence/public-rail-routes.js";
 import { collectOfficialBoardEdge } from "./edge-board-collector.js";
 import { classifySourceState, dynamicRequestBudget } from "./intelligence/data-reliability.js";
 import { pruneOperationalStorage, recordBackupCheckpoint, STORAGE_RETENTION } from "./storage-retention.js";
@@ -622,6 +623,10 @@ export async function handleRequest(request, env) {
       return getAdminOverview(request, env);
     }
     if (request.method === "GET" && url.pathname === "/api/v1/snapshot") return getSnapshot(request, env);
+    if (request.method === "POST" && url.pathname === "/api/v1/rail-routes") {
+      const body=await request.json();
+      return json(await resolvePublicRailRoutes(env,body?.routes),{headers:{"Cache-Control":"no-store"}},request,env);
+    }
     if (request.method === "GET" && url.pathname === "/api/v1/events") return getEvents(request, env);
     if (request.method === "GET" && url.pathname === "/api/v1/history") return getRunHistory(request, env);
     if (request.method === "GET" && url.pathname === "/api/v1/timeline") return getMapTimeline(request, env);

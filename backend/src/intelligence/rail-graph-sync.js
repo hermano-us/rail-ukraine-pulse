@@ -11,7 +11,8 @@ const ageMinutes = (value, now) => Number.isFinite(Date.parse(value))
 
 export function analyzeRailTopology(edges = [], stationCount = 0, { anomalousSegmentKm = 250 } = {}) {
   const adjacency = new Map(); let anomalousSegments = 0; let maximumSegmentKm = 0;
-  for (const [from, to, rawDistance] of edges) {
+  for (const raw of edges) {
+    const edge=Array.isArray(raw)?{from:raw[0],to:raw[1],distanceKm:raw[2]}:raw||{},from=edge.from,to=edge.to,rawDistance=edge.distanceKm??edge.distance;
     if (!from || !to || from === to) continue;
     const distance = Number(rawDistance) || 0; maximumSegmentKm = Math.max(maximumSegmentKm, distance);
     if (distance > anomalousSegmentKm) anomalousSegments += 1;

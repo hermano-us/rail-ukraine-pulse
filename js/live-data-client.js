@@ -5,6 +5,7 @@ const DEFAULT_CONFIG = Object.freeze({
   timelinePath: "/api/v1/timeline",
   streamPath: "/api/v1/stream",
   freightPath: "/api/v1/freight/public",
+  railRoutesPath: "/api/v1/rail-routes",
   fallbackUrl: "data/live.json",
   freightFallbackUrl: "data/freight-aggregates.json",
   requestTimeoutMs: 4500,
@@ -12,6 +13,8 @@ const DEFAULT_CONFIG = Object.freeze({
 });
 
 let configPromise;
+const publicRailRouteCache=new Map();
+let publicRailRouteVersion=null;
 
 async function readJson(url, options = {}) {
   const controller = new AbortController();
@@ -72,6 +75,24 @@ export async function loadFreightSnapshot() {
   } catch {
     return { snapshot: { schemaVersion: 2, objects: [], corridors: [], sourceStatus: { status: "unavailable", label: "Грузовой слой временно недоступен" } }, transport: "unavailable", endpoint: null };
   }
+}
+
+export async function loadPublicRailRoutes(updates = []) {
+  const config=await loadRuntimeConfig();
+  if(!config.apiBase||!updates.length)return {routes:[],transport:"unavailable"};
+  const endpoint=new URL(config.railRoutesPath||"/api/v1/rail-routes",`${config.apiBase.replace(/\/$/,"")}/`).toString();
+  const now=Date.now(),controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),Math.max(7000,Number(config.requestTimeoutMs)||4500));
+  try{
+    const descriptors=[...new Map(updates.filter((item)=>item?.origin&&item?.destination).sort((left,right)=>Number(right.operationalStatus==="moving")-Number(left.operationalStatus==="moving")||Number(Boolean(right.reportedStation))-Number(Boolean(left.reportedStation))).map((item)=>{const key=`${item.trainNumber}|${item.origin}|${item.destination}`;return [key,{key,trainNumber:item.trainNumber,origin:item.origin,destination:item.destination,reportedStation:item.reportedStation||null}];})).values()];
+    const pending=descriptors.filter((item)=>(publicRailRouteCache.get(item.key)?.expiresAt||0)<=now).slice(0,60);
+    if(!pending.length)return {routes:descriptors.map((item)=>publicRailRouteCache.get(item.key)?.route).filter(Boolean),versionId:publicRailRouteVersion,transport:"memory-cache"};
+    const response=await fetch(endpoint,{method:"POST",cache:"no-store",signal:controller.signal,headers:{Accept:"application/json","Content-Type":"application/json"},body:JSON.stringify({routes:pending})});
+    if(!response.ok)throw new Error(`${endpoint}: HTTP ${response.status}`);
+    const payload=await response.json();if(payload.versionId&&publicRailRouteVersion&&payload.versionId!==publicRailRouteVersion)publicRailRouteCache.clear();publicRailRouteVersion=payload.versionId||publicRailRouteVersion;
+    for(const route of payload.routes||[])publicRailRouteCache.set(route.key,{route,expiresAt:now+(route.status==="ready"?30*60_000:2*60_000)});
+    return {...payload,routes:descriptors.map((item)=>publicRailRouteCache.get(item.key)?.route).filter(Boolean),transport:"api"};
+  }catch(error){console.warn("OSM rail route service unavailable; using schematic fallback",error);return {routes:updates.map((item)=>publicRailRouteCache.get(`${item.trainNumber}|${item.origin}|${item.destination}`)?.route).filter(Boolean),versionId:publicRailRouteVersion,transport:"fallback",error:String(error?.message||error)};}
+  finally{clearTimeout(timeout);}
 }
 
 export async function loadRunHistory(runId, options = {}) {

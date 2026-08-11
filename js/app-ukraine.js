@@ -1,4 +1,4 @@
-import { buildHistoricalPosition, deriveStationPresence, loadTransportData } from "./data-store-ukraine.js?v=20260808-freight-v2";
+import { buildHistoricalPosition, deriveStationPresence, loadTransportData } from "./data-store-ukraine.js?v=20260809-osm-public-routes";
 import { loadMapTimeline, loadRunHistory, loadRuntimeConfig, subscribeToLiveUpdates } from "./live-data-client.js?v=20260808-freight-v2";
 import { MapView } from "./map-view-ukraine.js?v=20260808-freight-v2";
 import { POSITION_STATUSES } from "./positioning.js";

@@ -2,7 +2,7 @@ import { buildRouteMeasure, haversineKm, interpolateAlongRoute, projectDistanceO
 import { estimatePosterior } from "../shared/rail-posterior.js";
 import { buildGeometricWaypoints, buildOfficialEvents, buildUncertaintyCorridor, hydrateSourceRegistry, sourceRegistrySummary } from "./evidence-engine.js";
 import { evaluateFreshness, freshnessConfidenceFactor, freshnessReasons, sourceAgeMinutes as ageOf } from "./freshness-policy.js";
-import { loadFreightSnapshot, loadLiveSnapshot } from "./live-data-client.js?v=20260808-freight-v2";
+import { loadFreightSnapshot, loadLiveSnapshot, loadPublicRailRoutes } from "./live-data-client.js?v=20260809-osm-public-routes";
 import { canonicalServiceKey, fuseServiceUpdates, groupStationQueues, positionAdmission, stationQueueForUpdate } from "./service-registry.js";
 import { materializePublicFreight } from "./freight-public-layer.js?v=20260808-freight-v2";
 
@@ -152,6 +152,11 @@ export function railPathViaAnchor(graph, origin, destination, anchor = null) {
     viaAnchor:true,
     viaAnchorErrorKm:Number(anchorNode.distance.toFixed(1)),
   };
+}
+
+export function preferPhysicalRailRoute(publicRoute,fallbackRoute=null){
+  if(publicRoute?.status!=="ready"||publicRoute.geometry?.type!=="LineString"||!Array.isArray(publicRoute.geometry.coordinates)||publicRoute.geometry.coordinates.length<2)return fallbackRoute;
+  return {coordinates:publicRoute.geometry.coordinates,totalKm:publicRoute.totalKm,anchorErrorKm:0,startAnchorErrorKm:0,endAnchorErrorKm:0,geometryQuality:publicRoute.quality,routeConfidence:publicRoute.confidence,method:publicRoute.method,versionId:publicRoute.versionId};
 }
 
 function zonedClock(value, now) {
@@ -467,14 +472,19 @@ export async function loadTransportData(now=new Date()){
   const sourceSummary=sourceRegistrySummary(sourceRegistry);
   const stations=stationData?.stations||[],stationLookup=buildStationLookup(stations);
   const graph=buildRailGraph(baseRoutes.features);
+  const fusedUpdates=fuseServiceUpdates(liveData?.updates||[],now);
+  const publicRailRoutes=await loadPublicRailRoutes(fusedUpdates);
+  const publicRouteMap=new Map((publicRailRoutes.routes||[]).filter((item)=>item.status==="ready"&&item.geometry?.coordinates?.length>1).map((item)=>[item.key,item]));
   const materializeUpdates=(updates,at=now,prefix="uz-live-route")=>{
     const features=[];
     const materialized=(updates||[]).map((update,index)=>{
       const origin=stationCoordinates(update.origin,stationLookup),destination=stationCoordinates(update.destination,stationLookup),reported=stationCoordinates(update.reportedStation,stationLookup);
-      const routeResult=origin&&destination?railPathViaAnchor(graph,origin,destination,reported):null;
+      const publicRoute=publicRouteMap.get(`${update.trainNumber}|${update.origin}|${update.destination}`);
+      const fallbackRoute=origin&&destination?railPathViaAnchor(graph,origin,destination,reported):null;
+      const routeResult=preferPhysicalRailRoute(publicRoute,fallbackRoute);
       const routeId=`${prefix}-${index}`;
       if(routeResult)features.push({
-        type:"Feature",properties:{id:routeId,quality:0.76,source:"rail-corridor-graph-v6",viaConfirmedStation:Boolean(routeResult.viaAnchor)},
+        type:"Feature",properties:{id:routeId,quality:publicRoute?.quality||0.76,source:publicRoute?.method||"schematic-rail-corridor-fallback",graphVersion:publicRoute?.versionId||null,viaConfirmedStation:Boolean(routeResult.viaAnchor),schematicFallback:!publicRoute},
         geometry:{type:"LineString",coordinates:routeResult.coordinates},
       });
       const regionAnchors=routeResult?.coordinates||(reported||origin||destination?[reported,origin,destination].filter(Boolean):[]);
@@ -484,7 +494,6 @@ export async function loadTransportData(now=new Date()){
     });
     return {objects:materialized,routes:{type:"FeatureCollection",features},routeMap:new Map(features.map(feature=>[feature.properties.id,feature]))};
   };
-  const fusedUpdates=fuseServiceUpdates(liveData?.updates||[],now);
   const currentMaterialized=materializeUpdates(fusedUpdates,now);
   const freightMaterialized=materializePublicFreight(freightData,(coordinates)=>regionsForPoints(coordinates,regions.features),now);
   const objects=[...currentMaterialized.objects,...freightMaterialized.objects];
@@ -500,7 +509,7 @@ export async function loadTransportData(now=new Date()){
     unknownRuns:objects.length-positioned,forecastCoverage,routeCoverage:dynamicFeatures.length,
     averageQuality:objects.length?Number((objects.reduce((sum,item)=>sum+item.quality,0)/objects.length).toFixed(2)):0,
     waypointCoverage:objects.filter((object)=>object.journey.nextWaypoint||object.journey.previousWaypoint).length,
-    noRouteRuns:objects.filter((object)=>!object.routeCoordinates.length).length,
+    noRouteRuns:objects.filter((object)=>!object.routeCoordinates.length).length,physicalRouteRuns:currentMaterialized.routes.features.filter((feature)=>!feature.properties.schematicFallback).length,schematicRouteRuns:currentMaterialized.routes.features.filter((feature)=>feature.properties.schematicFallback).length,railRouteVersion:publicRailRoutes.versionId||null,
     rawObservations:(liveData?.updates||[]).length,canonicalRuns:objects.length,
     observedRuns:objects.filter((object)=>object.liveUpdate?.hasOperationalObservation).length,
     plannedOnlyRuns:objects.filter((object)=>object.positionAdmission?.reasonCode==="planned_only").length,
