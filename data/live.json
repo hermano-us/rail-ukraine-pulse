@@ -1,12 +1,12 @@
 {
   "schemaVersion": 7,
   "provider": "Ukrzaliznytsia public source fusion",
-  "generatedAt": "2026-08-11T15:36:01.250Z",
+  "generatedAt": "2026-08-11T15:51:30.789Z",
   "sourceStatus": {
     "sourceId": "uz-public-fusion",
     "status": "online",
-    "label": "UZ fusion: 188 событий · 7/15 источников доступны",
-    "checkedAt": "2026-08-11T15:36:01.250Z",
+    "label": "UZ fusion: 186 событий · 7/15 источников доступны",
+    "checkedAt": "2026-08-11T15:51:30.789Z",
     "capabilities": {
       "officialStatus": true,
       "forecast": true,
@@ -19,7 +19,7 @@
     {
       "sourceId": "uz-delay-dashboard",
       "status": "online",
-      "checkedAt": "2026-08-11T15:35:44.307Z",
+      "checkedAt": "2026-08-11T15:51:17.514Z",
       "label": "Задержки УЗ: 37 поездов",
       "capabilities": [
         "movement-status",
@@ -33,7 +33,7 @@
         "configured": true,
         "usable": true,
         "records": 37,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.2,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -41,7 +41,7 @@
     {
       "sourceId": "uz-public-board",
       "status": "stale",
-      "checkedAt": "2026-08-11T15:35:47.111Z",
+      "checkedAt": "2026-08-11T15:51:20.132Z",
       "lastSuccessfulAt": "2026-08-11T02:51:23.455Z",
       "label": "Табло УЗ: последний успешный снимок",
       "error": "official board API returned no records; 1/36 station failures",
@@ -66,33 +66,15 @@
         "strategy": "information-gain-v3",
         "requestBudget": 1,
         "attempted": 1,
-        "offset": 23,
-        "nextOffset": 24,
-        "selectedStation": "Бердичів",
-        "selectedStationId": "2200120",
+        "offset": 24,
+        "nextOffset": 25,
+        "selectedStation": "Вінниця",
+        "selectedStationId": "2200200",
         "selectedReason": [
           "нет свежего снимка"
         ],
         "selectedScore": 19,
         "rankedStations": [
-          {
-            "id": "2200120",
-            "name": "Бердичів",
-            "score": 19,
-            "expectedTrains": 0,
-            "reasons": [
-              "нет свежего снимка"
-            ]
-          },
-          {
-            "id": "2200180",
-            "name": "Біла Церква",
-            "score": 19,
-            "expectedTrains": 0,
-            "reasons": [
-              "нет свежего снимка"
-            ]
-          },
           {
             "id": "2200200",
             "name": "Вінниця",
@@ -119,6 +101,24 @@
             "reasons": [
               "нет свежего снимка"
             ]
+          },
+          {
+            "id": "2210900",
+            "name": "Кривий Ріг-Гол",
+            "score": 19,
+            "expectedTrains": 0,
+            "reasons": [
+              "нет свежего снимка"
+            ]
+          },
+          {
+            "id": "2218060",
+            "name": "Луцьк",
+            "score": 19,
+            "expectedTrains": 0,
+            "reasons": [
+              "нет свежего снимка"
+            ]
           }
         ]
       },
@@ -137,7 +137,7 @@
     {
       "sourceId": "uz-suburban-telegram",
       "status": "online",
-      "checkedAt": "2026-08-11T15:35:44.309Z",
+      "checkedAt": "2026-08-11T15:51:17.516Z",
       "label": "УЗ Пригород: 20 событий",
       "capabilities": [
         "service-alerts",
@@ -151,7 +151,7 @@
         "configured": true,
         "usable": true,
         "records": 24,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.2,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -159,7 +159,7 @@
     {
       "sourceId": "pkp-plk-realtime",
       "status": "unavailable",
-      "checkedAt": "2026-08-11T15:35:46.040Z",
+      "checkedAt": "2026-08-11T15:51:19.577Z",
       "error": "HTTP 401",
       "label": "pkp-plk-realtime: unavailable",
       "recordsCount": 0,
@@ -169,7 +169,7 @@
         "configured": true,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.2,
         "expectedCadenceMinutes": 15,
         "transportFailure": true
       }
@@ -177,7 +177,7 @@
     {
       "sourceId": "zsr-realtime",
       "status": "requires_configuration",
-      "checkedAt": "2026-08-11T15:35:46.040Z",
+      "checkedAt": "2026-08-11T15:51:19.577Z",
       "error": null,
       "label": "zsr-realtime: requires_configuration",
       "recordsCount": 0,
@@ -187,7 +187,7 @@
         "configured": false,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.2,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -195,7 +195,7 @@
     {
       "sourceId": "mav-emma",
       "status": "requires_configuration",
-      "checkedAt": "2026-08-11T15:35:46.040Z",
+      "checkedAt": "2026-08-11T15:51:19.577Z",
       "error": null,
       "label": "mav-emma: requires_configuration",
       "recordsCount": 0,
@@ -205,7 +205,7 @@
         "configured": false,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.2,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -213,7 +213,7 @@
     {
       "sourceId": "rne-tis",
       "status": "requires_configuration",
-      "checkedAt": "2026-08-11T15:35:46.040Z",
+      "checkedAt": "2026-08-11T15:51:19.577Z",
       "error": null,
       "label": "rne-tis: requires_configuration",
       "recordsCount": 0,
@@ -223,7 +223,7 @@
         "configured": false,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.2,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -231,7 +231,7 @@
     {
       "sourceId": "contract-rail-feed",
       "status": "requires_configuration",
-      "checkedAt": "2026-08-11T15:35:46.040Z",
+      "checkedAt": "2026-08-11T15:51:19.577Z",
       "error": null,
       "label": "contract-rail-feed: requires_configuration",
       "recordsCount": 0,
@@ -241,7 +241,7 @@
         "configured": false,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.2,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -249,10 +249,10 @@
     {
       "sourceId": "anytrain-uz-public",
       "status": "degraded",
-      "checkedAt": "2026-08-11T15:35:44.313Z",
+      "checkedAt": "2026-08-11T15:51:17.523Z",
       "sourceUpdatedAt": null,
-      "lastSuccessfulAt": "2026-08-11T15:35:44.313Z",
-      "label": "AnyTrain: 37 задержек · 93 строк табло",
+      "lastSuccessfulAt": "2026-08-11T15:51:17.523Z",
+      "label": "AnyTrain: 37 задержек · 21 строк табло",
       "error": null,
       "capabilities": [
         "derived-uz-delay",
@@ -263,20 +263,20 @@
       "scheduler": {
         "strategy": "rotating-station-budget-v1",
         "selectedStations": [
-          "Київ-Пас.",
-          "Львів"
+          "Харків-Пас.",
+          "Одеса-Головна"
         ],
         "requestBudget": 3,
-        "nextOffset": 2
+        "nextOffset": 4
       },
-      "recordsCount": 176,
+      "recordsCount": 173,
       "reliabilityState": {
         "operationalState": "degraded",
         "rawStatus": "degraded",
         "configured": true,
         "usable": true,
-        "records": 176,
-        "ageMinutes": 0.3,
+        "records": 173,
+        "ageMinutes": 0.2,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -284,7 +284,7 @@
     {
       "sourceId": "swrailway-commuter-schedule",
       "status": "unavailable",
-      "checkedAt": "2026-08-11T15:35:44.314Z",
+      "checkedAt": "2026-08-11T15:51:17.525Z",
       "lastSuccessfulAt": "2026-08-01T09:48:12.216Z",
       "label": "ЮЗЖД: недоступно",
       "error": "fetch failed",
@@ -295,7 +295,7 @@
         "configured": true,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.2,
         "expectedCadenceMinutes": 15,
         "transportFailure": true
       }
@@ -303,7 +303,7 @@
     {
       "sourceId": "poizdato-station-reference",
       "status": "snapshot",
-      "checkedAt": "2026-08-11T15:35:44.315Z",
+      "checkedAt": "2026-08-11T15:51:17.526Z",
       "lastSuccessfulAt": "2026-08-11T11:20:39.501Z",
       "label": "Poizdato: кэш 47 станций",
       "error": null,
@@ -329,7 +329,7 @@
         "configured": true,
         "usable": true,
         "records": 47,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.2,
         "expectedCadenceMinutes": 1440,
         "transportFailure": false
       }
@@ -337,10 +337,10 @@
     {
       "sourceId": "poizdato-train-routes",
       "status": "degraded",
-      "checkedAt": "2026-08-11T15:35:54.542Z",
+      "checkedAt": "2026-08-11T15:51:27.625Z",
       "lastSuccessfulAt": "2026-08-11T15:35:54.542Z",
-      "label": "Poizdato routes: 11 шаблонов · 1 новых",
-      "error": "87/88: route page not found; 119/120: route page has no bounded station sequence; 63/64: route page not found; 6046: route page not found",
+      "label": "Poizdato routes: 11 шаблонов · 0 новых",
+      "error": "87/88: route search HTTP 500; 119/120: route search HTTP 500; 63/64: route search HTTP 500; 6046: route search HTTP 500; 15/16: route search HTTP 500",
       "capabilities": [
         "ordered-train-stops",
         "route-template"
@@ -348,24 +348,24 @@
       "scheduler": {
         "strategy": "moving-first-route-budget-v1",
         "requestBudget": 5,
-        "remaining": 178
+        "remaining": 175
       },
       "recordsCount": 0,
       "reliabilityState": {
-        "operationalState": "degraded",
+        "operationalState": "failing",
         "rawStatus": "degraded",
         "configured": true,
         "usable": false,
         "records": 0,
         "ageMinutes": 0.1,
         "expectedCadenceMinutes": 15,
-        "transportFailure": false
+        "transportFailure": true
       }
     },
     {
       "sourceId": "koleo-station-catalog",
       "status": "snapshot",
-      "checkedAt": "2026-08-11T15:35:44.316Z",
+      "checkedAt": "2026-08-11T15:51:17.526Z",
       "lastSuccessfulAt": "2026-08-08T10:13:57.799Z",
       "label": "KOLEO: кэш 10943 станций",
       "capabilities": [
@@ -381,7 +381,7 @@
         "configured": true,
         "usable": true,
         "records": 10943,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.2,
         "expectedCadenceMinutes": 1440,
         "transportFailure": false
       }
@@ -403,7 +403,7 @@
         "configured": true,
         "usable": true,
         "records": 0,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.2,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -428,13 +428,119 @@
         "configured": true,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.2,
         "expectedCadenceMinutes": 15,
         "transportFailure": true
       }
     }
   ],
   "updates": [
+    {
+      "trainNumber": "79/80",
+      "route": "Дніпро-Головний → Львів",
+      "origin": "Дніпро-Головний",
+      "destination": "Львів",
+      "delayMinutes": 319,
+      "delayLabel": "+5:19",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "18:54",
+      "forecastArrival": null,
+      "reliability": "Середня",
+      "reason": "Вплив бойових дій",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none",
+      "orderedStations": [
+        "Дніпро-Головний",
+        "Кам'янське-Пасажирське",
+        "Вільногірськ",
+        "П'ятихатки-Пас.",
+        "Олександрія",
+        "Знам'янка-Пас.",
+        "Ім. Тараса Шевченка",
+        "Видубичі-Трипільські",
+        "Київ-Пас.",
+        "Дубно",
+        "Броди",
+        "Підзамче",
+        "Львів"
+      ],
+      "routeTemplateSource": "https://poizdato.net/rozklad-poizda/79--dnipro-holovnyi--lviv/"
+    },
+    {
+      "trainNumber": "119/120",
+      "route": "Дніпро-Головний → Хелм",
+      "origin": "Дніпро-Головний",
+      "destination": "Хелм",
+      "delayMinutes": 258,
+      "delayLabel": "+4:18",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "22:10",
+      "forecastArrival": null,
+      "reliability": "Середня",
+      "reason": "Вплив бойових дій",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "775/776",
+      "route": "Суми → Київ-Пас.",
+      "origin": "Суми",
+      "destination": "Київ-Пас.",
+      "delayMinutes": 161,
+      "delayLabel": "+2:41",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": null,
+      "forecastArrival": null,
+      "reliability": "—",
+      "reason": "Вплив бойових дій",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none",
+      "orderedStations": [
+        "Суми",
+        "Білопілля",
+        "Ворожба-Пас.",
+        "Путивль",
+        "Конотоп",
+        "Бахмач-Пас.",
+        "Крути",
+        "Ніжин",
+        "Носівка",
+        "Дарниця",
+        "Київ-Пас."
+      ],
+      "routeTemplateSource": "https://poizdato.net/rozklad-poizda/775--sumy--kyiv-pas/"
+    },
+    {
+      "trainNumber": "63/64",
+      "route": "Харків-Пас. → Пшемисль Головний",
+      "origin": "Харків-Пас.",
+      "destination": "Пшемисль Головний",
+      "delayMinutes": 130,
+      "delayLabel": "+2:10",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "19:09",
+      "forecastArrival": null,
+      "reliability": "Середня",
+      "reason": "Вплив бойових дій",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
     {
       "trainNumber": "127/128",
       "route": "Львів → Дніпро-Головний",
@@ -448,7 +554,83 @@
       "forecastArrival": null,
       "reliability": "Середня",
       "reason": "З технічних причин",
-      "updatedAt": "2026-08-11T15:35:45.429Z",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "15/16",
+      "route": "Харків-Пас. → Івано-Франківськ",
+      "origin": "Харків-Пас.",
+      "destination": "Івано-Франківськ",
+      "delayMinutes": 117,
+      "delayLabel": "+1:57",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": null,
+      "forecastArrival": null,
+      "reliability": "Середня",
+      "reason": "Вплив бойових дій",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "9/10",
+      "route": "Київ-Пас. → Будапешт-Келеті",
+      "origin": "Київ-Пас.",
+      "destination": "Будапешт-Келеті",
+      "delayMinutes": 114,
+      "delayLabel": "+1:54",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "07:54",
+      "forecastArrival": null,
+      "reliability": "Середня",
+      "reason": "З технічних причин",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "143/144",
+      "route": "Суми → Рахів",
+      "origin": "Суми",
+      "destination": "Рахів",
+      "delayMinutes": 105,
+      "delayLabel": "+1:45",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "12:26",
+      "forecastArrival": null,
+      "reliability": "Середня",
+      "reason": "Вплив бойових дій",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "773/774",
+      "route": "Конотоп → Жмеринка",
+      "origin": "Конотоп",
+      "destination": "Жмеринка",
+      "delayMinutes": 98,
+      "delayLabel": "+1:38",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": null,
+      "forecastArrival": null,
+      "reliability": "—",
+      "reason": "Вплив бойових дій",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -467,7 +649,7 @@
       "forecastArrival": null,
       "reliability": "Середня",
       "reason": "Затримка на території Польщі",
-      "updatedAt": "2026-08-11T15:35:45.429Z",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -486,7 +668,7 @@
       "forecastArrival": null,
       "reliability": "—",
       "reason": "З технічних причин",
-      "updatedAt": "2026-08-11T15:35:45.429Z",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -505,7 +687,7 @@
       "forecastArrival": null,
       "reliability": "Середня",
       "reason": "Через спізнення обігового поїзда",
-      "updatedAt": "2026-08-11T15:35:45.429Z",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -524,7 +706,7 @@
       "forecastArrival": null,
       "reliability": "Середня",
       "reason": "З технічних причин",
-      "updatedAt": "2026-08-11T15:35:45.429Z",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -543,7 +725,7 @@
       "forecastArrival": null,
       "reliability": "Середня",
       "reason": "З технічних причин",
-      "updatedAt": "2026-08-11T15:35:45.429Z",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -562,7 +744,7 @@
       "forecastArrival": null,
       "reliability": "Середня",
       "reason": "З технічних причин",
-      "updatedAt": "2026-08-11T15:35:45.429Z",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -581,7 +763,7 @@
       "forecastArrival": null,
       "reliability": "Середня",
       "reason": "З технічних причин",
-      "updatedAt": "2026-08-11T15:35:45.429Z",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -600,7 +782,7 @@
       "forecastArrival": null,
       "reliability": "—",
       "reason": "З технічних причин",
-      "updatedAt": "2026-08-11T15:35:45.429Z",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -619,7 +801,7 @@
       "forecastArrival": null,
       "reliability": "Середня",
       "reason": "З технічних причин",
-      "updatedAt": "2026-08-11T15:35:45.429Z",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -638,7 +820,7 @@
       "forecastArrival": null,
       "reliability": "Середня",
       "reason": "Затримка на території Польщі",
-      "updatedAt": "2026-08-11T15:35:45.429Z",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -657,7 +839,7 @@
       "forecastArrival": null,
       "reliability": "—",
       "reason": "—",
-      "updatedAt": "2026-08-11T15:35:45.429Z",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -676,7 +858,7 @@
       "forecastArrival": null,
       "reliability": "—",
       "reason": "—",
-      "updatedAt": "2026-08-11T15:35:45.429Z",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -695,7 +877,7 @@
       "forecastArrival": null,
       "reliability": "—",
       "reason": "—",
-      "updatedAt": "2026-08-11T15:35:45.429Z",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -714,7 +896,7 @@
       "forecastArrival": null,
       "reliability": "—",
       "reason": "—",
-      "updatedAt": "2026-08-11T15:35:45.429Z",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -733,7 +915,7 @@
       "forecastArrival": null,
       "reliability": "—",
       "reason": "—",
-      "updatedAt": "2026-08-11T15:35:45.429Z",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -752,7 +934,7 @@
       "forecastArrival": null,
       "reliability": "—",
       "reason": "—",
-      "updatedAt": "2026-08-11T15:35:45.429Z",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -771,7 +953,7 @@
       "forecastArrival": null,
       "reliability": "—",
       "reason": "—",
-      "updatedAt": "2026-08-11T15:35:45.429Z",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -790,7 +972,7 @@
       "forecastArrival": null,
       "reliability": "—",
       "reason": "—",
-      "updatedAt": "2026-08-11T15:35:45.429Z",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -809,7 +991,7 @@
       "forecastArrival": null,
       "reliability": "—",
       "reason": "—",
-      "updatedAt": "2026-08-11T15:35:45.429Z",
+      "updatedAt": "2026-08-11T15:51:18.510Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -828,7 +1010,7 @@
       "forecastArrival": null,
       "reliability": "Середня",
       "reason": "Вплив бойових дій",
-      "updatedAt": "2026-08-11T15:35:45.428Z",
+      "updatedAt": "2026-08-11T15:51:18.509Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -864,61 +1046,7 @@
       "forecastArrival": null,
       "reliability": "Середня",
       "reason": "Вплив бойових дій",
-      "updatedAt": "2026-08-11T15:35:45.428Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "79/80",
-      "route": "Дніпро-Головний → Львів",
-      "origin": "Дніпро-Головний",
-      "destination": "Львів",
-      "delayMinutes": 319,
-      "delayLabel": "+5:19",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": "18:54",
-      "forecastArrival": null,
-      "reliability": "Середня",
-      "reason": "Вплив бойових дій",
-      "updatedAt": "2026-08-11T15:35:45.428Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none",
-      "orderedStations": [
-        "Дніпро-Головний",
-        "Кам'янське-Пасажирське",
-        "Вільногірськ",
-        "П'ятихатки-Пас.",
-        "Олександрія",
-        "Знам'янка-Пас.",
-        "Ім. Тараса Шевченка",
-        "Видубичі-Трипільські",
-        "Київ-Пас.",
-        "Дубно",
-        "Броди",
-        "Підзамче",
-        "Львів"
-      ],
-      "routeTemplateSource": "https://poizdato.net/rozklad-poizda/79--dnipro-holovnyi--lviv/"
-    },
-    {
-      "trainNumber": "119/120",
-      "route": "Дніпро-Головний → Хелм",
-      "origin": "Дніпро-Головний",
-      "destination": "Хелм",
-      "delayMinutes": 258,
-      "delayLabel": "+4:18",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": "22:10",
-      "forecastArrival": null,
-      "reliability": "Середня",
-      "reason": "Вплив бойових дій",
-      "updatedAt": "2026-08-11T15:35:45.428Z",
+      "updatedAt": "2026-08-11T15:51:18.509Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -937,59 +1065,7 @@
       "forecastArrival": null,
       "reliability": "—",
       "reason": "Вплив бойових дій",
-      "updatedAt": "2026-08-11T15:35:45.428Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "775/776",
-      "route": "Суми → Київ-Пас.",
-      "origin": "Суми",
-      "destination": "Київ-Пас.",
-      "delayMinutes": 161,
-      "delayLabel": "+2:41",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": null,
-      "forecastArrival": null,
-      "reliability": "—",
-      "reason": "Вплив бойових дій",
-      "updatedAt": "2026-08-11T15:35:45.428Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none",
-      "orderedStations": [
-        "Суми",
-        "Білопілля",
-        "Ворожба-Пас.",
-        "Путивль",
-        "Конотоп",
-        "Бахмач-Пас.",
-        "Крути",
-        "Ніжин",
-        "Носівка",
-        "Дарниця",
-        "Київ-Пас."
-      ],
-      "routeTemplateSource": "https://poizdato.net/rozklad-poizda/775--sumy--kyiv-pas/"
-    },
-    {
-      "trainNumber": "63/64",
-      "route": "Харків-Пас. → Пшемисль Головний",
-      "origin": "Харків-Пас.",
-      "destination": "Пшемисль Головний",
-      "delayMinutes": 130,
-      "delayLabel": "+2:10",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": "19:09",
-      "forecastArrival": null,
-      "reliability": "Середня",
-      "reason": "Вплив бойових дій",
-      "updatedAt": "2026-08-11T15:35:45.428Z",
+      "updatedAt": "2026-08-11T15:51:18.509Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -1008,7 +1084,7 @@
       "forecastArrival": null,
       "reliability": "—",
       "reason": "Вплив бойових дій",
-      "updatedAt": "2026-08-11T15:35:45.428Z",
+      "updatedAt": "2026-08-11T15:51:18.509Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -1027,83 +1103,7 @@
       "forecastArrival": null,
       "reliability": "—",
       "reason": "Вплив бойових дій",
-      "updatedAt": "2026-08-11T15:35:45.428Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "15/16",
-      "route": "Харків-Пас. → Івано-Франківськ",
-      "origin": "Харків-Пас.",
-      "destination": "Івано-Франківськ",
-      "delayMinutes": 117,
-      "delayLabel": "+1:57",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": null,
-      "forecastArrival": null,
-      "reliability": "Середня",
-      "reason": "Вплив бойових дій",
-      "updatedAt": "2026-08-11T15:35:45.428Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "9/10",
-      "route": "Київ-Пас. → Будапешт-Келеті",
-      "origin": "Київ-Пас.",
-      "destination": "Будапешт-Келеті",
-      "delayMinutes": 114,
-      "delayLabel": "+1:54",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": "07:54",
-      "forecastArrival": null,
-      "reliability": "Середня",
-      "reason": "З технічних причин",
-      "updatedAt": "2026-08-11T15:35:45.428Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "143/144",
-      "route": "Суми → Рахів",
-      "origin": "Суми",
-      "destination": "Рахів",
-      "delayMinutes": 105,
-      "delayLabel": "+1:45",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": "12:26",
-      "forecastArrival": null,
-      "reliability": "Середня",
-      "reason": "Вплив бойових дій",
-      "updatedAt": "2026-08-11T15:35:45.428Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "773/774",
-      "route": "Конотоп → Жмеринка",
-      "origin": "Конотоп",
-      "destination": "Жмеринка",
-      "delayMinutes": 98,
-      "delayLabel": "+1:38",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": null,
-      "forecastArrival": null,
-      "reliability": "—",
-      "reason": "Вплив бойових дій",
-      "updatedAt": "2026-08-11T15:35:45.428Z",
+      "updatedAt": "2026-08-11T15:51:18.509Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -1122,7 +1122,7 @@
       "forecastArrival": null,
       "reliability": "—",
       "reason": "Вплив бойових дій",
-      "updatedAt": "2026-08-11T15:35:45.428Z",
+      "updatedAt": "2026-08-11T15:51:18.509Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -1141,11 +1141,536 @@
       "forecastArrival": null,
       "reliability": "—",
       "reason": "Вплив бойових дій",
-      "updatedAt": "2026-08-11T15:35:45.428Z",
+      "updatedAt": "2026-08-11T15:51:18.509Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
       "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "007",
+      "route": "ХАРКІВ-ПАС → ОДЕСА-ГОЛОВНА",
+      "origin": "ХАРКІВ-ПАС",
+      "destination": "ОДЕСА-ГОЛОВНА",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Харків-Пас.: відправлення 19:48",
+      "operationalStatus": "planned",
+      "forecastDeparture": "19:48",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:45:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "schedule-only",
+      "reportedStation": null,
+      "boardStation": "Харків-Пас.",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T16:48:00.000Z",
+      "stationWindowPhase": "schedule",
+      "stationWindowOffsetMinutes": -63
+    },
+    {
+      "trainNumber": "021",
+      "route": "ХАРКІВ-ПАС → ЛЬВІВ",
+      "origin": "ХАРКІВ-ПАС",
+      "destination": "ЛЬВІВ",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Харків-Пас.: відправлення 21:17",
+      "operationalStatus": "planned",
+      "forecastDeparture": "21:17",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:45:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "schedule-only",
+      "reportedStation": null,
+      "boardStation": "Харків-Пас.",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T18:17:00.000Z",
+      "stationWindowPhase": "schedule",
+      "stationWindowOffsetMinutes": -152
+    },
+    {
+      "trainNumber": "063",
+      "route": "ХАРКІВ-ПАС → ПШЕМИСЛЬ",
+      "origin": "ХАРКІВ-ПАС",
+      "destination": "ПШЕМИСЛЬ",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Харків-Пас.: відправлення 22:42",
+      "operationalStatus": "planned",
+      "forecastDeparture": "22:42",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:45:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "schedule-only",
+      "reportedStation": null,
+      "boardStation": "Харків-Пас.",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T19:42:00.000Z",
+      "stationWindowPhase": "schedule",
+      "stationWindowOffsetMinutes": -237
+    },
+    {
+      "trainNumber": "463",
+      "route": "ХАРКІВ-ПАС → ПШЕМИСЛЬ",
+      "origin": "ХАРКІВ-ПАС",
+      "destination": "ПШЕМИСЛЬ",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Харків-Пас.: відправлення 22:42",
+      "operationalStatus": "planned",
+      "forecastDeparture": "22:42",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:45:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "schedule-only",
+      "reportedStation": null,
+      "boardStation": "Харків-Пас.",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T19:42:00.000Z",
+      "stationWindowPhase": "schedule",
+      "stationWindowOffsetMinutes": -237
+    },
+    {
+      "trainNumber": "113",
+      "route": "ХАРКІВ-ПАС → УЖГОРОД",
+      "origin": "ХАРКІВ-ПАС",
+      "destination": "УЖГОРОД",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Харків-Пас.: відправлення 23:45",
+      "operationalStatus": "planned",
+      "forecastDeparture": "23:45",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:45:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "schedule-only",
+      "reportedStation": null,
+      "boardStation": "Харків-Пас.",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T20:45:00.000Z",
+      "stationWindowPhase": "schedule",
+      "stationWindowOffsetMinutes": -300
+    },
+    {
+      "trainNumber": "338",
+      "route": "ОДЕСА-ГОЛОВНА → КИШИНЕВ",
+      "origin": "ОДЕСА-ГОЛОВНА",
+      "destination": "КИШИНЕВ",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 17:23",
+      "operationalStatus": "station",
+      "forecastDeparture": "17:23",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:45:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "station-board-window",
+      "reportedStation": "Одеса-Головна",
+      "boardStation": "Одеса-Головна",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T14:23:00.000Z",
+      "stationWindowPhase": "recent-window",
+      "stationWindowOffsetMinutes": 82
+    },
+    {
+      "trainNumber": "038",
+      "route": "ОДЕСА-ГОЛОВНА → УЖГОРОД",
+      "origin": "ОДЕСА-ГОЛОВНА",
+      "destination": "УЖГОРОД",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 18:11",
+      "operationalStatus": "station",
+      "forecastDeparture": "18:11",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:45:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "station-board-window",
+      "reportedStation": "Одеса-Головна",
+      "boardStation": "Одеса-Головна",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T15:11:00.000Z",
+      "stationWindowPhase": "station-window",
+      "stationWindowOffsetMinutes": 34
+    },
+    {
+      "trainNumber": "136",
+      "route": "ОДЕСА-ГОЛОВНА → ЧЕРНІВЦІ",
+      "origin": "ОДЕСА-ГОЛОВНА",
+      "destination": "ЧЕРНІВЦІ",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 19:26",
+      "operationalStatus": "station",
+      "forecastDeparture": "19:26",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:45:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "station-board-window",
+      "reportedStation": "Одеса-Головна",
+      "boardStation": "Одеса-Головна",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T16:26:00.000Z",
+      "stationWindowPhase": "approaching-window",
+      "stationWindowOffsetMinutes": -41
+    },
+    {
+      "trainNumber": "026",
+      "route": "ОДЕСА-ГОЛОВНА → ЯСИНЯ",
+      "origin": "ОДЕСА-ГОЛОВНА",
+      "destination": "ЯСИНЯ",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 19:26",
+      "operationalStatus": "station",
+      "forecastDeparture": "19:26",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:45:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "station-board-window",
+      "reportedStation": "Одеса-Головна",
+      "boardStation": "Одеса-Головна",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T16:26:00.000Z",
+      "stationWindowPhase": "approaching-window",
+      "stationWindowOffsetMinutes": -41
+    },
+    {
+      "trainNumber": "148",
+      "route": "ОДЕСА-ГОЛОВНА → ЖИТОМИР",
+      "origin": "ОДЕСА-ГОЛОВНА",
+      "destination": "ЖИТОМИР",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 19:55",
+      "operationalStatus": "planned",
+      "forecastDeparture": "19:55",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:45:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "schedule-only",
+      "reportedStation": null,
+      "boardStation": "Одеса-Головна",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T16:55:00.000Z",
+      "stationWindowPhase": "schedule",
+      "stationWindowOffsetMinutes": -70
+    },
+    {
+      "trainNumber": "078",
+      "route": "ОДЕСА-ГОЛОВНА → КОВЕЛЬ",
+      "origin": "ОДЕСА-ГОЛОВНА",
+      "destination": "КОВЕЛЬ",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 20:04",
+      "operationalStatus": "planned",
+      "forecastDeparture": "20:04",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:45:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "schedule-only",
+      "reportedStation": null,
+      "boardStation": "Одеса-Головна",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T17:04:00.000Z",
+      "stationWindowPhase": "schedule",
+      "stationWindowOffsetMinutes": -79
+    },
+    {
+      "trainNumber": "036",
+      "route": "ОДЕСА-ГОЛОВНА → ПШЕМИСЛЬ",
+      "origin": "ОДЕСА-ГОЛОВНА",
+      "destination": "ПШЕМИСЛЬ",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 21:15",
+      "operationalStatus": "planned",
+      "forecastDeparture": "21:15",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:45:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "schedule-only",
+      "reportedStation": null,
+      "boardStation": "Одеса-Головна",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T18:15:00.000Z",
+      "stationWindowPhase": "schedule",
+      "stationWindowOffsetMinutes": -150
+    },
+    {
+      "trainNumber": "012",
+      "route": "ОДЕСА-ГОЛОВНА → ЛЬВІВ",
+      "origin": "ОДЕСА-ГОЛОВНА",
+      "destination": "ЛЬВІВ",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 21:15",
+      "operationalStatus": "planned",
+      "forecastDeparture": "21:15",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:45:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "schedule-only",
+      "reportedStation": null,
+      "boardStation": "Одеса-Головна",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T18:15:00.000Z",
+      "stationWindowPhase": "schedule",
+      "stationWindowOffsetMinutes": -150
+    },
+    {
+      "trainNumber": "436",
+      "route": "ОДЕСА-ГОЛОВНА → ПШЕМИСЛЬ",
+      "origin": "ОДЕСА-ГОЛОВНА",
+      "destination": "ПШЕМИСЛЬ",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 21:15",
+      "operationalStatus": "planned",
+      "forecastDeparture": "21:15",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:45:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "schedule-only",
+      "reportedStation": null,
+      "boardStation": "Одеса-Головна",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T18:15:00.000Z",
+      "stationWindowPhase": "schedule",
+      "stationWindowOffsetMinutes": -150
+    },
+    {
+      "trainNumber": "054",
+      "route": "ОДЕСА-ГОЛОВНА → ДНІПРО-ГОЛОВНИЙ",
+      "origin": "ОДЕСА-ГОЛОВНА",
+      "destination": "ДНІПРО-ГОЛОВНИЙ",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 21:49",
+      "operationalStatus": "planned",
+      "forecastDeparture": "21:49",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:45:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "schedule-only",
+      "reportedStation": null,
+      "boardStation": "Одеса-Головна",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T18:49:00.000Z",
+      "stationWindowPhase": "schedule",
+      "stationWindowOffsetMinutes": -184
+    },
+    {
+      "trainNumber": "766",
+      "route": "ОДЕСА-ГОЛОВНА → КИЇВ-ПАСАЖИРСЬКИЙ",
+      "origin": "ОДЕСА-ГОЛОВНА",
+      "destination": "КИЇВ-ПАСАЖИРСЬКИЙ",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 22:00",
+      "operationalStatus": "planned",
+      "forecastDeparture": "22:00",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:45:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "schedule-only",
+      "reportedStation": null,
+      "boardStation": "Одеса-Головна",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T19:00:00.000Z",
+      "stationWindowPhase": "schedule",
+      "stationWindowOffsetMinutes": -195
+    },
+    {
+      "trainNumber": "106",
+      "route": "ОДЕСА-ГОЛОВНА → КИЇВ-ПАСАЖИРСЬКИЙ",
+      "origin": "ОДЕСА-ГОЛОВНА",
+      "destination": "КИЇВ-ПАСАЖИРСЬКИЙ",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 22:08",
+      "operationalStatus": "planned",
+      "forecastDeparture": "22:08",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:45:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "schedule-only",
+      "reportedStation": null,
+      "boardStation": "Одеса-Головна",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T19:08:00.000Z",
+      "stationWindowPhase": "schedule",
+      "stationWindowOffsetMinutes": -203
+    },
+    {
+      "trainNumber": "008",
+      "route": "ОДЕСА-ГОЛОВНА → ХАРКІВ-ПАС",
+      "origin": "ОДЕСА-ГОЛОВНА",
+      "destination": "ХАРКІВ-ПАС",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 22:30",
+      "operationalStatus": "planned",
+      "forecastDeparture": "22:30",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:45:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "schedule-only",
+      "reportedStation": null,
+      "boardStation": "Одеса-Головна",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T19:30:00.000Z",
+      "stationWindowPhase": "schedule",
+      "stationWindowOffsetMinutes": -225
+    },
+    {
+      "trainNumber": "764",
+      "route": "ОДЕСА-ГОЛОВНА → КИЇВ-ПАСАЖИРСЬКИЙ",
+      "origin": "ОДЕСА-ГОЛОВНА",
+      "destination": "КИЇВ-ПАСАЖИРСЬКИЙ",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 23:30",
+      "operationalStatus": "planned",
+      "forecastDeparture": "23:30",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:45:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "schedule-only",
+      "reportedStation": null,
+      "boardStation": "Одеса-Головна",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T20:30:00.000Z",
+      "stationWindowPhase": "schedule",
+      "stationWindowOffsetMinutes": -285
+    },
+    {
+      "trainNumber": "493",
+      "route": "ХАРКІВ-ПАС → ХЕЛМ",
+      "origin": "ХАРКІВ-ПАС",
+      "destination": "ХЕЛМ",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Київ-Пас.: відправлення 23:59",
+      "operationalStatus": "planned",
+      "forecastDeparture": "23:59",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:30:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "schedule-only",
+      "reportedStation": null,
+      "boardStation": "Київ-Пас.",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T20:59:00.000Z",
+      "stationWindowPhase": "schedule",
+      "stationWindowOffsetMinutes": -329
+    },
+    {
+      "trainNumber": "093",
+      "route": "ХАРКІВ-ПАС → ХЕЛМ",
+      "origin": "ХАРКІВ-ПАС",
+      "destination": "ХЕЛМ",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Київ-Пас.: відправлення 23:59",
+      "operationalStatus": "planned",
+      "forecastDeparture": "23:59",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:30:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "schedule-only",
+      "reportedStation": null,
+      "boardStation": "Київ-Пас.",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T20:59:00.000Z",
+      "stationWindowPhase": "schedule",
+      "stationWindowOffsetMinutes": -329
     },
     {
       "trainNumber": "107",
@@ -2021,6 +2546,31 @@
       "scheduledStationAt": "2026-08-11T18:55:00.000Z",
       "stationWindowPhase": "schedule",
       "stationWindowOffsetMinutes": -205
+    },
+    {
+      "trainNumber": "015",
+      "route": "ХАРКІВ-ПАС → ІВАНО-ФРАНКІВСЬК",
+      "origin": "ХАРКІВ-ПАС",
+      "destination": "ІВАНО-ФРАНКІВСЬК",
+      "delayMinutes": null,
+      "delayLabel": "",
+      "publicStatus": "Табло AnyTrain Київ-Пас.: відправлення 21:56",
+      "operationalStatus": "planned",
+      "forecastDeparture": "21:56",
+      "forecastArrival": null,
+      "reliability": "Похідне табло УЗ",
+      "reason": null,
+      "updatedAt": "2026-08-11T15:30:00.000Z",
+      "source": "https://anytrain.com.ua/tablo-vokzalu",
+      "sourceId": "anytrain-uz-station-board",
+      "sourceEvidence": "uz-derived-licensed-agent-station-board",
+      "positionEvidence": "schedule-only",
+      "reportedStation": null,
+      "boardStation": "Київ-Пас.",
+      "boardType": "departure",
+      "scheduledStationAt": "2026-08-11T18:56:00.000Z",
+      "stationWindowPhase": "schedule",
+      "stationWindowOffsetMinutes": -206
     },
     {
       "trainNumber": "038",
@@ -3858,606 +4408,6 @@
       "stationWindowOffsetMinutes": -164
     },
     {
-      "trainNumber": "015",
-      "route": "ХАРКІВ-ПАС → ІВАНО-ФРАНКІВСЬК",
-      "origin": "ХАРКІВ-ПАС",
-      "destination": "ІВАНО-ФРАНКІВСЬК",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Харків-Пас.: відправлення 14:11",
-      "operationalStatus": "planned",
-      "forecastDeparture": "14:11",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Харків-Пас.",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T11:11:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": 139
-    },
-    {
-      "trainNumber": "093",
-      "route": "ХАРКІВ-ПАС → ХЕЛМ",
-      "origin": "ХАРКІВ-ПАС",
-      "destination": "ХЕЛМ",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Харків-Пас.: відправлення 16:50",
-      "operationalStatus": "station",
-      "forecastDeparture": "16:50",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "station-board-window",
-      "reportedStation": "Харків-Пас.",
-      "boardStation": "Харків-Пас.",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T13:50:00.000Z",
-      "stationWindowPhase": "approaching-window",
-      "stationWindowOffsetMinutes": -20
-    },
-    {
-      "trainNumber": "493",
-      "route": "ХАРКІВ-ПАС → ХЕЛМ",
-      "origin": "ХАРКІВ-ПАС",
-      "destination": "ХЕЛМ",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Харків-Пас.: відправлення 16:50",
-      "operationalStatus": "station",
-      "forecastDeparture": "16:50",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "station-board-window",
-      "reportedStation": "Харків-Пас.",
-      "boardStation": "Харків-Пас.",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T13:50:00.000Z",
-      "stationWindowPhase": "approaching-window",
-      "stationWindowOffsetMinutes": -20
-    },
-    {
-      "trainNumber": "723",
-      "route": "ХАРКІВ-ПАС → КИЇВ-ПАСАЖИРСЬКИЙ",
-      "origin": "ХАРКІВ-ПАС",
-      "destination": "КИЇВ-ПАСАЖИРСЬКИЙ",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Харків-Пас.: відправлення 14:28",
-      "operationalStatus": "planned",
-      "forecastDeparture": "14:28",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Харків-Пас.",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T11:28:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": 122
-    },
-    {
-      "trainNumber": "853",
-      "route": "ХАРКІВ-ПАС → ДНІПРО-ГОЛОВНИЙ",
-      "origin": "ХАРКІВ-ПАС",
-      "destination": "ДНІПРО-ГОЛОВНИЙ",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Харків-Пас.: відправлення 15:30",
-      "operationalStatus": "station",
-      "forecastDeparture": "15:30",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "station-board-window",
-      "reportedStation": "Харків-Пас.",
-      "boardStation": "Харків-Пас.",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T12:30:00.000Z",
-      "stationWindowPhase": "recent-window",
-      "stationWindowOffsetMinutes": 60
-    },
-    {
-      "trainNumber": "007",
-      "route": "ХАРКІВ-ПАС → ОДЕСА-ГОЛОВНА",
-      "origin": "ХАРКІВ-ПАС",
-      "destination": "ОДЕСА-ГОЛОВНА",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Харків-Пас.: відправлення 19:48",
-      "operationalStatus": "planned",
-      "forecastDeparture": "19:48",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Харків-Пас.",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T16:48:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": -198
-    },
-    {
-      "trainNumber": "021",
-      "route": "ХАРКІВ-ПАС → ЛЬВІВ",
-      "origin": "ХАРКІВ-ПАС",
-      "destination": "ЛЬВІВ",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Харків-Пас.: відправлення 21:17",
-      "operationalStatus": "planned",
-      "forecastDeparture": "21:17",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Харків-Пас.",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T18:17:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": -287
-    },
-    {
-      "trainNumber": "063",
-      "route": "ХАРКІВ-ПАС → ПШЕМИСЛЬ",
-      "origin": "ХАРКІВ-ПАС",
-      "destination": "ПШЕМИСЛЬ",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Харків-Пас.: відправлення 22:42",
-      "operationalStatus": "planned",
-      "forecastDeparture": "22:42",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Харків-Пас.",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T19:42:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": -372
-    },
-    {
-      "trainNumber": "463",
-      "route": "ХАРКІВ-ПАС → ПШЕМИСЛЬ",
-      "origin": "ХАРКІВ-ПАС",
-      "destination": "ПШЕМИСЛЬ",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Харків-Пас.: відправлення 22:42",
-      "operationalStatus": "planned",
-      "forecastDeparture": "22:42",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Харків-Пас.",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T19:42:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": -372
-    },
-    {
-      "trainNumber": "113",
-      "route": "ХАРКІВ-ПАС → УЖГОРОД",
-      "origin": "ХАРКІВ-ПАС",
-      "destination": "УЖГОРОД",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Харків-Пас.: відправлення 23:45",
-      "operationalStatus": "planned",
-      "forecastDeparture": "23:45",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Харків-Пас.",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T20:45:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": -435
-    },
-    {
-      "trainNumber": "338",
-      "route": "ОДЕСА-ГОЛОВНА → КИШИНЕВ",
-      "origin": "ОДЕСА-ГОЛОВНА",
-      "destination": "КИШИНЕВ",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 17:23",
-      "operationalStatus": "planned",
-      "forecastDeparture": "17:23",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Одеса-Головна",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T14:23:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": -53
-    },
-    {
-      "trainNumber": "038",
-      "route": "ОДЕСА-ГОЛОВНА → УЖГОРОД",
-      "origin": "ОДЕСА-ГОЛОВНА",
-      "destination": "УЖГОРОД",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 18:11",
-      "operationalStatus": "planned",
-      "forecastDeparture": "18:11",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Одеса-Головна",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T15:11:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": -101
-    },
-    {
-      "trainNumber": "136",
-      "route": "ОДЕСА-ГОЛОВНА → ЧЕРНІВЦІ",
-      "origin": "ОДЕСА-ГОЛОВНА",
-      "destination": "ЧЕРНІВЦІ",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 19:26",
-      "operationalStatus": "planned",
-      "forecastDeparture": "19:26",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Одеса-Головна",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T16:26:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": -176
-    },
-    {
-      "trainNumber": "026",
-      "route": "ОДЕСА-ГОЛОВНА → ЯСИНЯ",
-      "origin": "ОДЕСА-ГОЛОВНА",
-      "destination": "ЯСИНЯ",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 19:26",
-      "operationalStatus": "planned",
-      "forecastDeparture": "19:26",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Одеса-Головна",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T16:26:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": -176
-    },
-    {
-      "trainNumber": "148",
-      "route": "ОДЕСА-ГОЛОВНА → ЖИТОМИР",
-      "origin": "ОДЕСА-ГОЛОВНА",
-      "destination": "ЖИТОМИР",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 19:55",
-      "operationalStatus": "planned",
-      "forecastDeparture": "19:55",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Одеса-Головна",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T16:55:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": -205
-    },
-    {
-      "trainNumber": "078",
-      "route": "ОДЕСА-ГОЛОВНА → КОВЕЛЬ",
-      "origin": "ОДЕСА-ГОЛОВНА",
-      "destination": "КОВЕЛЬ",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 20:04",
-      "operationalStatus": "planned",
-      "forecastDeparture": "20:04",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Одеса-Головна",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T17:04:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": -214
-    },
-    {
-      "trainNumber": "036",
-      "route": "ОДЕСА-ГОЛОВНА → ПШЕМИСЛЬ",
-      "origin": "ОДЕСА-ГОЛОВНА",
-      "destination": "ПШЕМИСЛЬ",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 21:15",
-      "operationalStatus": "planned",
-      "forecastDeparture": "21:15",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Одеса-Головна",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T18:15:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": -285
-    },
-    {
-      "trainNumber": "012",
-      "route": "ОДЕСА-ГОЛОВНА → ЛЬВІВ",
-      "origin": "ОДЕСА-ГОЛОВНА",
-      "destination": "ЛЬВІВ",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 21:15",
-      "operationalStatus": "planned",
-      "forecastDeparture": "21:15",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Одеса-Головна",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T18:15:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": -285
-    },
-    {
-      "trainNumber": "436",
-      "route": "ОДЕСА-ГОЛОВНА → ПШЕМИСЛЬ",
-      "origin": "ОДЕСА-ГОЛОВНА",
-      "destination": "ПШЕМИСЛЬ",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 21:15",
-      "operationalStatus": "planned",
-      "forecastDeparture": "21:15",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Одеса-Головна",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T18:15:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": -285
-    },
-    {
-      "trainNumber": "054",
-      "route": "ОДЕСА-ГОЛОВНА → ДНІПРО-ГОЛОВНИЙ",
-      "origin": "ОДЕСА-ГОЛОВНА",
-      "destination": "ДНІПРО-ГОЛОВНИЙ",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 21:49",
-      "operationalStatus": "planned",
-      "forecastDeparture": "21:49",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Одеса-Головна",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T18:49:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": -319
-    },
-    {
-      "trainNumber": "766",
-      "route": "ОДЕСА-ГОЛОВНА → КИЇВ-ПАСАЖИРСЬКИЙ",
-      "origin": "ОДЕСА-ГОЛОВНА",
-      "destination": "КИЇВ-ПАСАЖИРСЬКИЙ",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 22:00",
-      "operationalStatus": "planned",
-      "forecastDeparture": "22:00",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Одеса-Головна",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T19:00:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": -330
-    },
-    {
-      "trainNumber": "106",
-      "route": "ОДЕСА-ГОЛОВНА → КИЇВ-ПАСАЖИРСЬКИЙ",
-      "origin": "ОДЕСА-ГОЛОВНА",
-      "destination": "КИЇВ-ПАСАЖИРСЬКИЙ",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 22:08",
-      "operationalStatus": "planned",
-      "forecastDeparture": "22:08",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Одеса-Головна",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T19:08:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": -338
-    },
-    {
-      "trainNumber": "008",
-      "route": "ОДЕСА-ГОЛОВНА → ХАРКІВ-ПАС",
-      "origin": "ОДЕСА-ГОЛОВНА",
-      "destination": "ХАРКІВ-ПАС",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 22:30",
-      "operationalStatus": "planned",
-      "forecastDeparture": "22:30",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Одеса-Головна",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T19:30:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": -360
-    },
-    {
-      "trainNumber": "764",
-      "route": "ОДЕСА-ГОЛОВНА → КИЇВ-ПАСАЖИРСЬКИЙ",
-      "origin": "ОДЕСА-ГОЛОВНА",
-      "destination": "КИЇВ-ПАСАЖИРСЬКИЙ",
-      "delayMinutes": null,
-      "delayLabel": "",
-      "publicStatus": "Табло AnyTrain Одеса-Головна: відправлення 23:30",
-      "operationalStatus": "planned",
-      "forecastDeparture": "23:30",
-      "forecastArrival": null,
-      "reliability": "Похідне табло УЗ",
-      "reason": null,
-      "updatedAt": "2026-08-11T13:30:00.000Z",
-      "source": "https://anytrain.com.ua/tablo-vokzalu",
-      "sourceId": "anytrain-uz-station-board",
-      "sourceEvidence": "uz-derived-licensed-agent-station-board",
-      "positionEvidence": "schedule-only",
-      "reportedStation": null,
-      "boardStation": "Одеса-Головна",
-      "boardType": "departure",
-      "scheduledStationAt": "2026-08-11T20:30:00.000Z",
-      "stationWindowPhase": "schedule",
-      "stationWindowOffsetMinutes": -420
-    },
-    {
       "trainNumber": "6255",
       "origin": "Козятин-1",
       "destination": "Шепетівка",
@@ -5085,6 +5035,39 @@
       }
     },
     {
+      "expectedId": "expected:uz:2026-08-11:007:харків-пас-одеса-головна",
+      "runId": "uz:2026-08-11:007:харків-пас-одеса-головна",
+      "serviceDate": "2026-08-11",
+      "trainNumber": "007",
+      "origin": "ХАРКІВ-ПАС",
+      "destination": "ОДЕСА-ГОЛОВНА",
+      "route": "ХАРКІВ-ПАС → ОДЕСА-ГОЛОВНА",
+      "scheduledDeparture": "2026-08-11T16:48:00.000Z",
+      "scheduledArrival": null,
+      "sourceIds": [
+        "anytrain-uz-station-board"
+      ],
+      "discoveryCount": 2,
+      "metadata": {
+        "stations": [
+          "ХАРКІВ-ПАС",
+          "ОДЕСА-ГОЛОВНА"
+        ],
+        "orderedStations": [],
+        "stationCalls": [
+          {
+            "key": "харків-пас:departure:2026-08-11T16:48:00.000Z",
+            "station": "Харків-Пас.",
+            "boardType": "departure",
+            "scheduledAt": "2026-08-11T16:48:00.000Z",
+            "platform": null,
+            "observedAt": "2026-08-11T15:45:00.000Z"
+          }
+        ],
+        "boardObservationCount": 1
+      }
+    },
+    {
       "expectedId": "expected:uz:2026-08-11:007:київ-пасажирський-чернівці",
       "runId": "uz:2026-08-11:007:київ-пасажирський-чернівці",
       "serviceDate": "2026-08-11",
@@ -5119,39 +5102,6 @@
       }
     },
     {
-      "expectedId": "expected:uz:2026-08-11:007:харків-пас-одеса-головна",
-      "runId": "uz:2026-08-11:007:харків-пас-одеса-головна",
-      "serviceDate": "2026-08-11",
-      "trainNumber": "007",
-      "origin": "ХАРКІВ-ПАС",
-      "destination": "ОДЕСА-ГОЛОВНА",
-      "route": "ХАРКІВ-ПАС → ОДЕСА-ГОЛОВНА",
-      "scheduledDeparture": "2026-08-11T16:48:00.000Z",
-      "scheduledArrival": null,
-      "sourceIds": [
-        "anytrain-uz-station-board"
-      ],
-      "discoveryCount": 2,
-      "metadata": {
-        "stations": [
-          "ХАРКІВ-ПАС",
-          "ОДЕСА-ГОЛОВНА"
-        ],
-        "orderedStations": [],
-        "stationCalls": [
-          {
-            "key": "харків-пас:departure:2026-08-11T16:48:00.000Z",
-            "station": "Харків-Пас.",
-            "boardType": "departure",
-            "scheduledAt": "2026-08-11T16:48:00.000Z",
-            "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
-          }
-        ],
-        "boardObservationCount": 1
-      }
-    },
-    {
       "expectedId": "expected:uz:2026-08-11:008:одеса-головна-харків-пас",
       "runId": "uz:2026-08-11:008:одеса-головна-харків-пас",
       "serviceDate": "2026-08-11",
@@ -5178,7 +5128,7 @@
             "boardType": "departure",
             "scheduledAt": "2026-08-11T19:30:00.000Z",
             "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
+            "observedAt": "2026-08-11T15:45:00.000Z"
           }
         ],
         "boardObservationCount": 1
@@ -5269,6 +5219,39 @@
       }
     },
     {
+      "expectedId": "expected:uz:2026-08-11:012:одеса-головна-львів",
+      "runId": "uz:2026-08-11:012:одеса-головна-львів",
+      "serviceDate": "2026-08-11",
+      "trainNumber": "012",
+      "origin": "ОДЕСА-ГОЛОВНА",
+      "destination": "ЛЬВІВ",
+      "route": "ОДЕСА-ГОЛОВНА → ЛЬВІВ",
+      "scheduledDeparture": "2026-08-11T18:15:00.000Z",
+      "scheduledArrival": null,
+      "sourceIds": [
+        "anytrain-uz-station-board"
+      ],
+      "discoveryCount": 2,
+      "metadata": {
+        "stations": [
+          "ОДЕСА-ГОЛОВНА",
+          "ЛЬВІВ"
+        ],
+        "orderedStations": [],
+        "stationCalls": [
+          {
+            "key": "одеса-головна:departure:2026-08-11T18:15:00.000Z",
+            "station": "Одеса-Головна",
+            "boardType": "departure",
+            "scheduledAt": "2026-08-11T18:15:00.000Z",
+            "platform": null,
+            "observedAt": "2026-08-11T15:45:00.000Z"
+          }
+        ],
+        "boardObservationCount": 1
+      }
+    },
+    {
       "expectedId": "expected:uz:2026-08-11:012:львів-одеса-головна",
       "runId": "uz:2026-08-11:012:львів-одеса-головна",
       "serviceDate": "2026-08-11",
@@ -5296,39 +5279,6 @@
             "scheduledAt": "2026-08-11T18:13:00.000Z",
             "platform": null,
             "observedAt": "2026-08-11T15:30:00.000Z"
-          }
-        ],
-        "boardObservationCount": 1
-      }
-    },
-    {
-      "expectedId": "expected:uz:2026-08-11:012:одеса-головна-львів",
-      "runId": "uz:2026-08-11:012:одеса-головна-львів",
-      "serviceDate": "2026-08-11",
-      "trainNumber": "012",
-      "origin": "ОДЕСА-ГОЛОВНА",
-      "destination": "ЛЬВІВ",
-      "route": "ОДЕСА-ГОЛОВНА → ЛЬВІВ",
-      "scheduledDeparture": "2026-08-11T18:15:00.000Z",
-      "scheduledArrival": null,
-      "sourceIds": [
-        "anytrain-uz-station-board"
-      ],
-      "discoveryCount": 2,
-      "metadata": {
-        "stations": [
-          "ОДЕСА-ГОЛОВНА",
-          "ЛЬВІВ"
-        ],
-        "orderedStations": [],
-        "stationCalls": [
-          {
-            "key": "одеса-головна:departure:2026-08-11T18:15:00.000Z",
-            "station": "Одеса-Головна",
-            "boardType": "departure",
-            "scheduledAt": "2026-08-11T18:15:00.000Z",
-            "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
           }
         ],
         "boardObservationCount": 1
@@ -5376,12 +5326,12 @@
       "origin": "ХАРКІВ-ПАС",
       "destination": "ІВАНО-ФРАНКІВСЬК",
       "route": "ХАРКІВ-ПАС → ІВАНО-ФРАНКІВСЬК",
-      "scheduledDeparture": "2026-08-11T18:56:00.000Z",
+      "scheduledDeparture": null,
       "scheduledArrival": null,
       "sourceIds": [
         "anytrain-uz-station-board"
       ],
-      "discoveryCount": 4,
+      "discoveryCount": 2,
       "metadata": {
         "stations": [
           "ХАРКІВ-ПАС",
@@ -5397,17 +5347,9 @@
             "scheduledAt": "2026-08-11T18:56:00.000Z",
             "platform": null,
             "observedAt": "2026-08-11T15:30:00.000Z"
-          },
-          {
-            "key": "харків-пас:departure:2026-08-11T18:56:00.000Z",
-            "station": "Харків-Пас.",
-            "boardType": "departure",
-            "scheduledAt": "2026-08-11T18:56:00.000Z",
-            "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
           }
         ],
-        "boardObservationCount": 2
+        "boardObservationCount": 1
       }
     },
     {
@@ -5496,7 +5438,7 @@
             "boardType": "departure",
             "scheduledAt": "2026-08-11T18:17:00.000Z",
             "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
+            "observedAt": "2026-08-11T15:45:00.000Z"
           }
         ],
         "boardObservationCount": 1
@@ -5647,7 +5589,7 @@
             "boardType": "departure",
             "scheduledAt": "2026-08-11T16:26:00.000Z",
             "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
+            "observedAt": "2026-08-11T15:45:00.000Z"
           }
         ],
         "boardObservationCount": 1
@@ -5815,6 +5757,39 @@
       }
     },
     {
+      "expectedId": "expected:uz:2026-08-11:036:одеса-головна-пшемисль",
+      "runId": "uz:2026-08-11:036:одеса-головна-пшемисль",
+      "serviceDate": "2026-08-11",
+      "trainNumber": "036",
+      "origin": "ОДЕСА-ГОЛОВНА",
+      "destination": "ПШЕМИСЛЬ",
+      "route": "ОДЕСА-ГОЛОВНА → ПШЕМИСЛЬ",
+      "scheduledDeparture": "2026-08-11T18:15:00.000Z",
+      "scheduledArrival": null,
+      "sourceIds": [
+        "anytrain-uz-station-board"
+      ],
+      "discoveryCount": 2,
+      "metadata": {
+        "stations": [
+          "ОДЕСА-ГОЛОВНА",
+          "ПШЕМИСЛЬ"
+        ],
+        "orderedStations": [],
+        "stationCalls": [
+          {
+            "key": "одеса-головна:departure:2026-08-11T18:15:00.000Z",
+            "station": "Одеса-Головна",
+            "boardType": "departure",
+            "scheduledAt": "2026-08-11T18:15:00.000Z",
+            "platform": null,
+            "observedAt": "2026-08-11T15:45:00.000Z"
+          }
+        ],
+        "boardObservationCount": 1
+      }
+    },
+    {
       "expectedId": "expected:uz:2026-08-11:036:пшемисль-одеса-головна",
       "runId": "uz:2026-08-11:036:пшемисль-одеса-головна",
       "serviceDate": "2026-08-11",
@@ -5843,39 +5818,6 @@
             "scheduledAt": "2026-08-11T18:13:00.000Z",
             "platform": null,
             "observedAt": "2026-08-11T15:30:00.000Z"
-          }
-        ],
-        "boardObservationCount": 1
-      }
-    },
-    {
-      "expectedId": "expected:uz:2026-08-11:036:одеса-головна-пшемисль",
-      "runId": "uz:2026-08-11:036:одеса-головна-пшемисль",
-      "serviceDate": "2026-08-11",
-      "trainNumber": "036",
-      "origin": "ОДЕСА-ГОЛОВНА",
-      "destination": "ПШЕМИСЛЬ",
-      "route": "ОДЕСА-ГОЛОВНА → ПШЕМИСЛЬ",
-      "scheduledDeparture": "2026-08-11T18:15:00.000Z",
-      "scheduledArrival": null,
-      "sourceIds": [
-        "anytrain-uz-station-board"
-      ],
-      "discoveryCount": 2,
-      "metadata": {
-        "stations": [
-          "ОДЕСА-ГОЛОВНА",
-          "ПШЕМИСЛЬ"
-        ],
-        "orderedStations": [],
-        "stationCalls": [
-          {
-            "key": "одеса-головна:departure:2026-08-11T18:15:00.000Z",
-            "station": "Одеса-Головна",
-            "boardType": "departure",
-            "scheduledAt": "2026-08-11T18:15:00.000Z",
-            "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
           }
         ],
         "boardObservationCount": 1
@@ -5938,6 +5880,39 @@
         "orderedStations": [],
         "stationCalls": [],
         "boardObservationCount": 0
+      }
+    },
+    {
+      "expectedId": "expected:uz:2026-08-11:038:одеса-головна-ужгород",
+      "runId": "uz:2026-08-11:038:одеса-головна-ужгород",
+      "serviceDate": "2026-08-11",
+      "trainNumber": "038",
+      "origin": "ОДЕСА-ГОЛОВНА",
+      "destination": "УЖГОРОД",
+      "route": "ОДЕСА-ГОЛОВНА → УЖГОРОД",
+      "scheduledDeparture": "2026-08-11T15:11:00.000Z",
+      "scheduledArrival": null,
+      "sourceIds": [
+        "anytrain-uz-station-board"
+      ],
+      "discoveryCount": 2,
+      "metadata": {
+        "stations": [
+          "ОДЕСА-ГОЛОВНА",
+          "УЖГОРОД"
+        ],
+        "orderedStations": [],
+        "stationCalls": [
+          {
+            "key": "одеса-головна:departure:2026-08-11T15:11:00.000Z",
+            "station": "Одеса-Головна",
+            "boardType": "departure",
+            "scheduledAt": "2026-08-11T15:11:00.000Z",
+            "platform": null,
+            "observedAt": "2026-08-11T15:45:00.000Z"
+          }
+        ],
+        "boardObservationCount": 1
       }
     },
     {
@@ -6014,39 +5989,6 @@
           }
         ],
         "boardObservationCount": 2
-      }
-    },
-    {
-      "expectedId": "expected:uz:2026-08-11:038:одеса-головна-ужгород",
-      "runId": "uz:2026-08-11:038:одеса-головна-ужгород",
-      "serviceDate": "2026-08-11",
-      "trainNumber": "038",
-      "origin": "ОДЕСА-ГОЛОВНА",
-      "destination": "УЖГОРОД",
-      "route": "ОДЕСА-ГОЛОВНА → УЖГОРОД",
-      "scheduledDeparture": "2026-08-11T15:11:00.000Z",
-      "scheduledArrival": null,
-      "sourceIds": [
-        "anytrain-uz-station-board"
-      ],
-      "discoveryCount": 2,
-      "metadata": {
-        "stations": [
-          "ОДЕСА-ГОЛОВНА",
-          "УЖГОРОД"
-        ],
-        "orderedStations": [],
-        "stationCalls": [
-          {
-            "key": "одеса-головна:departure:2026-08-11T15:11:00.000Z",
-            "station": "Одеса-Головна",
-            "boardType": "departure",
-            "scheduledAt": "2026-08-11T15:11:00.000Z",
-            "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
-          }
-        ],
-        "boardObservationCount": 1
       }
     },
     {
@@ -6531,7 +6473,7 @@
             "boardType": "departure",
             "scheduledAt": "2026-08-11T18:49:00.000Z",
             "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
+            "observedAt": "2026-08-11T15:45:00.000Z"
           }
         ],
         "boardObservationCount": 1
@@ -6725,7 +6667,7 @@
             "boardType": "departure",
             "scheduledAt": "2026-08-11T19:42:00.000Z",
             "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
+            "observedAt": "2026-08-11T15:45:00.000Z"
           }
         ],
         "boardObservationCount": 1
@@ -7020,7 +6962,7 @@
             "boardType": "departure",
             "scheduledAt": "2026-08-11T17:04:00.000Z",
             "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
+            "observedAt": "2026-08-11T15:45:00.000Z"
           }
         ],
         "boardObservationCount": 1
@@ -7626,7 +7568,7 @@
       "origin": "ХАРКІВ-ПАС",
       "destination": "ХЕЛМ",
       "route": "ХАРКІВ-ПАС → ХЕЛМ",
-      "scheduledDeparture": "2026-08-11T20:59:00.000Z",
+      "scheduledDeparture": "2026-08-11T13:50:00.000Z",
       "scheduledArrival": null,
       "sourceIds": [
         "anytrain-uz-station-board"
@@ -7641,20 +7583,20 @@
         "orderedStations": [],
         "stationCalls": [
           {
-            "key": "київ-пас:departure:2026-08-11T20:59:00.000Z",
-            "station": "Київ-Пас.",
-            "boardType": "departure",
-            "scheduledAt": "2026-08-11T20:59:00.000Z",
-            "platform": null,
-            "observedAt": "2026-08-11T15:30:00.000Z"
-          },
-          {
-            "key": "харків-пас:departure:2026-08-11T20:59:00.000Z",
+            "key": "харків-пас:departure:2026-08-11T13:50:00.000Z",
             "station": "Харків-Пас.",
             "boardType": "departure",
-            "scheduledAt": "2026-08-11T20:59:00.000Z",
+            "scheduledAt": "2026-08-11T13:50:00.000Z",
             "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
+            "observedAt": "2026-08-11T15:45:00.000Z"
+          },
+          {
+            "key": "київ-пас:departure:2026-08-11T13:50:00.000Z",
+            "station": "Київ-Пас.",
+            "boardType": "departure",
+            "scheduledAt": "2026-08-11T13:50:00.000Z",
+            "platform": null,
+            "observedAt": "2026-08-11T15:30:00.000Z"
           }
         ],
         "boardObservationCount": 2
@@ -7932,7 +7874,7 @@
             "boardType": "departure",
             "scheduledAt": "2026-08-11T19:08:00.000Z",
             "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
+            "observedAt": "2026-08-11T15:45:00.000Z"
           }
         ],
         "boardObservationCount": 1
@@ -8008,7 +7950,7 @@
             "boardType": "departure",
             "scheduledAt": "2026-08-11T20:45:00.000Z",
             "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
+            "observedAt": "2026-08-11T15:45:00.000Z"
           }
         ],
         "boardObservationCount": 1
@@ -8444,7 +8386,7 @@
             "boardType": "departure",
             "scheduledAt": "2026-08-11T16:26:00.000Z",
             "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
+            "observedAt": "2026-08-11T15:45:00.000Z"
           }
         ],
         "boardObservationCount": 1
@@ -8612,6 +8554,39 @@
       }
     },
     {
+      "expectedId": "expected:uz:2026-08-11:148:одеса-головна-житомир",
+      "runId": "uz:2026-08-11:148:одеса-головна-житомир",
+      "serviceDate": "2026-08-11",
+      "trainNumber": "148",
+      "origin": "ОДЕСА-ГОЛОВНА",
+      "destination": "ЖИТОМИР",
+      "route": "ОДЕСА-ГОЛОВНА → ЖИТОМИР",
+      "scheduledDeparture": "2026-08-11T16:55:00.000Z",
+      "scheduledArrival": null,
+      "sourceIds": [
+        "anytrain-uz-station-board"
+      ],
+      "discoveryCount": 2,
+      "metadata": {
+        "stations": [
+          "ОДЕСА-ГОЛОВНА",
+          "ЖИТОМИР"
+        ],
+        "orderedStations": [],
+        "stationCalls": [
+          {
+            "key": "одеса-головна:departure:2026-08-11T16:55:00.000Z",
+            "station": "Одеса-Головна",
+            "boardType": "departure",
+            "scheduledAt": "2026-08-11T16:55:00.000Z",
+            "platform": null,
+            "observedAt": "2026-08-11T15:45:00.000Z"
+          }
+        ],
+        "boardObservationCount": 1
+      }
+    },
+    {
       "expectedId": "expected:uz:2026-08-11:148:житомир-одеса-головна",
       "runId": "uz:2026-08-11:148:житомир-одеса-головна",
       "serviceDate": "2026-08-11",
@@ -8640,39 +8615,6 @@
             "scheduledAt": "2026-08-11T16:32:00.000Z",
             "platform": null,
             "observedAt": "2026-08-11T15:30:00.000Z"
-          }
-        ],
-        "boardObservationCount": 1
-      }
-    },
-    {
-      "expectedId": "expected:uz:2026-08-11:148:одеса-головна-житомир",
-      "runId": "uz:2026-08-11:148:одеса-головна-житомир",
-      "serviceDate": "2026-08-11",
-      "trainNumber": "148",
-      "origin": "ОДЕСА-ГОЛОВНА",
-      "destination": "ЖИТОМИР",
-      "route": "ОДЕСА-ГОЛОВНА → ЖИТОМИР",
-      "scheduledDeparture": "2026-08-11T16:55:00.000Z",
-      "scheduledArrival": null,
-      "sourceIds": [
-        "anytrain-uz-station-board"
-      ],
-      "discoveryCount": 2,
-      "metadata": {
-        "stations": [
-          "ОДЕСА-ГОЛОВНА",
-          "ЖИТОМИР"
-        ],
-        "orderedStations": [],
-        "stationCalls": [
-          {
-            "key": "одеса-головна:departure:2026-08-11T16:55:00.000Z",
-            "station": "Одеса-Головна",
-            "boardType": "departure",
-            "scheduledAt": "2026-08-11T16:55:00.000Z",
-            "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
           }
         ],
         "boardObservationCount": 1
@@ -9100,7 +9042,7 @@
             "boardType": "departure",
             "scheduledAt": "2026-08-11T14:23:00.000Z",
             "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
+            "observedAt": "2026-08-11T15:45:00.000Z"
           }
         ],
         "boardObservationCount": 1
@@ -9370,7 +9312,7 @@
             "boardType": "departure",
             "scheduledAt": "2026-08-11T18:15:00.000Z",
             "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
+            "observedAt": "2026-08-11T15:45:00.000Z"
           }
         ],
         "boardObservationCount": 1
@@ -9437,7 +9379,7 @@
             "boardType": "departure",
             "scheduledAt": "2026-08-11T19:42:00.000Z",
             "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
+            "observedAt": "2026-08-11T15:45:00.000Z"
           }
         ],
         "boardObservationCount": 1
@@ -9485,7 +9427,7 @@
       "origin": "ХАРКІВ-ПАС",
       "destination": "ХЕЛМ",
       "route": "ХАРКІВ-ПАС → ХЕЛМ",
-      "scheduledDeparture": "2026-08-11T20:59:00.000Z",
+      "scheduledDeparture": "2026-08-11T13:50:00.000Z",
       "scheduledArrival": null,
       "sourceIds": [
         "anytrain-uz-station-board"
@@ -9500,20 +9442,20 @@
         "orderedStations": [],
         "stationCalls": [
           {
-            "key": "київ-пас:departure:2026-08-11T20:59:00.000Z",
-            "station": "Київ-Пас.",
-            "boardType": "departure",
-            "scheduledAt": "2026-08-11T20:59:00.000Z",
-            "platform": null,
-            "observedAt": "2026-08-11T15:30:00.000Z"
-          },
-          {
-            "key": "харків-пас:departure:2026-08-11T20:59:00.000Z",
+            "key": "харків-пас:departure:2026-08-11T13:50:00.000Z",
             "station": "Харків-Пас.",
             "boardType": "departure",
-            "scheduledAt": "2026-08-11T20:59:00.000Z",
+            "scheduledAt": "2026-08-11T13:50:00.000Z",
             "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
+            "observedAt": "2026-08-11T15:45:00.000Z"
+          },
+          {
+            "key": "київ-пас:departure:2026-08-11T13:50:00.000Z",
+            "station": "Київ-Пас.",
+            "boardType": "departure",
+            "scheduledAt": "2026-08-11T13:50:00.000Z",
+            "platform": null,
+            "observedAt": "2026-08-11T15:30:00.000Z"
           }
         ],
         "boardObservationCount": 2
@@ -9607,39 +9549,6 @@
             "scheduledAt": "2026-08-11T15:31:00.000Z",
             "platform": null,
             "observedAt": "2026-08-11T15:30:00.000Z"
-          }
-        ],
-        "boardObservationCount": 1
-      }
-    },
-    {
-      "expectedId": "expected:uz:2026-08-11:723:харків-пас-київ-пасажирський",
-      "runId": "uz:2026-08-11:723:харків-пас-київ-пасажирський",
-      "serviceDate": "2026-08-11",
-      "trainNumber": "723",
-      "origin": "ХАРКІВ-ПАС",
-      "destination": "КИЇВ-ПАСАЖИРСЬКИЙ",
-      "route": "ХАРКІВ-ПАС → КИЇВ-ПАСАЖИРСЬКИЙ",
-      "scheduledDeparture": "2026-08-11T11:28:00.000Z",
-      "scheduledArrival": null,
-      "sourceIds": [
-        "anytrain-uz-station-board"
-      ],
-      "discoveryCount": 2,
-      "metadata": {
-        "stations": [
-          "ХАРКІВ-ПАС",
-          "КИЇВ-ПАСАЖИРСЬКИЙ"
-        ],
-        "orderedStations": [],
-        "stationCalls": [
-          {
-            "key": "харків-пас:departure:2026-08-11T11:28:00.000Z",
-            "station": "Харків-Пас.",
-            "boardType": "departure",
-            "scheduledAt": "2026-08-11T11:28:00.000Z",
-            "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
           }
         ],
         "boardObservationCount": 1
@@ -9873,7 +9782,7 @@
             "boardType": "departure",
             "scheduledAt": "2026-08-11T20:30:00.000Z",
             "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
+            "observedAt": "2026-08-11T15:45:00.000Z"
           }
         ],
         "boardObservationCount": 1
@@ -9940,7 +9849,7 @@
             "boardType": "departure",
             "scheduledAt": "2026-08-11T19:00:00.000Z",
             "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
+            "observedAt": "2026-08-11T15:45:00.000Z"
           }
         ],
         "boardObservationCount": 1
@@ -10263,39 +10172,6 @@
             "scheduledAt": "2026-08-11T12:51:00.000Z",
             "platform": null,
             "observedAt": "2026-08-11T15:30:00.000Z"
-          }
-        ],
-        "boardObservationCount": 1
-      }
-    },
-    {
-      "expectedId": "expected:uz:2026-08-11:853:харків-пас-дніпро-головний",
-      "runId": "uz:2026-08-11:853:харків-пас-дніпро-головний",
-      "serviceDate": "2026-08-11",
-      "trainNumber": "853",
-      "origin": "ХАРКІВ-ПАС",
-      "destination": "ДНІПРО-ГОЛОВНИЙ",
-      "route": "ХАРКІВ-ПАС → ДНІПРО-ГОЛОВНИЙ",
-      "scheduledDeparture": "2026-08-11T12:30:00.000Z",
-      "scheduledArrival": null,
-      "sourceIds": [
-        "anytrain-uz-station-board"
-      ],
-      "discoveryCount": 2,
-      "metadata": {
-        "stations": [
-          "ХАРКІВ-ПАС",
-          "ДНІПРО-ГОЛОВНИЙ"
-        ],
-        "orderedStations": [],
-        "stationCalls": [
-          {
-            "key": "харків-пас:departure:2026-08-11T12:30:00.000Z",
-            "station": "Харків-Пас.",
-            "boardType": "departure",
-            "scheduledAt": "2026-08-11T12:30:00.000Z",
-            "platform": null,
-            "observedAt": "2026-08-11T13:30:00.000Z"
           }
         ],
         "boardObservationCount": 1
@@ -11246,7 +11122,7 @@
     "pkp-plk-realtime": {
       "status": {
         "status": "unavailable",
-        "checkedAt": "2026-08-11T15:35:46.040Z",
+        "checkedAt": "2026-08-11T15:51:19.577Z",
         "error": "HTTP 401",
         "label": "pkp-plk-realtime: unavailable"
       },
@@ -11256,7 +11132,7 @@
     "zsr-realtime": {
       "status": {
         "status": "requires_configuration",
-        "checkedAt": "2026-08-11T15:35:46.040Z",
+        "checkedAt": "2026-08-11T15:51:19.577Z",
         "error": null,
         "label": "zsr-realtime: requires_configuration"
       },
@@ -11266,7 +11142,7 @@
     "mav-emma": {
       "status": {
         "status": "requires_configuration",
-        "checkedAt": "2026-08-11T15:35:46.040Z",
+        "checkedAt": "2026-08-11T15:51:19.577Z",
         "error": null,
         "label": "mav-emma: requires_configuration"
       },
@@ -11276,7 +11152,7 @@
     "rne-tis": {
       "status": {
         "status": "requires_configuration",
-        "checkedAt": "2026-08-11T15:35:46.040Z",
+        "checkedAt": "2026-08-11T15:51:19.577Z",
         "error": null,
         "label": "rne-tis: requires_configuration"
       },
@@ -11286,7 +11162,7 @@
     "contract-rail-feed": {
       "status": {
         "status": "requires_configuration",
-        "checkedAt": "2026-08-11T15:35:46.040Z",
+        "checkedAt": "2026-08-11T15:51:19.577Z",
         "error": null,
         "label": "contract-rail-feed: requires_configuration"
       },
@@ -11297,38 +11173,20 @@
   "collectorDiagnostics": {
     "board": {
       "status": "stale",
-      "checkedAt": "2026-08-11T15:35:47.111Z",
+      "checkedAt": "2026-08-11T15:51:20.132Z",
       "scheduler": {
         "strategy": "information-gain-v3",
         "requestBudget": 1,
         "attempted": 1,
-        "offset": 23,
-        "nextOffset": 24,
-        "selectedStation": "Бердичів",
-        "selectedStationId": "2200120",
+        "offset": 24,
+        "nextOffset": 25,
+        "selectedStation": "Вінниця",
+        "selectedStationId": "2200200",
         "selectedReason": [
           "нет свежего снимка"
         ],
         "selectedScore": 19,
         "rankedStations": [
-          {
-            "id": "2200120",
-            "name": "Бердичів",
-            "score": 19,
-            "expectedTrains": 0,
-            "reasons": [
-              "нет свежего снимка"
-            ]
-          },
-          {
-            "id": "2200180",
-            "name": "Біла Церква",
-            "score": 19,
-            "expectedTrains": 0,
-            "reasons": [
-              "нет свежего снимка"
-            ]
-          },
           {
             "id": "2200200",
             "name": "Вінниця",
@@ -11350,6 +11208,24 @@
           {
             "id": "2214140",
             "name": "Костянтинівка",
+            "score": 19,
+            "expectedTrains": 0,
+            "reasons": [
+              "нет свежего снимка"
+            ]
+          },
+          {
+            "id": "2210900",
+            "name": "Кривий Ріг-Гол",
+            "score": 19,
+            "expectedTrains": 0,
+            "reasons": [
+              "нет свежего снимка"
+            ]
+          },
+          {
+            "id": "2218060",
+            "name": "Луцьк",
             "score": 19,
             "expectedTrains": 0,
             "reasons": [
@@ -11377,11 +11253,11 @@
       "scheduler": {
         "strategy": "rotating-station-budget-v1",
         "selectedStations": [
-          "Київ-Пас.",
-          "Львів"
+          "Харків-Пас.",
+          "Одеса-Головна"
         ],
         "requestBudget": 3,
-        "nextOffset": 2
+        "nextOffset": 4
       }
     },
     "failover": {
@@ -11391,31 +11267,31 @@
           "sourceId": "koleo-station-catalog",
           "score": 0.78,
           "state": "healthy",
-          "ageMinutes": 0.3
+          "ageMinutes": 0.2
         },
         {
           "sourceId": "anytrain-uz-public",
-          "score": 0.7777,
+          "score": 0.7784,
           "state": "degraded",
-          "ageMinutes": 0.3
+          "ageMinutes": 0.2
         },
         {
           "sourceId": "poizdato-station-reference",
           "score": 0.774,
           "state": "healthy",
-          "ageMinutes": 0.3
+          "ageMinutes": 0.2
         },
         {
           "sourceId": "uz-delay-dashboard",
-          "score": 0.7517,
+          "score": 0.7524,
           "state": "healthy",
-          "ageMinutes": 0.3
+          "ageMinutes": 0.2
         },
         {
           "sourceId": "uz-suburban-telegram",
-          "score": 0.7257,
+          "score": 0.7264,
           "state": "healthy",
-          "ageMinutes": 0.3
+          "ageMinutes": 0.2
         }
       ]
     }
