@@ -9,7 +9,7 @@ import { buildExpectedRuns } from "./source-adapters/expected-registry.mjs";
 import { collectInternationalRailSources } from "./source-adapters/international-rail.mjs";
 import { collectAnyTrain } from "./source-adapters/anytrain.mjs";
 import { collectSwRailway } from "./source-adapters/swrailway.mjs";
-import { collectPoizdatoStations } from "./source-adapters/poizdato.mjs";
+import { collectPoizdatoStations, collectPoizdatoTrainRoutes, enrichUpdatesWithPoizdatoRoutes } from "./source-adapters/poizdato.mjs";
 import { collectKoleoCatalog } from "./source-adapters/koleo.mjs";
 
 import { classifySourceState, selectSourceFailover } from "../backend/src/intelligence/data-reliability.js";
@@ -119,6 +119,9 @@ async function main() {
   const [delay, telegram, board, anyTrain, swRailway, poizdato, koleo, references, international] = await Promise.all([
     delayPromise, telegramPromise, boardPromise, anyTrainPromise, swRailwayPromise, poizdatoPromise, koleoPromise, referencePromise, internationalPromise,
   ]);
+  const rawEvidenceUpdates = [board.updates || [], anyTrain.updates || [], telegram.updates || [], delay.updates || [], international.updates || []];
+  const poizdatoRoutes = await collectPoizdatoTrainRoutes({ updates: rawEvidenceUpdates.flat(), previous: previousRuntime.sources?.["poizdato-train-routes"] });
+  const evidenceUpdates = rawEvidenceUpdates.map((group) => enrichUpdatesWithPoizdatoRoutes(group, poizdatoRoutes.routes));
   const referenceRuntime = Object.fromEntries(references.map((item) => [item.id, item]));
   const sources = {
     "uz-delay-dashboard": delay,
@@ -128,6 +131,7 @@ async function main() {
     "anytrain-uz-public": anyTrain,
     "swrailway-commuter-schedule": swRailway,
     "poizdato-station-reference": poizdato,
+    "poizdato-train-routes": poizdatoRoutes,
     "koleo-station-catalog": koleo,
     ...referenceRuntime,
   };
@@ -138,7 +142,6 @@ async function main() {
   }));
   const reliabilityBySource = new Map(reliabilitySnapshots.map((source) => [source.sourceId, classifySourceState(source)]));
   const operationalFailover = selectSourceFailover(reliabilitySnapshots);
-  const evidenceUpdates = [board.updates || [], anyTrain.updates || [], telegram.updates || [], delay.updates || [], international.updates || []];
   const updates = mergeUpdates(evidenceUpdates);
   const onlineCount = [...reliabilityBySource.values()].filter((state) => state.usable).length;
   const checkedAt = new Date().toISOString();

@@ -5,6 +5,7 @@ import { BOARD_STATIONS, classifyBoardWindow, distributeStations, stationBoardPl
 import { apiBoardToRecords, fetchOfficialBoardRecords, selectApiStations } from "../scripts/source-adapters/official-board-api.mjs";
 import { mergeBoardCache, rankBoardStations } from "../scripts/source-adapters/board-intelligence.mjs";
 import { parseTelegramFeed, rehydrateTelegramPosts, telegramUpdates } from "../scripts/source-adapters/telegram.mjs";
+import { collectPoizdatoTrainRoutes, enrichUpdatesWithPoizdatoRoutes, parsePoizdatoTrainRoute } from "../scripts/source-adapters/poizdato.mjs";
 
 test("official board rows become station-window updates, not GPS", () => {
   const [update] = boardRowsToUpdates([{
@@ -226,4 +227,21 @@ test("board cache replaces a refreshed station and expires old evidence", () => 
   const cache = mergeBoardCache(previous, fresh, now, 8);
   assert.deepEqual(cache.records.map((item) => item.trainNumber), ["3"]);
   assert.equal(cache.cachedRecords, 0);
+});
+
+test("Poizdato route collector preserves the complete ordered train itinerary", async () => {
+  const update = { trainNumber:"779/780", origin:"Суми", destination:"Київ-Пас.", operationalStatus:"moving", delayMinutes:139 };
+  const routePage = `<select id="active_station"><option>Суми</option><option>Білопілля</option><option>Ворожба-Пас.</option><option>Конотоп</option><option>Ніжин</option><option>Київ-Пас.</option></select>`;
+  assert.deepEqual(parsePoizdatoTrainRoute(routePage, update), ["Суми","Білопілля","Ворожба-Пас.","Конотоп","Ніжин","Київ-Пас."]);
+  const calls = [];
+  const fetchImpl = async (url) => { calls.push(String(url)); return String(url).endsWith("/rozklad-poizdiv/")
+    ? new Response(`<a href="/rozklad-poizda/779--sumy--kyiv-pas/">779</a>`, { status:200 })
+    : new Response(routePage, { status:200 }); };
+  const result = await collectPoizdatoTrainRoutes({ updates:[update], fetchImpl, budget:1 });
+  assert.equal(result.routes.length, 1);
+  assert.equal(result.routes[0].orderedStations.length, 6);
+  assert.equal(calls.length, 2);
+  const [enriched] = enrichUpdatesWithPoizdatoRoutes([update], result.routes);
+  assert.deepEqual(enriched.orderedStations, result.routes[0].orderedStations);
+  assert.match(enriched.routeTemplateSource, /poizdato\.net\/rozklad-poizda\/779/);
 });

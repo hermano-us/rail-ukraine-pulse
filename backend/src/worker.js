@@ -678,6 +678,7 @@ export async function scheduledRefresh(env) {
   const previous = await readSnapshot(env);
   const configured=(await env.DB.prepare("SELECT source_id,enabled FROM source_config").all()).results||[];const sourceEnabled=id=>configured.find(item=>item.source_id===id)?.enabled!==0;
   let merged = [...(previous?.updates || [])];
+  let mirrorExpectedRuns = [];
   const errors = [];
   let freshSources = 0;
   let usableSources = 0;
@@ -689,7 +690,7 @@ export async function scheduledRefresh(env) {
   } catch(error) {
     const directError=String(error?.message||error);errors.push(`dashboard-direct: ${directError}`);await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-direct",status:"unavailable",checkedAt,error:directError},0);
     try {
-      if(!sourceEnabled("uz-delay-dashboard"))throw new Error("source disabled by operator");const mirrorResponse=await fetchWithRetry("https://raw.githubusercontent.com/hermano-us/rail-ukraine-pulse/main/data/live.json");const mirror=await mirrorResponse.json();const mirrorUpdates=(mirror.updates||[]).filter(update=>update.sourceId==="uz-delay-dashboard");const mirrorAge=Math.max(0,(Date.parse(checkedAt)-Date.parse(mirror.generatedAt||""))/60000);if(!mirrorUpdates.length||!Number.isFinite(mirrorAge)||mirrorAge>180)throw new Error(`official mirror is too old (${Math.round(mirrorAge)} min)`);
+      if(!sourceEnabled("uz-delay-dashboard"))throw new Error("source disabled by operator");const mirrorResponse=await fetchWithRetry("https://raw.githubusercontent.com/hermano-us/rail-ukraine-pulse/main/data/live.json");const mirror=await mirrorResponse.json();mirrorExpectedRuns=Array.isArray(mirror.expectedRuns)?mirror.expectedRuns:[];const mirrorUpdates=(mirror.updates||[]).filter(update=>update.sourceId==="uz-delay-dashboard");const mirrorAge=Math.max(0,(Date.parse(checkedAt)-Date.parse(mirror.generatedAt||""))/60000);if(!mirrorUpdates.length||!Number.isFinite(mirrorAge)||mirrorAge>180)throw new Error(`official mirror is too old (${Math.round(mirrorAge)} min)`);
       merged=[...merged.filter(update=>update.sourceId!=="uz-delay-dashboard"),...mirrorUpdates];usableSources+=1;const mirrorStatus=mirrorAge<=20?"online":"stale";if(mirrorStatus==="online")freshSources+=1;await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:mirrorStatus,checkedAt,error:`direct: ${directError}; official GitHub mirror age ${Math.round(mirrorAge)} min`},mirrorUpdates.length);await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-direct",status:"degraded",checkedAt,error:`direct transport unavailable from Cloudflare (${directError}); GitHub mirror active, age ${Math.round(mirrorAge)} min`},0);
       if(mirrorAge>12&&env.GITHUB_DISPATCH_TOKEN){const last=Number(await env.SNAPSHOT?.get("github-dispatch:last")||0);if(Date.now()-last>10*60000){const dispatched=await fetch("https://api.github.com/repos/hermano-us/rail-ukraine-pulse/actions/workflows/update-data.yml/dispatches",{method:"POST",headers:{Authorization:`Bearer ${env.GITHUB_DISPATCH_TOKEN}`,Accept:"application/vnd.github+json","User-Agent":"RailUkrainePulse/1.0","X-GitHub-Api-Version":"2022-11-28"},body:JSON.stringify({ref:"main"})});if(!dispatched.ok)throw new Error(`GitHub dispatch HTTP ${dispatched.status}`);await env.SNAPSHOT?.put("github-dispatch:last",String(Date.now()),{expirationTtl:900});await storeSourceHealth(env,{sourceId:"github-enrichment-dispatch",status:"online",checkedAt},1);}}
     } catch(mirrorError) {await storeSourceHealth(env,{sourceId:"uz-delay-dashboard-edge",status:"unavailable",checkedAt,error:`${directError}; mirror: ${String(mirrorError?.message||mirrorError)}`},0);}
@@ -741,6 +742,7 @@ export async function scheduledRefresh(env) {
     const sourcesTotal = boardEdgeConfigured ? 3 : 2;
     const result = await ingestPayload(env, {
       generatedAt: checkedAt,
+      expectedRuns: mirrorExpectedRuns,
       collectorDiagnostics,
       sourceStatus: {
         sourceId: "uz-public-fusion", status: "online", checkedAt,
