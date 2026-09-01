@@ -1,12 +1,12 @@
 {
   "schemaVersion": 7,
   "provider": "Ukrzaliznytsia public source fusion",
-  "generatedAt": "2026-09-01T13:07:01.783Z",
+  "generatedAt": "2026-09-01T13:22:13.512Z",
   "sourceStatus": {
     "sourceId": "uz-public-fusion",
     "status": "online",
     "label": "UZ fusion: 181 событий · 7/15 источников доступны",
-    "checkedAt": "2026-09-01T13:07:01.783Z",
+    "checkedAt": "2026-09-01T13:22:13.512Z",
     "capabilities": {
       "officialStatus": true,
       "forecast": true,
@@ -19,7 +19,7 @@
     {
       "sourceId": "uz-delay-dashboard",
       "status": "online",
-      "checkedAt": "2026-09-01T13:06:46.280Z",
+      "checkedAt": "2026-09-01T13:21:38.736Z",
       "label": "Задержки УЗ: 20 поездов",
       "capabilities": [
         "movement-status",
@@ -33,7 +33,7 @@
         "configured": true,
         "usable": true,
         "records": 20,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -41,7 +41,7 @@
     {
       "sourceId": "uz-public-board",
       "status": "stale",
-      "checkedAt": "2026-09-01T13:06:49.055Z",
+      "checkedAt": "2026-09-01T13:21:41.077Z",
       "lastSuccessfulAt": "2026-09-01T10:51:41.305Z",
       "label": "Табло УЗ: последний успешный снимок",
       "error": "official board API returned no records; 1/36 station failures",
@@ -66,28 +66,16 @@
         "strategy": "information-gain-v3",
         "requestBudget": 1,
         "attempted": 1,
-        "offset": 9,
-        "nextOffset": 10,
-        "selectedStation": "Харків-Пасажирський",
-        "selectedStationId": "2204001",
+        "offset": 10,
+        "nextOffset": 11,
+        "selectedStation": "Ковель",
+        "selectedStationId": "2218020",
         "selectedReason": [
-          "2 ожидаемых рейсов",
-          "ключевой узел",
+          "4 ожидаемых рейсов",
           "нет свежего снимка"
         ],
-        "selectedScore": 38,
+        "selectedScore": 35,
         "rankedStations": [
-          {
-            "id": "2204001",
-            "name": "Харків-Пасажирський",
-            "score": 38,
-            "expectedTrains": 2,
-            "reasons": [
-              "2 ожидаемых рейсов",
-              "ключевой узел",
-              "нет свежего снимка"
-            ]
-          },
           {
             "id": "2218020",
             "name": "Ковель",
@@ -128,6 +116,17 @@
               "ключевой узел",
               "нет свежего снимка"
             ]
+          },
+          {
+            "id": "2200150",
+            "name": "Фастів 1",
+            "score": 30,
+            "expectedTrains": 1,
+            "reasons": [
+              "1 ожидаемых рейсов",
+              "ключевой узел",
+              "нет свежего снимка"
+            ]
           }
         ]
       },
@@ -138,7 +137,7 @@
         "configured": true,
         "usable": true,
         "records": 12,
-        "ageMinutes": 0.2,
+        "ageMinutes": 0.5,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -146,7 +145,7 @@
     {
       "sourceId": "uz-suburban-telegram",
       "status": "online",
-      "checkedAt": "2026-09-01T13:06:46.282Z",
+      "checkedAt": "2026-09-01T13:21:38.738Z",
       "label": "УЗ Пригород: 20 событий",
       "capabilities": [
         "service-alerts",
@@ -160,7 +159,7 @@
         "configured": true,
         "usable": true,
         "records": 25,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -168,7 +167,7 @@
     {
       "sourceId": "pkp-plk-realtime",
       "status": "unavailable",
-      "checkedAt": "2026-09-01T13:06:47.998Z",
+      "checkedAt": "2026-09-01T13:21:39.993Z",
       "error": "HTTP 401",
       "label": "pkp-plk-realtime: unavailable",
       "recordsCount": 0,
@@ -178,7 +177,7 @@
         "configured": true,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.2,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
         "transportFailure": true
       }
@@ -186,7 +185,7 @@
     {
       "sourceId": "zsr-realtime",
       "status": "requires_configuration",
-      "checkedAt": "2026-09-01T13:06:47.998Z",
+      "checkedAt": "2026-09-01T13:21:39.993Z",
       "error": null,
       "label": "zsr-realtime: requires_configuration",
       "recordsCount": 0,
@@ -196,7 +195,7 @@
         "configured": false,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.2,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -204,7 +203,7 @@
     {
       "sourceId": "mav-emma",
       "status": "requires_configuration",
-      "checkedAt": "2026-09-01T13:06:47.998Z",
+      "checkedAt": "2026-09-01T13:21:39.993Z",
       "error": null,
       "label": "mav-emma: requires_configuration",
       "recordsCount": 0,
@@ -214,7 +213,7 @@
         "configured": false,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.2,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -222,7 +221,7 @@
     {
       "sourceId": "rne-tis",
       "status": "requires_configuration",
-      "checkedAt": "2026-09-01T13:06:47.998Z",
+      "checkedAt": "2026-09-01T13:21:39.993Z",
       "error": null,
       "label": "rne-tis: requires_configuration",
       "recordsCount": 0,
@@ -232,7 +231,7 @@
         "configured": false,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.2,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -240,7 +239,7 @@
     {
       "sourceId": "contract-rail-feed",
       "status": "requires_configuration",
-      "checkedAt": "2026-09-01T13:06:47.998Z",
+      "checkedAt": "2026-09-01T13:21:39.993Z",
       "error": null,
       "label": "contract-rail-feed: requires_configuration",
       "recordsCount": 0,
@@ -250,19 +249,19 @@
         "configured": false,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.2,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
     },
     {
       "sourceId": "anytrain-uz-public",
-      "status": "online",
-      "checkedAt": "2026-09-01T13:06:46.285Z",
-      "sourceUpdatedAt": "2026-09-01T12:59:00.000Z",
+      "status": "stale",
+      "checkedAt": "2026-09-01T13:21:38.742Z",
+      "sourceUpdatedAt": null,
       "lastSuccessfulAt": "2026-09-01T13:06:46.285Z",
-      "label": "AnyTrain: 19 задержек · 21 строк табло",
-      "error": null,
+      "label": "AnyTrain: 19 задержек · 0 строк табло",
+      "error": "delay-board: fetch failed; station:2210700: fetch failed; station:2210800: fetch failed",
       "capabilities": [
         "derived-uz-delay",
         "station-board",
@@ -272,28 +271,28 @@
       "scheduler": {
         "strategy": "rotating-station-budget-v1",
         "selectedStations": [
-          "Харків-Пас.",
-          "Одеса-Головна"
+          "Дніпро-Головний",
+          "Запоріжжя-1"
         ],
         "requestBudget": 3,
-        "nextOffset": 4
+        "nextOffset": 0
       },
       "recordsCount": 179,
       "reliabilityState": {
-        "operationalState": "healthy",
-        "rawStatus": "online",
+        "operationalState": "degraded",
+        "rawStatus": "stale",
         "configured": true,
         "usable": true,
         "records": 179,
-        "ageMinutes": 8,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
-        "transportFailure": false
+        "transportFailure": true
       }
     },
     {
       "sourceId": "swrailway-commuter-schedule",
       "status": "unavailable",
-      "checkedAt": "2026-09-01T13:06:46.288Z",
+      "checkedAt": "2026-09-01T13:21:38.743Z",
       "lastSuccessfulAt": "2026-08-01T09:48:12.216Z",
       "label": "ЮЗЖД: недоступно",
       "error": "fetch failed",
@@ -304,7 +303,7 @@
         "configured": true,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
         "transportFailure": true
       }
@@ -312,7 +311,7 @@
     {
       "sourceId": "poizdato-station-reference",
       "status": "snapshot",
-      "checkedAt": "2026-09-01T13:06:46.289Z",
+      "checkedAt": "2026-09-01T13:21:38.746Z",
       "lastSuccessfulAt": "2026-09-01T09:49:13.630Z",
       "label": "Poizdato: кэш 47 станций",
       "error": null,
@@ -338,7 +337,7 @@
         "configured": true,
         "usable": true,
         "records": 47,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 1440,
         "transportFailure": false
       }
@@ -346,10 +345,10 @@
     {
       "sourceId": "poizdato-train-routes",
       "status": "degraded",
-      "checkedAt": "2026-09-01T13:06:56.768Z",
-      "lastSuccessfulAt": "2026-09-01T10:21:52.955Z",
-      "label": "Poizdato routes: 4 шаблонов · 0 новых",
-      "error": "93/94: route page has no bounded station sequence; 103/104: route page not found; 6801: route page not found; 63/64: route page not found; 39/285: route page not found",
+      "checkedAt": "2026-09-01T13:22:09.743Z",
+      "lastSuccessfulAt": "2026-09-01T13:22:09.743Z",
+      "label": "Poizdato routes: 5 шаблонов · 1 новых",
+      "error": "93/94: route page has no bounded station sequence; 103/104: route page not found; 6801: route page not found; 63/64: route page not found",
       "capabilities": [
         "ordered-train-stops",
         "route-template"
@@ -374,7 +373,7 @@
     {
       "sourceId": "koleo-station-catalog",
       "status": "snapshot",
-      "checkedAt": "2026-09-01T13:06:46.289Z",
+      "checkedAt": "2026-09-01T13:21:38.747Z",
       "lastSuccessfulAt": "2026-09-01T09:49:13.631Z",
       "label": "KOLEO: кэш 11134 станций",
       "capabilities": [
@@ -390,7 +389,7 @@
         "configured": true,
         "usable": true,
         "records": 11134,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 1440,
         "transportFailure": false
       }
@@ -412,7 +411,7 @@
         "configured": true,
         "usable": true,
         "records": 0,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -437,296 +436,13 @@
         "configured": true,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
         "transportFailure": true
       }
     }
   ],
   "updates": [
-    {
-      "trainNumber": "721/722",
-      "route": "Київ-Пас. → Харків-Пас.",
-      "origin": "Київ-Пас.",
-      "destination": "Харків-Пас.",
-      "delayMinutes": 179,
-      "delayLabel": "+2:59",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": "16:34",
-      "forecastArrival": "Висока",
-      "reliability": "—",
-      "reason": null,
-      "updatedAt": "2026-09-01T13:06:47.255Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "121/122",
-      "route": "Миколаїв Пас. → Київ-Пас.",
-      "origin": "Миколаїв Пас.",
-      "destination": "Київ-Пас.",
-      "delayMinutes": 170,
-      "delayLabel": "+2:50",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": "22:15",
-      "forecastArrival": "Висока",
-      "reliability": "—",
-      "reason": null,
-      "updatedAt": "2026-09-01T13:06:47.255Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "3/85",
-      "route": "Дніпро-Головний → Ужгород",
-      "origin": "Дніпро-Головний",
-      "destination": "Ужгород",
-      "delayMinutes": 130,
-      "delayLabel": "+2:10",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": "13:20",
-      "forecastArrival": "Висока",
-      "reliability": "—",
-      "reason": null,
-      "updatedAt": "2026-09-01T13:06:47.255Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "723/724",
-      "route": "Харків-Пас. → Київ-Пас.",
-      "origin": "Харків-Пас.",
-      "destination": "Київ-Пас.",
-      "delayMinutes": 120,
-      "delayLabel": "+2:00",
-      "publicStatus": "Готується",
-      "operationalStatus": "station",
-      "forecastDeparture": "21:32",
-      "forecastArrival": "Середня",
-      "reliability": "—",
-      "reason": null,
-      "updatedAt": "2026-09-01T13:06:47.255Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "297/298",
-      "route": "Одеса-Головна → Харків-Пас.",
-      "origin": "Одеса-Головна",
-      "destination": "Харків-Пас.",
-      "delayMinutes": 109,
-      "delayLabel": "+1:49",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": "21:48",
-      "forecastArrival": "Висока",
-      "reliability": "—",
-      "reason": null,
-      "updatedAt": "2026-09-01T13:06:47.255Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "779/780",
-      "route": "Суми → Київ-Пас.",
-      "origin": "Суми",
-      "destination": "Київ-Пас.",
-      "delayMinutes": 107,
-      "delayLabel": "+1:47",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": "13:26",
-      "forecastArrival": "Висока",
-      "reliability": "—",
-      "reason": null,
-      "updatedAt": "2026-09-01T13:06:47.255Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "17",
-      "route": "Харків-Пас. → Ужгород",
-      "origin": "Харків-Пас.",
-      "destination": "Ужгород",
-      "delayMinutes": 90,
-      "delayLabel": "+1:30",
-      "publicStatus": "Готується",
-      "operationalStatus": "station",
-      "forecastDeparture": "11:00",
-      "forecastArrival": "Середня",
-      "reliability": "—",
-      "reason": null,
-      "updatedAt": "2026-09-01T13:06:47.255Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "103/104",
-      "route": "Лозова → Львів",
-      "origin": "Лозова",
-      "destination": "Львів",
-      "delayMinutes": 90,
-      "delayLabel": "+1:30",
-      "publicStatus": "Готується",
-      "operationalStatus": "station",
-      "forecastDeparture": "10:36",
-      "forecastArrival": "Середня",
-      "reliability": "—",
-      "reason": null,
-      "updatedAt": "2026-09-01T13:06:47.255Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "775/776",
-      "route": "Київ-Пас. → Суми",
-      "origin": "Київ-Пас.",
-      "destination": "Суми",
-      "delayMinutes": 83,
-      "delayLabel": "+1:23",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": "14:27",
-      "forecastArrival": "Висока",
-      "reliability": "—",
-      "reason": null,
-      "updatedAt": "2026-09-01T13:06:47.255Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "705/706",
-      "route": "Пшемисль Головний → Київ-Пас.",
-      "origin": "Пшемисль Головний",
-      "destination": "Київ-Пас.",
-      "delayMinutes": 70,
-      "delayLabel": "+1:10",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": "18:45",
-      "forecastArrival": "Висока",
-      "reliability": "—",
-      "reason": null,
-      "updatedAt": "2026-09-01T13:06:47.255Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "17/18",
-      "route": "Харків-Пас. → Ужгород",
-      "origin": "Харків-Пас.",
-      "destination": "Ужгород",
-      "delayMinutes": 95,
-      "delayLabel": "+1:35",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": "11:05",
-      "forecastArrival": "Висока",
-      "reliability": "—",
-      "reason": null,
-      "updatedAt": "2026-09-01T13:06:47.255Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "31/32",
-      "route": "Запоріжжя-1 → Пшемисль Головний",
-      "origin": "Запоріжжя-1",
-      "destination": "Пшемисль Головний",
-      "delayMinutes": 30,
-      "delayLabel": "+0:30",
-      "publicStatus": "Готується",
-      "operationalStatus": "station",
-      "forecastDeparture": "09:49",
-      "forecastArrival": "Середня",
-      "reliability": "—",
-      "reason": null,
-      "updatedAt": "2026-09-01T13:06:47.255Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "21/22",
-      "route": "Харків-Пас. → Львів",
-      "origin": "Харків-Пас.",
-      "destination": "Львів",
-      "delayMinutes": 440,
-      "delayLabel": "+7:20",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": "20:22",
-      "forecastArrival": "Висока",
-      "reliability": "—",
-      "reason": null,
-      "updatedAt": "2026-09-01T13:06:47.254Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none",
-      "orderedStations": [
-        "Харків-Пас.",
-        "Люботин",
-        "Полтава-Киівська",
-        "Миргород",
-        "Ромодан",
-        "Лубни",
-        "Київ-Пас.",
-        "Козятин-1",
-        "Вінниця",
-        "Хмельницький",
-        "Тернопіль-Пас.",
-        "Злочів",
-        "Красне",
-        "Львів"
-      ],
-      "routeTemplateSource": "https://poizdato.net/rozklad-poizda/21--kharkiv-pas--lviv/"
-    },
-    {
-      "trainNumber": "93/94",
-      "route": "Хелм → Харків-Пас.",
-      "origin": "Хелм",
-      "destination": "Харків-Пас.",
-      "delayMinutes": 399,
-      "delayLabel": "+6:39",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": "19:07",
-      "forecastArrival": "Висока",
-      "reliability": "—",
-      "reason": null,
-      "updatedAt": "2026-09-01T13:06:47.254Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
     {
       "trainNumber": "1/2",
       "route": "Рахів → Харків-Пас.",
@@ -740,7 +456,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-01T13:06:47.254Z",
+      "updatedAt": "2026-09-01T13:21:39.444Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -773,7 +489,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-01T13:06:47.254Z",
+      "updatedAt": "2026-09-01T13:21:39.444Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -792,7 +508,7 @@
       "forecastArrival": "Середня",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-01T13:06:47.254Z",
+      "updatedAt": "2026-09-01T13:21:39.444Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -811,7 +527,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-01T13:06:47.254Z",
+      "updatedAt": "2026-09-01T13:21:39.444Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -830,7 +546,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-01T13:06:47.254Z",
+      "updatedAt": "2026-09-01T13:21:39.444Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -892,7 +608,308 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-01T13:06:47.254Z",
+      "updatedAt": "2026-09-01T13:21:39.444Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "721/722",
+      "route": "Київ-Пас. → Харків-Пас.",
+      "origin": "Київ-Пас.",
+      "destination": "Харків-Пас.",
+      "delayMinutes": 179,
+      "delayLabel": "+2:59",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "16:34",
+      "forecastArrival": "Висока",
+      "reliability": "—",
+      "reason": null,
+      "updatedAt": "2026-09-01T13:21:39.444Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "121/122",
+      "route": "Миколаїв Пас. → Київ-Пас.",
+      "origin": "Миколаїв Пас.",
+      "destination": "Київ-Пас.",
+      "delayMinutes": 216,
+      "delayLabel": "+3:36",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "23:01",
+      "forecastArrival": "Висока",
+      "reliability": "—",
+      "reason": null,
+      "updatedAt": "2026-09-01T13:21:39.444Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none",
+      "orderedStations": [
+        "Миколаїв-Пас.",
+        "Явкине",
+        "Новополтавка",
+        "Новий Буг",
+        "Казанка",
+        "Долинська",
+        "Куцівка",
+        "Знам'янка-Пас.",
+        "Фундукліївка",
+        "Кам'янка",
+        "Ім. Тараса Шевченка",
+        "Цвіткове",
+        "Городище",
+        "Корсунь",
+        "Київ-Пас."
+      ],
+      "routeTemplateSource": "https://poizdato.net/rozklad-poizda/122--mykolaiv-pas--kyiv-pas/"
+    },
+    {
+      "trainNumber": "17/18",
+      "route": "Ужгород → Харків-Пас.",
+      "origin": "Ужгород",
+      "destination": "Харків-Пас.",
+      "delayMinutes": 200,
+      "delayLabel": "+3:20",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "19:19",
+      "forecastArrival": "Висока",
+      "reliability": "—",
+      "reason": null,
+      "updatedAt": "2026-09-01T13:21:39.444Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "3/85",
+      "route": "Дніпро-Головний → Ужгород",
+      "origin": "Дніпро-Головний",
+      "destination": "Ужгород",
+      "delayMinutes": 130,
+      "delayLabel": "+2:10",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "13:20",
+      "forecastArrival": "Висока",
+      "reliability": "—",
+      "reason": null,
+      "updatedAt": "2026-09-01T13:21:39.444Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "723/724",
+      "route": "Харків-Пас. → Київ-Пас.",
+      "origin": "Харків-Пас.",
+      "destination": "Київ-Пас.",
+      "delayMinutes": 120,
+      "delayLabel": "+2:00",
+      "publicStatus": "Готується",
+      "operationalStatus": "station",
+      "forecastDeparture": "21:32",
+      "forecastArrival": "Середня",
+      "reliability": "—",
+      "reason": null,
+      "updatedAt": "2026-09-01T13:21:39.444Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "297/298",
+      "route": "Одеса-Головна → Харків-Пас.",
+      "origin": "Одеса-Головна",
+      "destination": "Харків-Пас.",
+      "delayMinutes": 109,
+      "delayLabel": "+1:49",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "21:48",
+      "forecastArrival": "Висока",
+      "reliability": "—",
+      "reason": null,
+      "updatedAt": "2026-09-01T13:21:39.444Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "779/780",
+      "route": "Суми → Київ-Пас.",
+      "origin": "Суми",
+      "destination": "Київ-Пас.",
+      "delayMinutes": 107,
+      "delayLabel": "+1:47",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "13:26",
+      "forecastArrival": "Висока",
+      "reliability": "—",
+      "reason": null,
+      "updatedAt": "2026-09-01T13:21:39.444Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "103/104",
+      "route": "Лозова → Львів",
+      "origin": "Лозова",
+      "destination": "Львів",
+      "delayMinutes": 90,
+      "delayLabel": "+1:30",
+      "publicStatus": "Готується",
+      "operationalStatus": "station",
+      "forecastDeparture": "10:36",
+      "forecastArrival": "Середня",
+      "reliability": "—",
+      "reason": null,
+      "updatedAt": "2026-09-01T13:21:39.444Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "775/776",
+      "route": "Київ-Пас. → Суми",
+      "origin": "Київ-Пас.",
+      "destination": "Суми",
+      "delayMinutes": 83,
+      "delayLabel": "+1:23",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "14:27",
+      "forecastArrival": "Висока",
+      "reliability": "—",
+      "reason": null,
+      "updatedAt": "2026-09-01T13:21:39.444Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "705/706",
+      "route": "Пшемисль Головний → Київ-Пас.",
+      "origin": "Пшемисль Головний",
+      "destination": "Київ-Пас.",
+      "delayMinutes": 70,
+      "delayLabel": "+1:10",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "18:45",
+      "forecastArrival": "Висока",
+      "reliability": "—",
+      "reason": null,
+      "updatedAt": "2026-09-01T13:21:39.444Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "17/18",
+      "route": "Харків-Пас. → Ужгород",
+      "origin": "Харків-Пас.",
+      "destination": "Ужгород",
+      "delayMinutes": 95,
+      "delayLabel": "+1:35",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "11:05",
+      "forecastArrival": "Висока",
+      "reliability": "—",
+      "reason": null,
+      "updatedAt": "2026-09-01T13:21:39.444Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "31/32",
+      "route": "Запоріжжя-1 → Пшемисль Головний",
+      "origin": "Запоріжжя-1",
+      "destination": "Пшемисль Головний",
+      "delayMinutes": 30,
+      "delayLabel": "+0:30",
+      "publicStatus": "Готується",
+      "operationalStatus": "station",
+      "forecastDeparture": "09:49",
+      "forecastArrival": "Середня",
+      "reliability": "—",
+      "reason": null,
+      "updatedAt": "2026-09-01T13:21:39.444Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "21/22",
+      "route": "Харків-Пас. → Львів",
+      "origin": "Харків-Пас.",
+      "destination": "Львів",
+      "delayMinutes": 440,
+      "delayLabel": "+7:20",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "20:22",
+      "forecastArrival": "Висока",
+      "reliability": "—",
+      "reason": null,
+      "updatedAt": "2026-09-01T13:21:39.443Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none",
+      "orderedStations": [
+        "Харків-Пас.",
+        "Люботин",
+        "Полтава-Киівська",
+        "Миргород",
+        "Ромодан",
+        "Лубни",
+        "Київ-Пас.",
+        "Козятин-1",
+        "Вінниця",
+        "Хмельницький",
+        "Тернопіль-Пас.",
+        "Злочів",
+        "Красне",
+        "Львів"
+      ],
+      "routeTemplateSource": "https://poizdato.net/rozklad-poizda/21--kharkiv-pas--lviv/"
+    },
+    {
+      "trainNumber": "93/94",
+      "route": "Хелм → Харків-Пас.",
+      "origin": "Хелм",
+      "destination": "Харків-Пас.",
+      "delayMinutes": 399,
+      "delayLabel": "+6:39",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "19:07",
+      "forecastArrival": "Висока",
+      "reliability": "—",
+      "reason": null,
+      "updatedAt": "2026-09-01T13:21:39.443Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -1274,15 +1291,15 @@
       "stationWindowOffsetMinutes": -390
     },
     {
-      "trainNumber": "17/18",
-      "route": "Ужгород → Харків-Пас.",
-      "origin": "Ужгород",
-      "destination": "Харків-Пас.",
-      "delayMinutes": 147,
-      "delayLabel": "+2:27",
+      "trainNumber": "17",
+      "route": "Харків-Пас. → Ужгород",
+      "origin": "Харків-Пас.",
+      "destination": "Ужгород",
+      "delayMinutes": 90,
+      "delayLabel": "+1:30",
       "publicStatus": "В дорозі",
       "operationalStatus": "moving",
-      "forecastDeparture": "02:22",
+      "forecastDeparture": "11:00",
       "forecastArrival": null,
       "reliability": "Середня",
       "reason": null,
@@ -5360,10 +5377,9 @@
       "scheduledDeparture": null,
       "scheduledArrival": null,
       "sourceIds": [
-        "anytrain-uz-delay",
-        "uz-delay-dashboard"
+        "anytrain-uz-delay"
       ],
-      "discoveryCount": 2,
+      "discoveryCount": 1,
       "metadata": {
         "stations": [
           "Харків-Пас.",
@@ -5427,9 +5443,10 @@
       "scheduledDeparture": null,
       "scheduledArrival": null,
       "sourceIds": [
-        "anytrain-uz-delay"
+        "anytrain-uz-delay",
+        "uz-delay-dashboard"
       ],
-      "discoveryCount": 1,
+      "discoveryCount": 2,
       "metadata": {
         "stations": [
           "Ужгород",
@@ -7793,7 +7810,23 @@
           "Миколаїв Пас.",
           "Київ-Пас."
         ],
-        "orderedStations": [],
+        "orderedStations": [
+          "Миколаїв-Пас.",
+          "Явкине",
+          "Новополтавка",
+          "Новий Буг",
+          "Казанка",
+          "Долинська",
+          "Куцівка",
+          "Знам'янка-Пас.",
+          "Фундукліївка",
+          "Кам'янка",
+          "Ім. Тараса Шевченка",
+          "Цвіткове",
+          "Городище",
+          "Корсунь",
+          "Київ-Пас."
+        ],
         "stationCalls": [],
         "boardObservationCount": 0
       }
@@ -11144,7 +11177,7 @@
     "pkp-plk-realtime": {
       "status": {
         "status": "unavailable",
-        "checkedAt": "2026-09-01T13:06:47.998Z",
+        "checkedAt": "2026-09-01T13:21:39.993Z",
         "error": "HTTP 401",
         "label": "pkp-plk-realtime: unavailable"
       },
@@ -11154,7 +11187,7 @@
     "zsr-realtime": {
       "status": {
         "status": "requires_configuration",
-        "checkedAt": "2026-09-01T13:06:47.998Z",
+        "checkedAt": "2026-09-01T13:21:39.993Z",
         "error": null,
         "label": "zsr-realtime: requires_configuration"
       },
@@ -11164,7 +11197,7 @@
     "mav-emma": {
       "status": {
         "status": "requires_configuration",
-        "checkedAt": "2026-09-01T13:06:47.998Z",
+        "checkedAt": "2026-09-01T13:21:39.993Z",
         "error": null,
         "label": "mav-emma: requires_configuration"
       },
@@ -11174,7 +11207,7 @@
     "rne-tis": {
       "status": {
         "status": "requires_configuration",
-        "checkedAt": "2026-09-01T13:06:47.998Z",
+        "checkedAt": "2026-09-01T13:21:39.993Z",
         "error": null,
         "label": "rne-tis: requires_configuration"
       },
@@ -11184,7 +11217,7 @@
     "contract-rail-feed": {
       "status": {
         "status": "requires_configuration",
-        "checkedAt": "2026-09-01T13:06:47.998Z",
+        "checkedAt": "2026-09-01T13:21:39.993Z",
         "error": null,
         "label": "contract-rail-feed: requires_configuration"
       },
@@ -11195,33 +11228,21 @@
   "collectorDiagnostics": {
     "board": {
       "status": "stale",
-      "checkedAt": "2026-09-01T13:06:49.055Z",
+      "checkedAt": "2026-09-01T13:21:41.077Z",
       "scheduler": {
         "strategy": "information-gain-v3",
         "requestBudget": 1,
         "attempted": 1,
-        "offset": 9,
-        "nextOffset": 10,
-        "selectedStation": "Харків-Пасажирський",
-        "selectedStationId": "2204001",
+        "offset": 10,
+        "nextOffset": 11,
+        "selectedStation": "Ковель",
+        "selectedStationId": "2218020",
         "selectedReason": [
-          "2 ожидаемых рейсов",
-          "ключевой узел",
+          "4 ожидаемых рейсов",
           "нет свежего снимка"
         ],
-        "selectedScore": 38,
+        "selectedScore": 35,
         "rankedStations": [
-          {
-            "id": "2204001",
-            "name": "Харків-Пасажирський",
-            "score": 38,
-            "expectedTrains": 2,
-            "reasons": [
-              "2 ожидаемых рейсов",
-              "ключевой узел",
-              "нет свежего снимка"
-            ]
-          },
           {
             "id": "2218020",
             "name": "Ковель",
@@ -11262,6 +11283,17 @@
               "ключевой узел",
               "нет свежего снимка"
             ]
+          },
+          {
+            "id": "2200150",
+            "name": "Фастів 1",
+            "score": 30,
+            "expectedTrains": 1,
+            "reasons": [
+              "1 ожидаемых рейсов",
+              "ключевой узел",
+              "нет свежего снимка"
+            ]
           }
         ]
       },
@@ -11279,16 +11311,16 @@
       }
     },
     "anyTrain": {
-      "status": "online",
-      "sourceUpdatedAt": "2026-09-01T12:59:00.000Z",
+      "status": "stale",
+      "sourceUpdatedAt": null,
       "scheduler": {
         "strategy": "rotating-station-budget-v1",
         "selectedStations": [
-          "Харків-Пас.",
-          "Одеса-Головна"
+          "Дніпро-Головний",
+          "Запоріжжя-1"
         ],
         "requestBudget": 3,
-        "nextOffset": 4
+        "nextOffset": 0
       }
     },
     "failover": {
@@ -11298,31 +11330,31 @@
           "sourceId": "koleo-station-catalog",
           "score": 0.78,
           "state": "healthy",
-          "ageMinutes": 0.3
+          "ageMinutes": 0.6
+        },
+        {
+          "sourceId": "anytrain-uz-public",
+          "score": 0.7754,
+          "state": "degraded",
+          "ageMinutes": 0.6
         },
         {
           "sourceId": "poizdato-station-reference",
           "score": 0.774,
           "state": "healthy",
-          "ageMinutes": 0.3
+          "ageMinutes": 0.6
         },
         {
           "sourceId": "uz-suburban-telegram",
-          "score": 0.7277,
+          "score": 0.7254,
           "state": "healthy",
-          "ageMinutes": 0.3
-        },
-        {
-          "sourceId": "anytrain-uz-public",
-          "score": 0.723,
-          "state": "healthy",
-          "ageMinutes": 8
+          "ageMinutes": 0.6
         },
         {
           "sourceId": "uz-delay-dashboard",
-          "score": 0.7177,
+          "score": 0.7154,
           "state": "healthy",
-          "ageMinutes": 0.3
+          "ageMinutes": 0.6
         }
       ]
     }
