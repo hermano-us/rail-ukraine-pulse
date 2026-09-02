@@ -1,12 +1,12 @@
 {
   "schemaVersion": 7,
   "provider": "Ukrzaliznytsia public source fusion",
-  "generatedAt": "2026-09-02T00:34:14.273Z",
+  "generatedAt": "2026-09-02T00:52:08.220Z",
   "sourceStatus": {
     "sourceId": "uz-public-fusion",
     "status": "online",
     "label": "UZ fusion: 83 событий · 7/15 источников доступны",
-    "checkedAt": "2026-09-02T00:34:14.273Z",
+    "checkedAt": "2026-09-02T00:52:08.220Z",
     "capabilities": {
       "officialStatus": true,
       "forecast": true,
@@ -19,7 +19,7 @@
     {
       "sourceId": "uz-delay-dashboard",
       "status": "online",
-      "checkedAt": "2026-09-02T00:33:58.922Z",
+      "checkedAt": "2026-09-02T00:51:32.940Z",
       "label": "Задержки УЗ: 31 поездов",
       "capabilities": [
         "movement-status",
@@ -33,7 +33,7 @@
         "configured": true,
         "usable": true,
         "records": 31,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -41,7 +41,7 @@
     {
       "sourceId": "uz-public-board",
       "status": "stale",
-      "checkedAt": "2026-09-02T00:34:01.668Z",
+      "checkedAt": "2026-09-02T00:51:35.418Z",
       "lastSuccessfulAt": "2026-09-01T10:51:41.305Z",
       "label": "Табло УЗ: последний успешный снимок",
       "error": "official board API returned no records; 1/36 station failures",
@@ -66,66 +66,60 @@
         "strategy": "information-gain-v3",
         "requestBudget": 1,
         "attempted": 1,
-        "offset": 12,
-        "nextOffset": 13,
-        "selectedStation": "Чоп",
-        "selectedStationId": "2218115",
+        "offset": 13,
+        "nextOffset": 14,
+        "selectedStation": "Ковель",
+        "selectedStationId": "2218020",
         "selectedReason": [
-          "3 ожидаемых рейсов",
+          "1 ожидаемых рейсов",
           "нет свежего снимка"
         ],
-        "selectedScore": 31,
+        "selectedScore": 23,
         "rankedStations": [
           {
-            "id": "2218115",
-            "name": "Чоп",
-            "score": 31,
-            "expectedTrains": 3,
-            "reasons": [
-              "3 ожидаемых рейсов",
-              "нет свежего снимка"
-            ]
-          },
-          {
-            "id": "2200110",
-            "name": "Коростень",
-            "score": 30,
+            "id": "2218020",
+            "name": "Ковель",
+            "score": 23,
             "expectedTrains": 1,
             "reasons": [
               "1 ожидаемых рейсов",
-              "ключевой узел",
               "нет свежего снимка"
             ]
           },
           {
-            "id": "2200150",
-            "name": "Фастів 1",
-            "score": 30,
+            "id": "2218270",
+            "name": "Рахів",
+            "score": 23,
             "expectedTrains": 1,
             "reasons": [
               "1 ожидаемых рейсов",
-              "ключевой узел",
               "нет свежего снимка"
             ]
           },
           {
-            "id": "2204590",
-            "name": "Полтава-Південна",
-            "score": 29,
-            "expectedTrains": 1,
+            "id": "2200120",
+            "name": "Бердичів",
+            "score": 19,
+            "expectedTrains": 0,
             "reasons": [
-              "1 ожидаемых рейсов",
-              "ключевой узел",
               "нет свежего снимка"
             ]
           },
           {
-            "id": "2218030",
-            "name": "Коломия",
-            "score": 27,
-            "expectedTrains": 2,
+            "id": "2200180",
+            "name": "Біла Церква",
+            "score": 19,
+            "expectedTrains": 0,
             "reasons": [
-              "2 ожидаемых рейсов",
+              "нет свежего снимка"
+            ]
+          },
+          {
+            "id": "2218010",
+            "name": "Здолбунів",
+            "score": 19,
+            "expectedTrains": 0,
+            "reasons": [
               "нет свежего снимка"
             ]
           }
@@ -138,7 +132,7 @@
         "configured": true,
         "usable": true,
         "records": 12,
-        "ageMinutes": 0.2,
+        "ageMinutes": 0.5,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -146,7 +140,7 @@
     {
       "sourceId": "uz-suburban-telegram",
       "status": "online",
-      "checkedAt": "2026-09-02T00:33:58.924Z",
+      "checkedAt": "2026-09-02T00:51:32.941Z",
       "label": "УЗ Пригород: 19 событий",
       "capabilities": [
         "service-alerts",
@@ -160,7 +154,7 @@
         "configured": true,
         "usable": true,
         "records": 27,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -168,7 +162,7 @@
     {
       "sourceId": "pkp-plk-realtime",
       "status": "unavailable",
-      "checkedAt": "2026-09-02T00:34:00.544Z",
+      "checkedAt": "2026-09-02T00:51:34.524Z",
       "error": "HTTP 401",
       "label": "pkp-plk-realtime: unavailable",
       "recordsCount": 0,
@@ -178,7 +172,7 @@
         "configured": true,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.2,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
         "transportFailure": true
       }
@@ -186,7 +180,7 @@
     {
       "sourceId": "zsr-realtime",
       "status": "requires_configuration",
-      "checkedAt": "2026-09-02T00:34:00.544Z",
+      "checkedAt": "2026-09-02T00:51:34.524Z",
       "error": null,
       "label": "zsr-realtime: requires_configuration",
       "recordsCount": 0,
@@ -196,7 +190,7 @@
         "configured": false,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.2,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -204,7 +198,7 @@
     {
       "sourceId": "mav-emma",
       "status": "requires_configuration",
-      "checkedAt": "2026-09-02T00:34:00.544Z",
+      "checkedAt": "2026-09-02T00:51:34.524Z",
       "error": null,
       "label": "mav-emma: requires_configuration",
       "recordsCount": 0,
@@ -214,7 +208,7 @@
         "configured": false,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.2,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -222,7 +216,7 @@
     {
       "sourceId": "rne-tis",
       "status": "requires_configuration",
-      "checkedAt": "2026-09-02T00:34:00.544Z",
+      "checkedAt": "2026-09-02T00:51:34.524Z",
       "error": null,
       "label": "rne-tis: requires_configuration",
       "recordsCount": 0,
@@ -232,7 +226,7 @@
         "configured": false,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.2,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -240,7 +234,7 @@
     {
       "sourceId": "contract-rail-feed",
       "status": "requires_configuration",
-      "checkedAt": "2026-09-02T00:34:00.544Z",
+      "checkedAt": "2026-09-02T00:51:34.524Z",
       "error": null,
       "label": "contract-rail-feed: requires_configuration",
       "recordsCount": 0,
@@ -250,19 +244,19 @@
         "configured": false,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.2,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
     },
     {
       "sourceId": "anytrain-uz-public",
-      "status": "online",
-      "checkedAt": "2026-09-02T00:33:58.928Z",
-      "sourceUpdatedAt": "2026-09-01T23:52:00.000Z",
+      "status": "stale",
+      "checkedAt": "2026-09-02T00:51:32.944Z",
+      "sourceUpdatedAt": null,
       "lastSuccessfulAt": "2026-09-02T00:33:58.928Z",
-      "label": "AnyTrain: 31 задержек · 31 строк табло",
-      "error": null,
+      "label": "AnyTrain: 31 задержек · 0 строк табло",
+      "error": "delay-board: fetch failed; station:2210700: fetch failed; station:2210800: fetch failed",
       "capabilities": [
         "derived-uz-delay",
         "station-board",
@@ -272,28 +266,28 @@
       "scheduler": {
         "strategy": "rotating-station-budget-v1",
         "selectedStations": [
-          "Харків-Пас.",
-          "Одеса-Головна"
+          "Дніпро-Головний",
+          "Запоріжжя-1"
         ],
         "requestBudget": 3,
-        "nextOffset": 4
+        "nextOffset": 0
       },
       "recordsCount": 62,
       "reliabilityState": {
-        "operationalState": "healthy",
-        "rawStatus": "online",
+        "operationalState": "degraded",
+        "rawStatus": "stale",
         "configured": true,
         "usable": true,
         "records": 62,
-        "ageMinutes": 42.2,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
-        "transportFailure": false
+        "transportFailure": true
       }
     },
     {
       "sourceId": "swrailway-commuter-schedule",
       "status": "unavailable",
-      "checkedAt": "2026-09-02T00:33:58.931Z",
+      "checkedAt": "2026-09-02T00:51:32.945Z",
       "lastSuccessfulAt": "2026-08-01T09:48:12.216Z",
       "label": "ЮЗЖД: недоступно",
       "error": "fetch failed",
@@ -304,7 +298,7 @@
         "configured": true,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
         "transportFailure": true
       }
@@ -312,7 +306,7 @@
     {
       "sourceId": "poizdato-station-reference",
       "status": "snapshot",
-      "checkedAt": "2026-09-02T00:33:58.932Z",
+      "checkedAt": "2026-09-02T00:51:32.946Z",
       "lastSuccessfulAt": "2026-09-01T09:49:13.630Z",
       "label": "Poizdato: кэш 47 станций",
       "error": null,
@@ -338,7 +332,7 @@
         "configured": true,
         "usable": true,
         "records": 47,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 1440,
         "transportFailure": false
       }
@@ -346,9 +340,9 @@
     {
       "sourceId": "poizdato-train-routes",
       "status": "degraded",
-      "checkedAt": "2026-09-02T00:34:09.091Z",
-      "lastSuccessfulAt": "2026-09-02T00:34:09.091Z",
-      "label": "Poizdato routes: 7 шаблонов · 2 новых",
+      "checkedAt": "2026-09-02T00:52:04.079Z",
+      "lastSuccessfulAt": "2026-09-02T00:52:04.079Z",
+      "label": "Poizdato routes: 9 шаблонов · 2 новых",
       "error": "103/104: route page not found; 31/32: route page not found; 5/85: route page not found",
       "capabilities": [
         "ordered-train-stops",
@@ -357,7 +351,7 @@
       "scheduler": {
         "strategy": "moving-first-route-budget-v1",
         "requestBudget": 5,
-        "remaining": 73
+        "remaining": 71
       },
       "recordsCount": 0,
       "reliabilityState": {
@@ -374,7 +368,7 @@
     {
       "sourceId": "koleo-station-catalog",
       "status": "snapshot",
-      "checkedAt": "2026-09-02T00:33:58.932Z",
+      "checkedAt": "2026-09-02T00:51:32.947Z",
       "lastSuccessfulAt": "2026-09-01T09:49:13.631Z",
       "label": "KOLEO: кэш 11134 станций",
       "capabilities": [
@@ -390,7 +384,7 @@
         "configured": true,
         "usable": true,
         "records": 11134,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 1440,
         "transportFailure": false
       }
@@ -412,7 +406,7 @@
         "configured": true,
         "usable": true,
         "records": 0,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
         "transportFailure": false
       }
@@ -437,7 +431,7 @@
         "configured": true,
         "usable": false,
         "records": 0,
-        "ageMinutes": 0.3,
+        "ageMinutes": 0.6,
         "expectedCadenceMinutes": 15,
         "transportFailure": true
       }
@@ -445,114 +439,19 @@
   ],
   "updates": [
     {
-      "trainNumber": "53/54",
-      "route": "Дніпро-Головний → Одеса-Головна",
-      "origin": "Дніпро-Головний",
-      "destination": "Одеса-Головна",
-      "delayMinutes": 120,
-      "delayLabel": "+2:00",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": "11:16",
-      "forecastArrival": "Висока",
-      "reliability": "—",
-      "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.945Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "43/44",
-      "route": "Дніпро-Головний → Івано-Франківськ",
-      "origin": "Дніпро-Головний",
-      "destination": "Івано-Франківськ",
-      "delayMinutes": 110,
-      "delayLabel": "+1:50",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": "10:48",
-      "forecastArrival": "Висока",
-      "reliability": "—",
-      "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.945Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "61/261",
-      "route": "Дніпро-Головний → Івано-Франківськ",
-      "origin": "Дніпро-Головний",
-      "destination": "Івано-Франківськ",
-      "delayMinutes": 104,
-      "delayLabel": "+1:44",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": "09:05",
-      "forecastArrival": "Висока",
-      "reliability": "—",
-      "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.945Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "61/261",
-      "route": "Дніпро-Головний → Чернівці",
-      "origin": "Дніпро-Головний",
-      "destination": "Чернівці",
-      "delayMinutes": 104,
-      "delayLabel": "+1:44",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": "11:22",
-      "forecastArrival": "Висока",
-      "reliability": "—",
-      "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.945Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
-      "trainNumber": "127/128",
-      "route": "Дніпро-Головний → Львів",
-      "origin": "Дніпро-Головний",
-      "destination": "Львів",
-      "delayMinutes": 97,
-      "delayLabel": "+1:37",
-      "publicStatus": "В дорозі",
-      "operationalStatus": "moving",
-      "forecastDeparture": "14:06",
-      "forecastArrival": "Висока",
-      "reliability": "—",
-      "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.945Z",
-      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
-      "sourceId": "uz-delay-dashboard",
-      "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
-    },
-    {
       "trainNumber": "17/18",
       "route": "Харків-Пас. → Ужгород",
       "origin": "Харків-Пас.",
       "destination": "Ужгород",
-      "delayMinutes": 80,
-      "delayLabel": "+1:20",
+      "delayMinutes": 76,
+      "delayLabel": "+1:16",
       "publicStatus": "В дорозі",
       "operationalStatus": "moving",
-      "forecastDeparture": "10:50",
+      "forecastDeparture": "10:46",
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.945Z",
+      "updatedAt": "2026-09-02T00:51:33.725Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -571,7 +470,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.945Z",
+      "updatedAt": "2026-09-02T00:51:33.725Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -590,7 +489,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.945Z",
+      "updatedAt": "2026-09-02T00:51:33.725Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -609,7 +508,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.945Z",
+      "updatedAt": "2026-09-02T00:51:33.725Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -628,7 +527,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.945Z",
+      "updatedAt": "2026-09-02T00:51:33.725Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -647,7 +546,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.945Z",
+      "updatedAt": "2026-09-02T00:51:33.725Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -666,7 +565,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.945Z",
+      "updatedAt": "2026-09-02T00:51:33.725Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -685,7 +584,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.945Z",
+      "updatedAt": "2026-09-02T00:51:33.725Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -704,7 +603,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.945Z",
+      "updatedAt": "2026-09-02T00:51:33.725Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -723,7 +622,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.945Z",
+      "updatedAt": "2026-09-02T00:51:33.725Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -742,7 +641,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.945Z",
+      "updatedAt": "2026-09-02T00:51:33.725Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -761,7 +660,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.945Z",
+      "updatedAt": "2026-09-02T00:51:33.725Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -780,7 +679,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.945Z",
+      "updatedAt": "2026-09-02T00:51:33.725Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -799,7 +698,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.944Z",
+      "updatedAt": "2026-09-02T00:51:33.724Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -818,7 +717,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.944Z",
+      "updatedAt": "2026-09-02T00:51:33.724Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -851,7 +750,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.944Z",
+      "updatedAt": "2026-09-02T00:51:33.724Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -870,7 +769,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.944Z",
+      "updatedAt": "2026-09-02T00:51:33.724Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -906,7 +805,7 @@
       "forecastArrival": "Середня",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.944Z",
+      "updatedAt": "2026-09-02T00:51:33.724Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -942,7 +841,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.944Z",
+      "updatedAt": "2026-09-02T00:51:33.724Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -961,11 +860,22 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.944Z",
+      "updatedAt": "2026-09-02T00:51:33.724Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
+      "positionEvidence": "none",
+      "orderedStations": [
+        "Дніпро-Головний",
+        "Кам'янське-Пасажирське",
+        "Олександрія",
+        "Знам'янка-Пас.",
+        "Ім. Тараса Шевченка",
+        "Біла Церква",
+        "Бердичів",
+        "Львів"
+      ],
+      "routeTemplateSource": "https://poizdato.net/rozklad-poizda/85--dnipro-holovnyi--lviv/"
     },
     {
       "trainNumber": "37/38",
@@ -980,7 +890,7 @@
       "forecastArrival": "Середня",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.944Z",
+      "updatedAt": "2026-09-02T00:51:33.724Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -999,11 +909,32 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.944Z",
+      "updatedAt": "2026-09-02T00:51:33.724Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
-      "positionEvidence": "none"
+      "positionEvidence": "none",
+      "orderedStations": [
+        "Дніпро-Головний",
+        "Кам'янське-Пасажирське",
+        "Верхівцеве",
+        "П'ятихатки-Пас.",
+        "Олександрія",
+        "Знам'янка-Пас.",
+        "Ім. Тараса Шевченка",
+        "Миронівка",
+        "Біла Церква",
+        "Козятин-1",
+        "Калинівка-1",
+        "Вінниця",
+        "Браїлів",
+        "Хмельницький",
+        "Тернопіль-Пас.",
+        "Злочів",
+        "Красне",
+        "Львів"
+      ],
+      "routeTemplateSource": "https://poizdato.net/rozklad-poizda/285--dnipro-holovnyi--lviv/"
     },
     {
       "trainNumber": "41/42",
@@ -1018,7 +949,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.944Z",
+      "updatedAt": "2026-09-02T00:51:33.724Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -1037,7 +968,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.944Z",
+      "updatedAt": "2026-09-02T00:51:33.724Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -1056,7 +987,7 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.944Z",
+      "updatedAt": "2026-09-02T00:51:33.724Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -1118,7 +1049,102 @@
       "forecastArrival": "Висока",
       "reliability": "—",
       "reason": null,
-      "updatedAt": "2026-09-02T00:33:59.944Z",
+      "updatedAt": "2026-09-02T00:51:33.724Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "53/54",
+      "route": "Дніпро-Головний → Одеса-Головна",
+      "origin": "Дніпро-Головний",
+      "destination": "Одеса-Головна",
+      "delayMinutes": 120,
+      "delayLabel": "+2:00",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "11:16",
+      "forecastArrival": "Висока",
+      "reliability": "—",
+      "reason": null,
+      "updatedAt": "2026-09-02T00:51:33.724Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "43/44",
+      "route": "Дніпро-Головний → Івано-Франківськ",
+      "origin": "Дніпро-Головний",
+      "destination": "Івано-Франківськ",
+      "delayMinutes": 110,
+      "delayLabel": "+1:50",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "10:48",
+      "forecastArrival": "Висока",
+      "reliability": "—",
+      "reason": null,
+      "updatedAt": "2026-09-02T00:51:33.724Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "61/261",
+      "route": "Дніпро-Головний → Івано-Франківськ",
+      "origin": "Дніпро-Головний",
+      "destination": "Івано-Франківськ",
+      "delayMinutes": 104,
+      "delayLabel": "+1:44",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "09:05",
+      "forecastArrival": "Висока",
+      "reliability": "—",
+      "reason": null,
+      "updatedAt": "2026-09-02T00:51:33.724Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "61/261",
+      "route": "Дніпро-Головний → Чернівці",
+      "origin": "Дніпро-Головний",
+      "destination": "Чернівці",
+      "delayMinutes": 104,
+      "delayLabel": "+1:44",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "11:22",
+      "forecastArrival": "Висока",
+      "reliability": "—",
+      "reason": null,
+      "updatedAt": "2026-09-02T00:51:33.724Z",
+      "source": "https://uz-vezemo.uz.gov.ua/delayform/",
+      "sourceId": "uz-delay-dashboard",
+      "sourceEvidence": "official-public-dashboard",
+      "positionEvidence": "none"
+    },
+    {
+      "trainNumber": "127/128",
+      "route": "Дніпро-Головний → Львів",
+      "origin": "Дніпро-Головний",
+      "destination": "Львів",
+      "delayMinutes": 97,
+      "delayLabel": "+1:37",
+      "publicStatus": "В дорозі",
+      "operationalStatus": "moving",
+      "forecastDeparture": "14:06",
+      "forecastArrival": "Висока",
+      "reliability": "—",
+      "reason": null,
+      "updatedAt": "2026-09-02T00:51:33.724Z",
       "source": "https://uz-vezemo.uz.gov.ua/delayform/",
       "sourceId": "uz-delay-dashboard",
       "sourceEvidence": "official-public-dashboard",
@@ -3909,7 +3935,16 @@
           "Дніпро-Головний",
           "Львів"
         ],
-        "orderedStations": [],
+        "orderedStations": [
+          "Дніпро-Головний",
+          "Кам'янське-Пасажирське",
+          "Олександрія",
+          "Знам'янка-Пас.",
+          "Ім. Тараса Шевченка",
+          "Біла Церква",
+          "Бердичів",
+          "Львів"
+        ],
         "stationCalls": [],
         "boardObservationCount": 0
       }
@@ -3933,7 +3968,16 @@
           "Дніпро-Головний",
           "Львів"
         ],
-        "orderedStations": [],
+        "orderedStations": [
+          "Дніпро-Головний",
+          "Кам'янське-Пасажирське",
+          "Олександрія",
+          "Знам'янка-Пас.",
+          "Ім. Тараса Шевченка",
+          "Біла Церква",
+          "Бердичів",
+          "Львів"
+        ],
         "stationCalls": [],
         "boardObservationCount": 0
       }
@@ -4579,7 +4623,26 @@
           "Дніпро-Головний",
           "Львів"
         ],
-        "orderedStations": [],
+        "orderedStations": [
+          "Дніпро-Головний",
+          "Кам'янське-Пасажирське",
+          "Верхівцеве",
+          "П'ятихатки-Пас.",
+          "Олександрія",
+          "Знам'янка-Пас.",
+          "Ім. Тараса Шевченка",
+          "Миронівка",
+          "Біла Церква",
+          "Козятин-1",
+          "Калинівка-1",
+          "Вінниця",
+          "Браїлів",
+          "Хмельницький",
+          "Тернопіль-Пас.",
+          "Злочів",
+          "Красне",
+          "Львів"
+        ],
         "stationCalls": [],
         "boardObservationCount": 0
       }
@@ -4603,7 +4666,26 @@
           "Дніпро-Головний",
           "Львів"
         ],
-        "orderedStations": [],
+        "orderedStations": [
+          "Дніпро-Головний",
+          "Кам'янське-Пасажирське",
+          "Верхівцеве",
+          "П'ятихатки-Пас.",
+          "Олександрія",
+          "Знам'янка-Пас.",
+          "Ім. Тараса Шевченка",
+          "Миронівка",
+          "Біла Церква",
+          "Козятин-1",
+          "Калинівка-1",
+          "Вінниця",
+          "Браїлів",
+          "Хмельницький",
+          "Тернопіль-Пас.",
+          "Злочів",
+          "Красне",
+          "Львів"
+        ],
         "stationCalls": [],
         "boardObservationCount": 0
       }
@@ -5885,7 +5967,7 @@
     "pkp-plk-realtime": {
       "status": {
         "status": "unavailable",
-        "checkedAt": "2026-09-02T00:34:00.544Z",
+        "checkedAt": "2026-09-02T00:51:34.524Z",
         "error": "HTTP 401",
         "label": "pkp-plk-realtime: unavailable"
       },
@@ -5895,7 +5977,7 @@
     "zsr-realtime": {
       "status": {
         "status": "requires_configuration",
-        "checkedAt": "2026-09-02T00:34:00.544Z",
+        "checkedAt": "2026-09-02T00:51:34.524Z",
         "error": null,
         "label": "zsr-realtime: requires_configuration"
       },
@@ -5905,7 +5987,7 @@
     "mav-emma": {
       "status": {
         "status": "requires_configuration",
-        "checkedAt": "2026-09-02T00:34:00.544Z",
+        "checkedAt": "2026-09-02T00:51:34.524Z",
         "error": null,
         "label": "mav-emma: requires_configuration"
       },
@@ -5915,7 +5997,7 @@
     "rne-tis": {
       "status": {
         "status": "requires_configuration",
-        "checkedAt": "2026-09-02T00:34:00.544Z",
+        "checkedAt": "2026-09-02T00:51:34.524Z",
         "error": null,
         "label": "rne-tis: requires_configuration"
       },
@@ -5925,7 +6007,7 @@
     "contract-rail-feed": {
       "status": {
         "status": "requires_configuration",
-        "checkedAt": "2026-09-02T00:34:00.544Z",
+        "checkedAt": "2026-09-02T00:51:34.524Z",
         "error": null,
         "label": "contract-rail-feed: requires_configuration"
       },
@@ -5936,71 +6018,65 @@
   "collectorDiagnostics": {
     "board": {
       "status": "stale",
-      "checkedAt": "2026-09-02T00:34:01.668Z",
+      "checkedAt": "2026-09-02T00:51:35.418Z",
       "scheduler": {
         "strategy": "information-gain-v3",
         "requestBudget": 1,
         "attempted": 1,
-        "offset": 12,
-        "nextOffset": 13,
-        "selectedStation": "Чоп",
-        "selectedStationId": "2218115",
+        "offset": 13,
+        "nextOffset": 14,
+        "selectedStation": "Ковель",
+        "selectedStationId": "2218020",
         "selectedReason": [
-          "3 ожидаемых рейсов",
+          "1 ожидаемых рейсов",
           "нет свежего снимка"
         ],
-        "selectedScore": 31,
+        "selectedScore": 23,
         "rankedStations": [
           {
-            "id": "2218115",
-            "name": "Чоп",
-            "score": 31,
-            "expectedTrains": 3,
-            "reasons": [
-              "3 ожидаемых рейсов",
-              "нет свежего снимка"
-            ]
-          },
-          {
-            "id": "2200110",
-            "name": "Коростень",
-            "score": 30,
+            "id": "2218020",
+            "name": "Ковель",
+            "score": 23,
             "expectedTrains": 1,
             "reasons": [
               "1 ожидаемых рейсов",
-              "ключевой узел",
               "нет свежего снимка"
             ]
           },
           {
-            "id": "2200150",
-            "name": "Фастів 1",
-            "score": 30,
+            "id": "2218270",
+            "name": "Рахів",
+            "score": 23,
             "expectedTrains": 1,
             "reasons": [
               "1 ожидаемых рейсов",
-              "ключевой узел",
               "нет свежего снимка"
             ]
           },
           {
-            "id": "2204590",
-            "name": "Полтава-Південна",
-            "score": 29,
-            "expectedTrains": 1,
+            "id": "2200120",
+            "name": "Бердичів",
+            "score": 19,
+            "expectedTrains": 0,
             "reasons": [
-              "1 ожидаемых рейсов",
-              "ключевой узел",
               "нет свежего снимка"
             ]
           },
           {
-            "id": "2218030",
-            "name": "Коломия",
-            "score": 27,
-            "expectedTrains": 2,
+            "id": "2200180",
+            "name": "Біла Церква",
+            "score": 19,
+            "expectedTrains": 0,
             "reasons": [
-              "2 ожидаемых рейсов",
+              "нет свежего снимка"
+            ]
+          },
+          {
+            "id": "2218010",
+            "name": "Здолбунів",
+            "score": 19,
+            "expectedTrains": 0,
+            "reasons": [
               "нет свежего снимка"
             ]
           }
@@ -6020,16 +6096,16 @@
       }
     },
     "anyTrain": {
-      "status": "online",
-      "sourceUpdatedAt": "2026-09-01T23:52:00.000Z",
+      "status": "stale",
+      "sourceUpdatedAt": null,
       "scheduler": {
         "strategy": "rotating-station-budget-v1",
         "selectedStations": [
-          "Харків-Пас.",
-          "Одеса-Головна"
+          "Дніпро-Головний",
+          "Запоріжжя-1"
         ],
         "requestBudget": 3,
-        "nextOffset": 4
+        "nextOffset": 0
       }
     },
     "failover": {
@@ -6039,31 +6115,31 @@
           "sourceId": "koleo-station-catalog",
           "score": 0.78,
           "state": "healthy",
-          "ageMinutes": 0.3
+          "ageMinutes": 0.6
+        },
+        {
+          "sourceId": "anytrain-uz-public",
+          "score": 0.7754,
+          "state": "degraded",
+          "ageMinutes": 0.6
         },
         {
           "sourceId": "poizdato-station-reference",
           "score": 0.774,
           "state": "healthy",
-          "ageMinutes": 0.3
+          "ageMinutes": 0.6
         },
         {
           "sourceId": "uz-delay-dashboard",
-          "score": 0.7397,
+          "score": 0.7374,
           "state": "healthy",
-          "ageMinutes": 0.3
+          "ageMinutes": 0.6
         },
         {
           "sourceId": "uz-suburban-telegram",
-          "score": 0.7317,
+          "score": 0.7294,
           "state": "healthy",
-          "ageMinutes": 0.3
-        },
-        {
-          "sourceId": "uz-public-board",
-          "score": 0.7024,
-          "state": "stale",
-          "ageMinutes": 0.2
+          "ageMinutes": 0.6
         }
       ]
     }
